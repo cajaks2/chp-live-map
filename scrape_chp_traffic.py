@@ -7,16 +7,20 @@ import os
 import re
 import sqlite3
 import time
+import urllib.robotparser
 from html.parser import HTMLParser
 from http.cookiejar import CookieJar
 from pathlib import Path
 from urllib.parse import urlencode
+from urllib.error import HTTPError, URLError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 from ecs_logging import log_event, run_main
 
 
 CHP_TRAFFIC_URL = "https://cad.chp.ca.gov/Traffic.aspx"
+CHP_ROBOTS_URL = "https://cad.chp.ca.gov/robots.txt"
+DEFAULT_USER_AGENT = "chp-live-map/0.1 (+https://chp.flowy.us/; contact: cajaks2@users.noreply.github.com)"
 DEFAULT_CENTERS = ["LACC"]
 DEFAULT_ROAD_KEYWORDS = [
     "angeles crest",
@@ -90,27 +94,53 @@ def parse_page(text):
     return parser
 
 
-def post_form(opener, url, data, timeout):
+def request_text(opener, req, timeout, retries, backoff):
+    for attempt in range(retries + 1):
+        try:
+            return opener.open(req, timeout=timeout).read().decode("utf-8", errors="replace")
+        except HTTPError as exc:
+            retryable = exc.code in {429, 500, 502, 503, 504}
+            if not retryable or attempt >= retries:
+                raise
+            retry_after = exc.headers.get("Retry-After")
+            delay = float(retry_after) if retry_after and retry_after.isdigit() else backoff * (2 ** attempt)
+            time.sleep(delay)
+        except URLError:
+            if attempt >= retries:
+                raise
+            time.sleep(backoff * (2 ** attempt))
+
+
+def post_form(opener, url, data, timeout, user_agent, retries, backoff):
     req = Request(
         url,
         urlencode(data).encode("utf-8"),
         headers={
             "Content-Type": "application/x-www-form-urlencoded",
-            "User-Agent": "Mozilla/5.0",
+            "User-Agent": user_agent,
             "Referer": url,
         },
     )
-    return opener.open(req, timeout=timeout).read().decode("utf-8", errors="replace")
+    return request_text(opener, req, timeout, retries, backoff)
 
 
-def get_page(opener, url, timeout):
-    req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    return opener.open(req, timeout=timeout).read().decode("utf-8", errors="replace")
+def get_page(opener, url, timeout, user_agent, retries, backoff):
+    req = Request(url, headers={"User-Agent": user_agent})
+    return request_text(opener, req, timeout, retries, backoff)
 
 
-def select_center(center, timeout):
+def robots_allows(user_agent, timeout):
+    parser = urllib.robotparser.RobotFileParser(CHP_ROBOTS_URL)
+    try:
+        parser.read()
+    except (OSError, HTTPError, URLError):
+        return True
+    return parser.can_fetch(user_agent, CHP_TRAFFIC_URL)
+
+
+def select_center(center, timeout, user_agent, retries, backoff):
     opener = build_opener(HTTPCookieProcessor(CookieJar()))
-    initial = parse_page(get_page(opener, CHP_TRAFFIC_URL, timeout))
+    initial = parse_page(get_page(opener, CHP_TRAFFIC_URL, timeout, user_agent, retries, backoff))
     data = {
         **initial.hidden,
         "ddlComCenter": center,
@@ -118,7 +148,7 @@ def select_center(center, timeout):
         "ddlResources": "Choose One",
         "btnCCGo": "OK",
     }
-    page_text = post_form(opener, CHP_TRAFFIC_URL, data, timeout)
+    page_text = post_form(opener, CHP_TRAFFIC_URL, data, timeout, user_agent, retries, backoff)
     return opener, parse_page(page_text)
 
 
@@ -162,7 +192,7 @@ def matching_keywords(incident, keywords):
     return [keyword for keyword in keywords if keyword.casefold() in haystack]
 
 
-def fetch_details(opener, center, list_parser, select_index, timeout):
+def fetch_details(opener, center, list_parser, select_index, timeout, user_agent, retries, backoff):
     data = {
         **list_parser.hidden,
         "__EVENTTARGET": "gvIncidents",
@@ -171,7 +201,7 @@ def fetch_details(opener, center, list_parser, select_index, timeout):
         "ddlSearches": "Choose One",
         "ddlResources": "Choose One",
     }
-    detail_text = post_form(opener, CHP_TRAFFIC_URL, data, timeout)
+    detail_text = post_form(opener, CHP_TRAFFIC_URL, data, timeout, user_agent, retries, backoff)
     parser = parse_page(detail_text)
     spans = parser.spans
     lat, lon = parse_lat_lon(spans.get("lblLatLon", ""))
@@ -459,6 +489,62 @@ def row_for_event(conn, event_key_value):
     ).fetchone()
 
 
+def list_fields_match(event, incident):
+    return all(
+        (event[field] or "") == (incident.get(field) or "")
+        for field in ("incident_time", "type", "location", "location_desc", "area")
+    )
+
+
+def observed_at_age_minutes(event, now):
+    latest = event["latest_observed_at"] if event else None
+    if not latest:
+        return None
+    try:
+        latest_at = dt.datetime.fromisoformat(latest)
+    except ValueError:
+        return None
+    if latest_at.tzinfo is None:
+        latest_at = latest_at.replace(tzinfo=now.tzinfo)
+    return (now - latest_at).total_seconds() / 60
+
+
+def should_fetch_details(previous, incident, now, refresh_minutes):
+    if not previous or previous["status"] != "active":
+        return True
+    if not previous["details_hash"] or not list_fields_match(previous, incident):
+        return True
+    age_minutes = observed_at_age_minutes(previous, now)
+    return age_minutes is None or age_minutes >= refresh_minutes
+
+
+def touch_active_event(conn, event, observed_at):
+    if is_postgres(conn):
+        conn.execute(
+            """
+            UPDATE events
+            SET last_seen = %s,
+                cleared_at = NULL,
+                status = 'active',
+                latest_observed_at = %s
+            WHERE event_key = %s
+            """,
+            (observed_at, observed_at, event["event_key"]),
+        )
+    else:
+        conn.execute(
+            """
+            UPDATE events
+            SET last_seen = ?,
+                cleared_at = NULL,
+                status = 'active',
+                latest_observed_at = ?
+            WHERE event_key = ?
+            """,
+            (observed_at, observed_at, event["event_key"]),
+        )
+
+
 def upsert_active_event(conn, row):
     previous = row_for_event(conn, row["event_key"])
     first_seen = previous["first_seen"] if previous else row["observed_at"]
@@ -629,11 +715,18 @@ def scrape_once(args):
     seen_keys = set()
     seen_with_coords = set()
     total_seen = 0
+    details_requested = 0
+    details_skipped = 0
     observations_inserted = 0
+
+    if args.respect_robots and not robots_allows(args.user_agent, args.timeout):
+        raise RuntimeError(f"robots.txt disallows scraping {CHP_TRAFFIC_URL} for {args.user_agent}")
 
     with connect_database(args.database, args.database_url) as conn:
         for center in args.center:
-            opener, list_parser = select_center(center, args.timeout)
+            opener, list_parser = select_center(
+                center, args.timeout, args.user_agent, args.retries, args.retry_backoff
+            )
             updated_at, updated_as_of = parse_updated_at(
                 list_parser.spans.get("lblUpdated", ""), now
             )
@@ -643,9 +736,29 @@ def scrape_once(args):
                 matches = matching_keywords(incident, args.road)
                 if not args.all_roads and not matches:
                     continue
-                time.sleep(args.detail_delay)
+                incident_date = incident_date_for_time(updated_at, incident["incident_time"])
+                current_event_key = event_key(center, incident_date, incident["incident_no"])
+                previous = row_for_event(conn, current_event_key)
+                if not should_fetch_details(previous, incident, now, args.detail_refresh_minutes):
+                    details_skipped += 1
+                    seen_keys.add(current_event_key)
+                    if previous["latitude"] is not None and previous["longitude"] is not None:
+                        seen_with_coords.add(current_event_key)
+                    touch_active_event(conn, previous, observed_at)
+                    continue
+
+                if details_requested:
+                    time.sleep(args.detail_delay)
+                details_requested += 1
                 details = fetch_details(
-                    opener, center, list_parser, incident["select_index"], args.timeout
+                    opener,
+                    center,
+                    list_parser,
+                    incident["select_index"],
+                    args.timeout,
+                    args.user_agent,
+                    args.retries,
+                    args.retry_backoff,
                 )
                 merged = {
                     **incident,
@@ -655,13 +768,12 @@ def scrape_once(args):
                         if v not in ("", None) or k in {"latitude", "longitude", "detail_entries"}
                     },
                 }
-                incident_date = incident_date_for_time(updated_at, merged["incident_time"])
                 row = {
                     **merged,
                     "observed_at": observed_at,
                     "updated_as_of": updated_as_of,
                     "incident_date": incident_date,
-                    "event_key": event_key(center, incident_date, merged["incident_no"]),
+                    "event_key": current_event_key,
                     "matched_keywords": ";".join(matches) if matches else "*",
                     "detail_entries": merged.get("detail_entries", []),
                 }
@@ -704,7 +816,14 @@ def scrape_once(args):
         store_scrape_run(
             conn, observed_at, args.center, total_seen, len(seen_keys), observations_inserted
         )
-    return observations_inserted, total_seen, len(seen_keys), len(seen_with_coords)
+    return (
+        observations_inserted,
+        total_seen,
+        len(seen_keys),
+        len(seen_with_coords),
+        details_requested,
+        details_skipped,
+    )
 
 
 def parse_args():
@@ -719,6 +838,12 @@ def parse_args():
     parser.add_argument("--interval", type=int, default=0, help="Poll interval in seconds. Default runs once.")
     parser.add_argument("--timeout", type=int, default=30)
     parser.add_argument("--detail-delay", type=float, default=0.2)
+    parser.add_argument("--detail-refresh-minutes", type=float, default=15.0)
+    parser.add_argument("--user-agent", default=os.environ.get("CHP_USER_AGENT", DEFAULT_USER_AGENT))
+    parser.add_argument("--retries", type=int, default=int(os.environ.get("CHP_RETRIES", "2")))
+    parser.add_argument("--retry-backoff", type=float, default=float(os.environ.get("CHP_RETRY_BACKOFF", "2")))
+    parser.add_argument("--no-respect-robots", action="store_false", dest="respect_robots")
+    parser.set_defaults(respect_robots=True)
     args = parser.parse_args()
     args.center = args.center or DEFAULT_CENTERS
     args.road = args.road or DEFAULT_ROAD_KEYWORDS
@@ -728,7 +853,14 @@ def parse_args():
 def main():
     args = parse_args()
     while True:
-        changed_rows, total_seen, active_seen, active_with_coords = scrape_once(args)
+        (
+            changed_rows,
+            total_seen,
+            active_seen,
+            active_with_coords,
+            details_requested,
+            details_skipped,
+        ) = scrape_once(args)
         log_event(
             "info",
             "CHP scrape completed",
@@ -739,7 +871,10 @@ def main():
                 "chp.active_seen": active_seen,
                 "chp.active_with_coords": active_with_coords,
                 "chp.observations_inserted": changed_rows,
+                "chp.details_requested": details_requested,
+                "chp.details_skipped": details_skipped,
                 "chp.centers": args.center,
+                "http.request.header.user_agent": args.user_agent,
             },
         )
         if args.interval <= 0:

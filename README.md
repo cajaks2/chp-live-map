@@ -10,6 +10,16 @@ The CHP CAD site does not expose a documented public API for the detail logs thi
 4. Open each matching incident's Details view.
 5. Store current status and history in SQLite locally or Postgres in Kubernetes.
 
+The scraper is intentionally conservative:
+
+- It defaults to the Los Angeles communications center only.
+- It filters the incident list by forest-road keywords before opening detail pages.
+- It uses a descriptive `User-Agent` with a public project URL.
+- It checks `robots.txt` before scraping unless `--no-respect-robots` is set.
+- It retries transient HTTP failures with exponential backoff.
+- It skips detail-page refetches for unchanged active incidents for 15 minutes by default.
+- It records both total CHP incidents seen and filtered incidents acquired in `scrape_runs`.
+
 ## Requirements
 
 - Python 3.10+
@@ -30,6 +40,16 @@ Poll every minute:
 
 ```sh
 python3 scrape_chp_traffic.py --interval 60
+```
+
+Tune politeness controls:
+
+```sh
+python3 scrape_chp_traffic.py \
+  --detail-delay 0.5 \
+  --detail-refresh-minutes 15 \
+  --retries 2 \
+  --retry-backoff 2
 ```
 
 Add or replace road keywords:

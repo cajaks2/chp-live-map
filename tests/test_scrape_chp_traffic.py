@@ -14,7 +14,9 @@ from scrape_chp_traffic import (
     parse_lat_lon,
     parse_lat_lon_from_detail_html,
     parse_page,
+    should_fetch_details,
     store_scrape_run,
+    touch_active_event,
     upsert_active_event,
 )
 
@@ -123,6 +125,95 @@ def test_sqlite_event_lifecycle_records_active_and_cleared_observations(tmp_path
     assert event["cleared_at"] == "2026-05-31T08:05:00-07:00"
     assert [observation["status"] for observation in observations] == ["active", "cleared"]
     assert json.loads(observations[0]["details_json"]) == row["detail_entries"]
+    conn.close()
+
+
+def test_unchanged_active_event_can_skip_detail_refetch_and_still_touch_last_seen(tmp_path):
+    conn = connect_database(tmp_path / "chp.sqlite")
+    observed_at = "2026-05-31T08:00:00-07:00"
+    row = {
+        "event_key": event_key("LACC", "2026-05-31", "0805"),
+        "center": "LACC",
+        "incident_date": "2026-05-31",
+        "incident_no": "0805",
+        "observed_at": observed_at,
+        "updated_as_of": "5/31/2026 8:00 AM",
+        "incident_time": "7:36 AM",
+        "type": "Traffic Hazard",
+        "location": "Angeles Crest Hwy / Mt Wilson Red Box Rd",
+        "location_desc": "",
+        "area": "Altadena",
+        "latitude": 34.30123,
+        "longitude": -118.11789,
+        "matched_keywords": "angeles crest",
+        "details_hash": "abc123",
+        "detail_entries": [{"time": "7:38 AM", "entry_no": "0001", "text": "Incident opened"}],
+    }
+    upsert_active_event(conn, row)
+    conn.commit()
+
+    previous = conn.execute("SELECT * FROM events WHERE event_key = ?", (row["event_key"],)).fetchone()
+    incident = {
+        "incident_time": "7:36 AM",
+        "type": "Traffic Hazard",
+        "location": "Angeles Crest Hwy / Mt Wilson Red Box Rd",
+        "location_desc": "",
+        "area": "Altadena",
+    }
+
+    assert not should_fetch_details(
+        previous,
+        incident,
+        dt.datetime.fromisoformat("2026-05-31T08:05:00-07:00"),
+        refresh_minutes=15,
+    )
+    touch_active_event(conn, previous, "2026-05-31T08:05:00-07:00")
+    conn.commit()
+
+    touched = conn.execute("SELECT * FROM events WHERE event_key = ?", (row["event_key"],)).fetchone()
+    observations = conn.execute("SELECT COUNT(*) AS count FROM observations").fetchone()
+    assert touched["last_seen"] == "2026-05-31T08:05:00-07:00"
+    assert touched["latest_observed_at"] == "2026-05-31T08:05:00-07:00"
+    assert observations["count"] == 0
+    conn.close()
+
+
+def test_detail_refetch_happens_for_changed_or_stale_event(tmp_path):
+    conn = connect_database(tmp_path / "chp.sqlite")
+    row = {
+        "event_key": event_key("LACC", "2026-05-31", "0805"),
+        "center": "LACC",
+        "incident_date": "2026-05-31",
+        "incident_no": "0805",
+        "observed_at": "2026-05-31T08:00:00-07:00",
+        "updated_as_of": "5/31/2026 8:00 AM",
+        "incident_time": "7:36 AM",
+        "type": "Traffic Hazard",
+        "location": "Angeles Crest Hwy",
+        "location_desc": "",
+        "area": "Altadena",
+        "latitude": None,
+        "longitude": None,
+        "matched_keywords": "angeles crest",
+        "details_hash": "abc123",
+        "detail_entries": [],
+    }
+    upsert_active_event(conn, row)
+    conn.commit()
+    previous = conn.execute("SELECT * FROM events WHERE event_key = ?", (row["event_key"],)).fetchone()
+
+    assert should_fetch_details(
+        previous,
+        {**row, "location": "Angeles Forest Hwy"},
+        dt.datetime.fromisoformat("2026-05-31T08:05:00-07:00"),
+        refresh_minutes=15,
+    )
+    assert should_fetch_details(
+        previous,
+        row,
+        dt.datetime.fromisoformat("2026-05-31T08:20:00-07:00"),
+        refresh_minutes=15,
+    )
     conn.close()
 
 

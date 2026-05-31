@@ -3,6 +3,7 @@ import datetime as dt
 import hashlib
 import html
 import json
+import os
 import re
 import sqlite3
 import time
@@ -273,15 +274,25 @@ def details_hash(row):
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def connect_database(path):
+def connect_database(path=None, database_url=None):
+    if database_url:
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+        except ImportError as exc:
+            raise RuntimeError("Postgres support requires psycopg. Install requirements.txt.") from exc
+        conn = psycopg.connect(database_url, row_factory=dict_row)
+        init_database_postgres(conn)
+        return conn
+
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    init_database(conn)
+    init_database_sqlite(conn)
     return conn
 
 
-def init_database(conn):
+def init_database_sqlite(conn):
     conn.executescript(
         """
         CREATE TABLE IF NOT EXISTS events (
@@ -351,7 +362,88 @@ def init_database(conn):
     )
 
 
+def init_database_postgres(conn):
+    statements = [
+        """
+        CREATE TABLE IF NOT EXISTS events (
+            event_key TEXT PRIMARY KEY,
+            center TEXT NOT NULL,
+            incident_date TEXT NOT NULL,
+            incident_no TEXT NOT NULL,
+            first_seen TEXT NOT NULL,
+            last_seen TEXT NOT NULL,
+            cleared_at TEXT,
+            status TEXT NOT NULL,
+            latest_observed_at TEXT NOT NULL,
+            updated_as_of TEXT,
+            incident_time TEXT,
+            type TEXT,
+            location TEXT,
+            location_desc TEXT,
+            area TEXT,
+            latitude DOUBLE PRECISION,
+            longitude DOUBLE PRECISION,
+            matched_keywords TEXT,
+            details_hash TEXT
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS observations (
+            id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            event_key TEXT NOT NULL REFERENCES events(event_key),
+            observed_at TEXT NOT NULL,
+            status TEXT NOT NULL,
+            updated_as_of TEXT,
+            incident_time TEXT,
+            type TEXT,
+            location TEXT,
+            location_desc TEXT,
+            area TEXT,
+            latitude DOUBLE PRECISION,
+            longitude DOUBLE PRECISION,
+            matched_keywords TEXT,
+            details_hash TEXT,
+            details_json TEXT NOT NULL
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS detail_entries (
+            id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            event_key TEXT NOT NULL REFERENCES events(event_key),
+            observed_at TEXT NOT NULL,
+            entry_index INTEGER NOT NULL,
+            entry_time TEXT,
+            entry_no TEXT,
+            text TEXT
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS scrape_runs (
+            id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            observed_at TEXT NOT NULL,
+            centers TEXT NOT NULL,
+            active_seen INTEGER NOT NULL,
+            observations_inserted INTEGER NOT NULL
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_events_status ON events(status)",
+        "CREATE INDEX IF NOT EXISTS idx_events_center_status ON events(center, status)",
+        "CREATE INDEX IF NOT EXISTS idx_observations_event ON observations(event_key, observed_at)",
+    ]
+    for statement in statements:
+        conn.execute(statement)
+    conn.commit()
+
+
+def is_postgres(conn):
+    return conn.__class__.__module__.startswith("psycopg")
+
+
 def row_for_event(conn, event_key_value):
+    if is_postgres(conn):
+        return conn.execute(
+            "SELECT * FROM events WHERE event_key = %s", (event_key_value,)
+        ).fetchone()
     return conn.execute(
         "SELECT * FROM events WHERE event_key = ?", (event_key_value,)
     ).fetchone()
@@ -360,6 +452,42 @@ def row_for_event(conn, event_key_value):
 def upsert_active_event(conn, row):
     previous = row_for_event(conn, row["event_key"])
     first_seen = previous["first_seen"] if previous else row["observed_at"]
+    params = {**row, "first_seen": first_seen, "last_seen": row["observed_at"]}
+    if is_postgres(conn):
+        conn.execute(
+            """
+            INSERT INTO events (
+                event_key, center, incident_date, incident_no, first_seen, last_seen,
+                cleared_at, status, latest_observed_at, updated_as_of, incident_time,
+                type, location, location_desc, area, latitude, longitude,
+                matched_keywords, details_hash
+            ) VALUES (
+                %(event_key)s, %(center)s, %(incident_date)s, %(incident_no)s,
+                %(first_seen)s, %(last_seen)s, NULL, 'active', %(observed_at)s,
+                %(updated_as_of)s, %(incident_time)s, %(type)s, %(location)s,
+                %(location_desc)s, %(area)s, %(latitude)s, %(longitude)s,
+                %(matched_keywords)s, %(details_hash)s
+            )
+            ON CONFLICT(event_key) DO UPDATE SET
+                last_seen = excluded.last_seen,
+                cleared_at = NULL,
+                status = 'active',
+                latest_observed_at = excluded.latest_observed_at,
+                updated_as_of = excluded.updated_as_of,
+                incident_time = excluded.incident_time,
+                type = excluded.type,
+                location = excluded.location,
+                location_desc = excluded.location_desc,
+                area = excluded.area,
+                latitude = excluded.latitude,
+                longitude = excluded.longitude,
+                matched_keywords = excluded.matched_keywords,
+                details_hash = excluded.details_hash
+            """,
+            params,
+        )
+        return previous
+
     conn.execute(
         """
         INSERT INTO events (
@@ -389,15 +517,32 @@ def upsert_active_event(conn, row):
             matched_keywords = excluded.matched_keywords,
             details_hash = excluded.details_hash
         """,
-        {**row, "first_seen": first_seen, "last_seen": row["observed_at"]},
+        params,
     )
     return previous
 
 
 def insert_observation(conn, row, status):
     details_json = json.dumps(row["detail_entries"], ensure_ascii=False)
-    conn.execute(
-        """
+    if is_postgres(conn):
+        conn.execute(
+            """
+            INSERT INTO observations (
+                event_key, observed_at, status, updated_as_of, incident_time, type,
+                location, location_desc, area, latitude, longitude, matched_keywords,
+                details_hash, details_json
+            ) VALUES (
+                %(event_key)s, %(observed_at)s, %(status)s, %(updated_as_of)s,
+                %(incident_time)s, %(type)s, %(location)s, %(location_desc)s, %(area)s,
+                %(latitude)s, %(longitude)s, %(matched_keywords)s, %(details_hash)s,
+                %(details_json)s
+            )
+            """,
+            {**row, "status": status, "details_json": details_json},
+        )
+    else:
+        conn.execute(
+            """
         INSERT INTO observations (
             event_key, observed_at, status, updated_as_of, incident_time, type,
             location, location_desc, area, latitude, longitude, matched_keywords,
@@ -408,29 +553,39 @@ def insert_observation(conn, row, status):
             :matched_keywords, :details_hash, :details_json
         )
         """,
-        {**row, "status": status, "details_json": details_json},
-    )
+            {**row, "status": status, "details_json": details_json},
+        )
     for entry_index, entry in enumerate(row["detail_entries"], start=1):
+        query = """
+        INSERT INTO detail_entries (
+            event_key, observed_at, entry_index, entry_time, entry_no, text
+        ) VALUES ({})
+        """.format("%s, %s, %s, %s, %s, %s" if is_postgres(conn) else "?, ?, ?, ?, ?, ?")
         conn.execute(
-            """
-            INSERT INTO detail_entries (
-                event_key, observed_at, entry_index, entry_time, entry_no, text
-            ) VALUES (?, ?, ?, ?, ?, ?)
-            """,
+            query,
             (
-                row["event_key"],
-                row["observed_at"],
-                entry_index,
-                entry.get("time"),
-                entry.get("entry_no"),
-                entry.get("text"),
+                row["event_key"], row["observed_at"], entry_index,
+                entry.get("time"), entry.get("entry_no"), entry.get("text"),
             ),
         )
 
 
 def mark_cleared(conn, event, observed_at):
-    conn.execute(
-        """
+    if is_postgres(conn):
+        conn.execute(
+            """
+            UPDATE events
+            SET status = 'cleared',
+                cleared_at = %s,
+                last_seen = %s,
+                latest_observed_at = %s
+            WHERE event_key = %s
+            """,
+            (observed_at, observed_at, observed_at, event["event_key"]),
+        )
+    else:
+        conn.execute(
+            """
         UPDATE events
         SET status = 'cleared',
             cleared_at = ?,
@@ -438,8 +593,8 @@ def mark_cleared(conn, event, observed_at):
             latest_observed_at = ?
         WHERE event_key = ?
         """,
-        (observed_at, observed_at, observed_at, event["event_key"]),
-    )
+            (observed_at, observed_at, observed_at, event["event_key"]),
+        )
     row = dict(event)
     row["observed_at"] = observed_at
     row["detail_entries"] = []
@@ -447,11 +602,12 @@ def mark_cleared(conn, event, observed_at):
 
 
 def store_scrape_run(conn, observed_at, centers, active_seen, observations_inserted):
+    placeholder = "%s, %s, %s, %s" if is_postgres(conn) else "?, ?, ?, ?"
     conn.execute(
-        """
+        f"""
         INSERT INTO scrape_runs (
             observed_at, centers, active_seen, observations_inserted
-        ) VALUES (?, ?, ?, ?)
+        ) VALUES ({placeholder})
         """,
         (observed_at, ",".join(centers), active_seen, observations_inserted),
     )
@@ -464,7 +620,7 @@ def scrape_once(args):
     seen_with_coords = set()
     observations_inserted = 0
 
-    with connect_database(args.database) as conn:
+    with connect_database(args.database, args.database_url) as conn:
         for center in args.center:
             opener, list_parser = select_center(center, args.timeout)
             updated_at, updated_as_of = parse_updated_at(
@@ -478,7 +634,14 @@ def scrape_once(args):
                 details = fetch_details(
                     opener, center, list_parser, incident["select_index"], args.timeout
                 )
-                merged = {**incident, **{k: v for k, v in details.items() if v}}
+                merged = {
+                    **incident,
+                    **{
+                        k: v
+                        for k, v in details.items()
+                        if v not in ("", None) or k in {"latitude", "longitude", "detail_entries"}
+                    },
+                }
                 incident_date = incident_date_for_time(updated_at, merged["incident_time"])
                 row = {
                     **merged,
@@ -502,14 +665,25 @@ def scrape_once(args):
                     insert_observation(conn, row, "active")
                     observations_inserted += 1
 
-        for event in conn.execute(
-            """
-            SELECT * FROM events
-            WHERE status = 'active'
-              AND center IN ({})
-            """.format(",".join("?" for _ in args.center)),
-            tuple(args.center),
-        ).fetchall():
+        if is_postgres(conn):
+            active_events = conn.execute(
+                """
+                SELECT * FROM events
+                WHERE status = 'active'
+                  AND center = ANY(%s)
+                """,
+                (args.center,),
+            ).fetchall()
+        else:
+            active_events = conn.execute(
+                """
+                SELECT * FROM events
+                WHERE status = 'active'
+                  AND center IN ({})
+                """.format(",".join("?" for _ in args.center)),
+                tuple(args.center),
+            ).fetchall()
+        for event in active_events:
             if event["event_key"] not in seen_keys:
                 mark_cleared(conn, event, observed_at)
                 observations_inserted += 1
@@ -526,6 +700,7 @@ def parse_args():
     parser.add_argument("--road", action="append", default=[], help="Road keyword to match. Repeatable.")
     parser.add_argument("--all-roads", action="store_true", help="Capture every incident in the selected centers.")
     parser.add_argument("--database", type=Path, default=Path("chp_traffic.sqlite"))
+    parser.add_argument("--database-url", default=os.environ.get("DATABASE_URL"))
     parser.add_argument("--interval", type=int, default=0, help="Poll interval in seconds. Default runs once.")
     parser.add_argument("--timeout", type=int, default=30)
     parser.add_argument("--detail-delay", type=float, default=0.2)

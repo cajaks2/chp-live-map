@@ -4,71 +4,191 @@ metadata:
   name: chp-live-map
 ---
 apiVersion: v1
+kind: Secret
+metadata:
+  name: chp-live-map-db
+  namespace: chp-live-map
+type: Opaque
+stringData:
+  POSTGRES_DB: chp_map
+  POSTGRES_USER: chp_map
+  POSTGRES_PASSWORD: change-me
+  DATABASE_URL: postgresql://chp_map:change-me@chp-live-map-postgres:5432/chp_map
+---
+apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: chp-live-map-data
+  name: chp-live-map-postgres-data
   namespace: chp-live-map
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 2Gi
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: chp-live-map-postgres
+  namespace: chp-live-map
+spec:
+  serviceName: chp-live-map-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chp-live-map-postgres
+  template:
+    metadata:
+      labels:
+        app: chp-live-map-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: chp-live-map-db
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: chp-live-map-db
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: chp-live-map-db
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - chp_map
+                - -d
+                - chp_map
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - chp_map
+                - -d
+                - chp_map
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: chp-live-map-postgres-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chp-live-map-postgres
+  namespace: chp-live-map
+spec:
+  type: ClusterIP
+  selector:
+    app: chp-live-map-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: chp-live-map-scrape
+  namespace: chp-live-map
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: chp-live-map-scrape
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: scrape
+              image: chp-live-map:latest
+              imagePullPolicy: IfNotPresent
+              command:
+                - python3
+                - /app/scrape_chp_traffic.py
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: chp-live-map-db
+                      key: DATABASE_URL
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: chp-live-map
+  name: chp-live-map-web
   namespace: chp-live-map
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: chp-live-map
+      app: chp-live-map-web
   template:
     metadata:
       labels:
-        app: chp-live-map
+        app: chp-live-map-web
     spec:
       containers:
-        - name: chp-live-map
+        - name: web
           image: chp-live-map:latest
           imagePullPolicy: IfNotPresent
+          command:
+            - python3
+            - /app/serve_live_map.py
           ports:
             - name: http
               containerPort: 8080
           env:
-            - name: DATA_DIR
-              value: /mnt/data/chp_map
-            - name: DATABASE
-              value: /mnt/data/chp_map/chp_traffic.sqlite
-            - name: OUTPUT
-              value: /mnt/data/chp_map/live_chp_map.html
-            - name: INTERVAL_SECONDS
-              value: "60"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: chp-live-map-db
+                  key: DATABASE_URL
             - name: MAP_HOURS
               value: "24"
             - name: HTTP_PORT
               value: "8080"
-          volumeMounts:
-            - name: chp-live-map-data
-              mountPath: /mnt/data/chp_map
           readinessProbe:
             httpGet:
-              path: /live_chp_map.html
+              path: /readyz
               port: http
-            initialDelaySeconds: 20
-            periodSeconds: 15
+            initialDelaySeconds: 5
+            periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /live_chp_map.html
+              path: /healthz
               port: http
-            initialDelaySeconds: 60
+            initialDelaySeconds: 30
             periodSeconds: 30
-      volumes:
-        - name: chp-live-map-data
-          persistentVolumeClaim:
-            claimName: chp-live-map-data
 ---
 apiVersion: v1
 kind: Service
@@ -78,7 +198,7 @@ metadata:
 spec:
   type: ClusterIP
   selector:
-    app: chp-live-map
+    app: chp-live-map-web
   ports:
     - name: http
       port: 80

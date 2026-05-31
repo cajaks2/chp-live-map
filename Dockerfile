@@ -2,10 +2,11 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY scrape_chp_traffic.py generate_live_map.py run_live_map.sh /app/
+COPY requirements.txt /app/
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
-RUN chmod +x /app/run_live_map.sh
+COPY scrape_chp_traffic.py generate_live_map.py serve_live_map.py /app/
 
 EXPOSE 8080
 
-CMD ["/app/run_live_map.sh"]
+CMD ["python3", "/app/serve_live_map.py"]

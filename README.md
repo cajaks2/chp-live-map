@@ -8,13 +8,13 @@ The CHP CAD site does not expose a documented public API for the detail logs thi
 2. Select one or more CHP communications centers.
 3. Filter the active incident table to road keywords.
 4. Open each matching incident's Details view.
-5. Store current status and history in SQLite.
+5. Store current status and history in SQLite locally or Postgres in Kubernetes.
 
 ## Requirements
 
 - Python 3.10+
 - Network access to `https://cad.chp.ca.gov`
-- No third-party Python packages
+- `psycopg` for Postgres deployments; install with `pip install -r requirements.txt`
 
 The generated map uses Leaflet and OpenStreetMap tiles from public CDNs.
 
@@ -46,6 +46,12 @@ python3 scrape_chp_traffic.py --center LACC --center VTCC
 
 By default the scraper writes `chp_traffic.sqlite`.
 
+For Postgres:
+
+```sh
+DATABASE_URL=postgresql://chp_map:password@localhost:5432/chp_map python3 scrape_chp_traffic.py
+```
+
 ## Generate Map
 
 ```sh
@@ -60,6 +66,12 @@ Render a different time window:
 python3 generate_live_map.py --hours 12
 ```
 
+Serve dynamically from SQL instead of a prebuilt HTML file:
+
+```sh
+python3 serve_live_map.py --port 8080
+```
+
 ## Container
 
 Build:
@@ -68,14 +80,14 @@ Build:
 docker build -t chp-live-map:latest .
 ```
 
-Run locally with persistent SQLite/map output:
+Run locally against SQLite:
 
 ```sh
-mkdir -p /mnt/data/chp_map
-docker run --rm -p 8080:8080 -v /mnt/data/chp_map:/mnt/data/chp_map chp-live-map:latest
+docker run --rm -p 8080:8080 -v "$PWD:/data" chp-live-map:latest \
+  python3 /app/serve_live_map.py --database /data/chp_traffic.sqlite
 ```
 
-The container scrapes once per minute, stores SQLite at `/mnt/data/chp_map/chp_traffic.sqlite`, writes `/mnt/data/chp_map/live_chp_map.html`, and serves it on port `8080`.
+The default container command serves the dynamic web app on port `8080`. In Kubernetes, scraping is handled by a separate CronJob.
 
 ## Kubernetes
 
@@ -88,13 +100,15 @@ kubectl apply -f k8s/chp-live-map.yaml
 The manifest creates:
 
 - namespace `chp-live-map`
-- persistent volume claim `chp-live-map-data`
-- deployment `chp-live-map`
-- cluster service `chp-live-map`
+- secret `chp-live-map-db`
+- PVC `chp-live-map-postgres-data`
+- Postgres StatefulSet and service
+- scraper CronJob that runs every minute
+- web Deployment and service
 
-The pod mounts its persistent volume at `/mnt/data/chp_map` for the SQLite database and generated HTML.
+Edit `POSTGRES_PASSWORD` and `DATABASE_URL` in the manifest before using it outside a local/private cluster.
 
-## SQLite Tables
+## SQL Tables
 
 - `events`: one row per CHP incident, updated with current status and latest fields.
 - `observations`: append-only status/detail snapshots when an incident is first seen, changes, or clears.

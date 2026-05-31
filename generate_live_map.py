@@ -2,6 +2,7 @@ import argparse
 import datetime as dt
 import html
 import json
+import os
 import sqlite3
 from pathlib import Path
 
@@ -10,38 +11,70 @@ DEFAULT_CENTER = [34.32, -118.12]
 DEFAULT_ZOOM = 10
 
 
-def load_incidents(database, hours):
-    if not database.exists():
+def load_incidents(database, hours, database_url=None):
+    if not database_url and not database.exists():
         return []
     cutoff = (dt.datetime.now().astimezone() - dt.timedelta(hours=hours)).isoformat(
         timespec="seconds"
     )
-    conn = sqlite3.connect(database)
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute(
-        """
-        SELECT
-            e.*,
-            (
-                SELECT o.details_json
-                FROM observations o
-                WHERE o.event_key = e.event_key
-                  AND o.status = 'active'
-                ORDER BY o.observed_at DESC, o.id DESC
-                LIMIT 1
-            ) AS details_json
-        FROM events e
-        WHERE e.status = 'active'
-           OR e.first_seen >= ?
-           OR e.last_seen >= ?
-           OR e.cleared_at >= ?
-        ORDER BY
-            CASE WHEN e.status = 'active' THEN 0 ELSE 1 END,
-            e.latest_observed_at DESC,
-            e.incident_no DESC
-        """,
-        (cutoff, cutoff, cutoff),
-    ).fetchall()
+    if database_url:
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+        except ImportError as exc:
+            raise RuntimeError("Postgres support requires psycopg. Install requirements.txt.") from exc
+        conn = psycopg.connect(database_url, row_factory=dict_row)
+        rows = conn.execute(
+            """
+            SELECT
+                e.*,
+                (
+                    SELECT o.details_json
+                    FROM observations o
+                    WHERE o.event_key = e.event_key
+                      AND o.status = 'active'
+                    ORDER BY o.observed_at DESC, o.id DESC
+                    LIMIT 1
+                ) AS details_json
+            FROM events e
+            WHERE e.status = 'active'
+               OR e.first_seen >= %s
+               OR e.last_seen >= %s
+               OR e.cleared_at >= %s
+            ORDER BY
+                CASE WHEN e.status = 'active' THEN 0 ELSE 1 END,
+                e.latest_observed_at DESC,
+                e.incident_no DESC
+            """,
+            (cutoff, cutoff, cutoff),
+        ).fetchall()
+    else:
+        conn = sqlite3.connect(database)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT
+                e.*,
+                (
+                    SELECT o.details_json
+                    FROM observations o
+                    WHERE o.event_key = e.event_key
+                      AND o.status = 'active'
+                    ORDER BY o.observed_at DESC, o.id DESC
+                    LIMIT 1
+                ) AS details_json
+            FROM events e
+            WHERE e.status = 'active'
+               OR e.first_seen >= ?
+               OR e.last_seen >= ?
+               OR e.cleared_at >= ?
+            ORDER BY
+                CASE WHEN e.status = 'active' THEN 0 ELSE 1 END,
+                e.latest_observed_at DESC,
+                e.incident_no DESC
+            """,
+            (cutoff, cutoff, cutoff),
+        ).fetchall()
     conn.close()
     incidents = []
     for row in rows:
@@ -545,6 +578,7 @@ def parse_args():
         description="Generate a static live CHP incident map from the SQLite database."
     )
     parser.add_argument("--database", type=Path, default=Path("chp_traffic.sqlite"))
+    parser.add_argument("--database-url", default=os.environ.get("DATABASE_URL"))
     parser.add_argument("--output", type=Path, default=Path("live_chp_map.html"))
     parser.add_argument("--hours", type=float, default=24.0)
     return parser.parse_args()
@@ -553,7 +587,7 @@ def parse_args():
 def main():
     args = parse_args()
     generated_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
-    incidents = load_incidents(args.database, args.hours)
+    incidents = load_incidents(args.database, args.hours, args.database_url)
     args.output.write_text(build_html(incidents, generated_at, args.hours), encoding="utf-8")
     active_count = len([i for i in incidents if i.get("status") == "active"])
     print(f"Wrote {args.output} with {active_count} active / {len(incidents)} total incidents")

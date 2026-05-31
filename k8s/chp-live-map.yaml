@@ -67,6 +67,13 @@ spec:
                   key: POSTGRES_PASSWORD
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
@@ -147,6 +154,13 @@ spec:
                   value: "0.1.19"
                 - name: CHP_USER_AGENT
                   value: "chp-live-map/0.1 (+https://chp.flowy.us/; contact: cajaks2@users.noreply.github.com)"
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 64Mi
+                limits:
+                  cpu: 250m
+                  memory: 256Mi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -189,6 +203,13 @@ spec:
               value: /chp
             - name: PUBLIC_URL
               value: https://chp.flowy.us/
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
           readinessProbe:
             httpGet:
               path: /readyz

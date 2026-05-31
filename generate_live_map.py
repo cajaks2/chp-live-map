@@ -10,9 +10,12 @@ DEFAULT_CENTER = [34.32, -118.12]
 DEFAULT_ZOOM = 10
 
 
-def load_active_incidents(database):
+def load_incidents(database, hours):
     if not database.exists():
         return []
+    cutoff = (dt.datetime.now().astimezone() - dt.timedelta(hours=hours)).isoformat(
+        timespec="seconds"
+    )
     conn = sqlite3.connect(database)
     conn.row_factory = sqlite3.Row
     rows = conn.execute(
@@ -29,8 +32,15 @@ def load_active_incidents(database):
             ) AS details_json
         FROM events e
         WHERE e.status = 'active'
-        ORDER BY e.incident_date DESC, e.incident_time DESC, e.incident_no DESC
-        """
+           OR e.first_seen >= ?
+           OR e.last_seen >= ?
+           OR e.cleared_at >= ?
+        ORDER BY
+            CASE WHEN e.status = 'active' THEN 0 ELSE 1 END,
+            e.latest_observed_at DESC,
+            e.incident_no DESC
+        """,
+        (cutoff, cutoff, cutoff),
     ).fetchall()
     conn.close()
     incidents = []
@@ -44,12 +54,13 @@ def load_active_incidents(database):
     return incidents
 
 
-def build_html(incidents, generated_at):
+def build_html(incidents, generated_at, hours):
     data = json.dumps(incidents, ensure_ascii=False)
     mapped_count = len(
         [i for i in incidents if i.get("latitude") is not None and i.get("longitude") is not None]
     )
-    title = f"CHP Forest Incidents ({len(incidents)} active)"
+    active_count = len([i for i in incidents if i.get("status") == "active"])
+    title = f"CHP Forest Incidents ({active_count} active, {len(incidents)} total)"
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -291,6 +302,24 @@ def build_html(incidents, generated_at):
       background: #e4efe4;
       box-shadow: inset 3px 0 0 #277447;
     }}
+    .status-pill {{
+      display: inline-block;
+      margin-bottom: 6px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.35;
+      text-transform: uppercase;
+    }}
+    .status-active {{
+      color: #8f1d21;
+      background: #fde7df;
+    }}
+    .status-cleared {{
+      color: #59615c;
+      background: #ecefed;
+    }}
     .mapless {{
       color: #8a5b22;
       font-weight: 600;
@@ -328,7 +357,7 @@ def build_html(incidents, generated_at):
     <aside id="sidebar">
       <header>
         <h1>CHP Forest Incidents</h1>
-        <div class="meta">{len(incidents)} active incidents · {mapped_count} mapped</div>
+        <div class="meta">{active_count} active · {len(incidents)} in last {hours:g}h · {mapped_count} mapped</div>
         <div class="meta">Generated {html.escape(generated_at)}</div>
       </header>
       <div id="incident-list"></div>
@@ -391,6 +420,9 @@ def build_html(incidents, generated_at):
       if (!incident) {{
         return '<div class="empty">Select an incident to view CHP detail entries.</div>';
       }}
+      const isActive = incident.status === "active";
+      const statusClass = isActive ? "status-active" : "status-cleared";
+      const statusText = isActive ? "Active" : "Cleared";
       const details = (incident.detail_entries || []).map((entry) => `
         <li>
           <time>${{escapeHtml(entry.time)}} · Entry ${{escapeHtml(entry.entry_no)}}</time>
@@ -402,6 +434,7 @@ def build_html(incidents, generated_at):
         : `${{escapeHtml(incident.latitude)}}, ${{escapeHtml(incident.longitude)}}`;
       return `
         <div class="detail-panel">
+          <div class="status-pill ${{statusClass}}">${{statusText}}</div>
           <h2>${{escapeHtml(incident.type || "CHP Incident")}}</h2>
           <div class="meta">${{escapeHtml(incident.location || "")}}</div>
           <section class="detail-section">
@@ -413,6 +446,7 @@ def build_html(incidents, generated_at):
               <dt>Coords</dt><dd>${{coordText}}</dd>
               <dt>First Seen</dt><dd>${{escapeHtml(incident.first_seen)}}</dd>
               <dt>Last Seen</dt><dd>${{escapeHtml(incident.last_seen)}}</dd>
+              ${{incident.cleared_at ? `<dt>Cleared</dt><dd>${{escapeHtml(incident.cleared_at)}}</dd>` : ""}}
             </dl>
           </section>
           <section class="detail-section">
@@ -430,12 +464,14 @@ def build_html(incidents, generated_at):
       }});
       markers.forEach((marker, eventKey) => {{
         const selected = eventKey === incident.event_key;
+        const markerIncident = incidents.find((item) => item.event_key === eventKey);
+        const isActive = markerIncident?.status === "active";
         marker.setStyle({{
           radius: selected ? 10 : 8,
-          color: selected ? "#611113" : "#8f1d21",
+          color: selected ? (isActive ? "#611113" : "#3f4642") : (isActive ? "#8f1d21" : "#6e7771"),
           weight: selected ? 3 : 2,
-          fillColor: selected ? "#f05a40" : "#d94a38",
-          fillOpacity: selected ? 0.95 : 0.85
+          fillColor: selected ? (isActive ? "#f05a40" : "#9da5a0") : (isActive ? "#d94a38" : "#b8bfba"),
+          fillOpacity: selected ? 0.95 : 0.72
         }});
         if (selected) {{
           marker.bringToFront();
@@ -460,13 +496,14 @@ def build_html(incidents, generated_at):
       const bounds = [];
       incidents.forEach((incident) => {{
         const hasCoords = incident.latitude != null && incident.longitude != null;
+        const isActive = incident.status === "active";
         if (hasCoords) {{
           const marker = L.circleMarker([incident.latitude, incident.longitude], {{
             radius: 8,
-            color: "#8f1d21",
+            color: isActive ? "#8f1d21" : "#6e7771",
             weight: 2,
-            fillColor: "#d94a38",
-            fillOpacity: 0.85
+            fillColor: isActive ? "#d94a38" : "#b8bfba",
+            fillOpacity: isActive ? 0.85 : 0.72
           }}).addTo(map);
           marker.on("click", () => selectIncident(incident, {{ pan: false, revealDetails: true }}));
           markers.set(incident.event_key, marker);
@@ -478,6 +515,7 @@ def build_html(incidents, generated_at):
         button.type = "button";
         button.dataset.eventKey = incident.event_key;
         button.innerHTML = `
+          <span class="status-pill ${{isActive ? "status-active" : "status-cleared"}}">${{isActive ? "Active" : "Cleared"}}</span>
           <strong>${{escapeHtml(incident.type || "CHP Incident")}}</strong>
           <span>${{escapeHtml(incident.location)}}</span>
           <span>${{escapeHtml(incident.incident_time)}} · ${{escapeHtml(incident.area)}} · #${{escapeHtml(incident.incident_no)}}${{hasCoords ? "" : " · no map pin"}}</span>
@@ -508,15 +546,17 @@ def parse_args():
     )
     parser.add_argument("--database", type=Path, default=Path("chp_traffic.sqlite"))
     parser.add_argument("--output", type=Path, default=Path("live_chp_map.html"))
+    parser.add_argument("--hours", type=float, default=24.0)
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
     generated_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
-    incidents = load_active_incidents(args.database)
-    args.output.write_text(build_html(incidents, generated_at), encoding="utf-8")
-    print(f"Wrote {args.output} with {len(incidents)} active incidents")
+    incidents = load_incidents(args.database, args.hours)
+    args.output.write_text(build_html(incidents, generated_at, args.hours), encoding="utf-8")
+    active_count = len([i for i in incidents if i.get("status") == "active"])
+    print(f"Wrote {args.output} with {active_count} active / {len(incidents)} total incidents")
 
 
 if __name__ == "__main__":

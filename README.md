@@ -1,6 +1,6 @@
 # CHP Live Forest Map
 
-Collect active CHP CAD traffic incidents for Angeles National Forest roads and render a static live map with click-in details.
+Collect CHP CAD traffic incidents for Angeles National Forest roads and render a static live map with click-in details. The map defaults to a rolling 24-hour window: active incidents render red and cleared/non-active incidents render grey.
 
 The CHP CAD site does not expose a documented public API for the detail logs this project needs, so `scrape_chp_traffic.py` follows the same public WebForms flow as the website:
 
@@ -52,7 +52,47 @@ By default the scraper writes `chp_traffic.sqlite`.
 python3 generate_live_map.py
 ```
 
-This reads active incidents from `chp_traffic.sqlite` and writes `live_chp_map.html`. Open that file in a browser to view the current markers and click through the detail log.
+This reads incidents from `chp_traffic.sqlite` and writes `live_chp_map.html`. Open that file in a browser to view markers and click through the detail log.
+
+Render a different time window:
+
+```sh
+python3 generate_live_map.py --hours 12
+```
+
+## Container
+
+Build:
+
+```sh
+docker build -t chp-live-map:latest .
+```
+
+Run locally with persistent SQLite/map output:
+
+```sh
+mkdir -p /mnt/data/chp_map
+docker run --rm -p 8080:8080 -v /mnt/data/chp_map:/mnt/data/chp_map chp-live-map:latest
+```
+
+The container scrapes once per minute, stores SQLite at `/mnt/data/chp_map/chp_traffic.sqlite`, writes `/mnt/data/chp_map/live_chp_map.html`, and serves it on port `8080`.
+
+## Kubernetes
+
+Apply the manifest:
+
+```sh
+kubectl apply -f k8s/chp-live-map.yaml
+```
+
+The manifest creates:
+
+- namespace `chp-live-map`
+- persistent volume claim `chp-live-map-data`
+- deployment `chp-live-map`
+- cluster service `chp-live-map`
+
+The pod mounts its persistent volume at `/mnt/data/chp_map` for the SQLite database and generated HTML.
 
 ## SQLite Tables
 

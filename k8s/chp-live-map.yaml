@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chp-live-map
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: chp-live-map-data
+  namespace: chp-live-map
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chp-live-map
+  namespace: chp-live-map
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chp-live-map
+  template:
+    metadata:
+      labels:
+        app: chp-live-map
+    spec:
+      containers:
+        - name: chp-live-map
+          image: chp-live-map:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: DATA_DIR
+              value: /mnt/data/chp_map
+            - name: DATABASE
+              value: /mnt/data/chp_map/chp_traffic.sqlite
+            - name: OUTPUT
+              value: /mnt/data/chp_map/live_chp_map.html
+            - name: INTERVAL_SECONDS
+              value: "60"
+            - name: MAP_HOURS
+              value: "24"
+            - name: HTTP_PORT
+              value: "8080"
+          volumeMounts:
+            - name: chp-live-map-data
+              mountPath: /mnt/data/chp_map
+          readinessProbe:
+            httpGet:
+              path: /live_chp_map.html
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /live_chp_map.html
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+      volumes:
+        - name: chp-live-map-data
+          persistentVolumeClaim:
+            claimName: chp-live-map-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chp-live-map
+  namespace: chp-live-map
+spec:
+  type: ClusterIP
+  selector:
+    app: chp-live-map
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

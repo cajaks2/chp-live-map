@@ -6,6 +6,8 @@ import os
 import sqlite3
 from pathlib import Path
 
+from ecs_logging import log_event, run_main
+
 
 DEFAULT_CENTER = [34.32, -118.12]
 DEFAULT_ZOOM = 10
@@ -590,8 +592,19 @@ def main():
     incidents = load_incidents(args.database, args.hours, args.database_url)
     args.output.write_text(build_html(incidents, generated_at, args.hours), encoding="utf-8")
     active_count = len([i for i in incidents if i.get("status") == "active"])
-    print(f"Wrote {args.output} with {active_count} active / {len(incidents)} total incidents")
+    log_event(
+        "info",
+        "Generated CHP live map",
+        **{
+            "event.action": "generate_map",
+            "event.outcome": "success",
+            "file.path": str(args.output),
+            "chp.active_count": active_count,
+            "chp.total_count": len(incidents),
+            "chp.hours": args.hours,
+        },
+    )
 
 
 if __name__ == "__main__":
-    main()
+    run_main(main)

@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-COPY scrape_chp_traffic.py generate_live_map.py serve_live_map.py /app/
+COPY ecs_logging.py scrape_chp_traffic.py generate_live_map.py serve_live_map.py /app/
 
 EXPOSE 8080
 

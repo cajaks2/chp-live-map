@@ -13,6 +13,8 @@ from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
+from ecs_logging import log_event, run_main
+
 
 CHP_TRAFFIC_URL = "https://cad.chp.ca.gov/Traffic.aspx"
 DEFAULT_CENTERS = ["LACC"]
@@ -714,10 +716,17 @@ def main():
     args = parse_args()
     while True:
         changed_rows, active_seen, active_with_coords = scrape_once(args)
-        print(
-            f"{dt.datetime.now().isoformat(timespec='seconds')} "
-            f"active_seen={active_seen} active_with_coords={active_with_coords} "
-            f"observations_inserted={changed_rows}"
+        log_event(
+            "info",
+            "CHP scrape completed",
+            **{
+                "event.action": "scrape",
+                "event.outcome": "success",
+                "chp.active_seen": active_seen,
+                "chp.active_with_coords": active_with_coords,
+                "chp.observations_inserted": changed_rows,
+                "chp.centers": args.center,
+            },
         )
         if args.interval <= 0:
             break
@@ -725,4 +734,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_main(main)

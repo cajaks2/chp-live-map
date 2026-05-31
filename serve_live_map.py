@@ -1,9 +1,11 @@
 import argparse
 import datetime as dt
 import os
+import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from ecs_logging import log_event, log_exception, run_main
 from generate_live_map import build_html, load_incidents
 from scrape_chp_traffic import connect_database
 
@@ -30,6 +32,18 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             incidents = load_incidents(self.database, self.hours, self.database_url)
             body = build_html(incidents, generated_at, self.hours).encode("utf-8")
         except Exception as exc:
+            log_exception(
+                "Failed to render CHP live map",
+                exc,
+                **{
+                    "event.action": "http_request",
+                    "event.outcome": "failure",
+                    "http.request.method": self.command,
+                    "url.path": self.path,
+                    "client.address": self.client_address[0],
+                    "http.response.status_code": 500,
+                },
+            )
             self.send_response(500)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.end_headers()
@@ -44,7 +58,40 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, fmt, *args):
-        print("%s - - %s" % (self.address_string(), fmt % args))
+        status_code = None
+        if args:
+            try:
+                status_code = int(args[1])
+            except (IndexError, TypeError, ValueError):
+                status_code = None
+        log_event(
+            "info",
+            "HTTP request completed",
+            **{
+                "event.action": "http_request",
+                "event.outcome": "success" if status_code and status_code < 500 else "failure",
+                "client.address": self.client_address[0],
+                "http.request.method": self.command,
+                "http.response.status_code": status_code,
+                "url.path": self.path,
+            },
+        )
+
+
+class EcsHTTPServer(ThreadingHTTPServer):
+    def handle_error(self, request, client_address):
+        _exc_type, exc, _tb = sys.exc_info()
+        if exc is None:
+            return
+        log_exception(
+            "HTTP server request handler failed",
+            exc,
+            **{
+                "event.action": "http_request",
+                "event.outcome": "failure",
+                "client.address": client_address[0],
+            },
+        )
 
 
 def parse_args():
@@ -64,10 +111,20 @@ def main():
     LiveMapHandler.hours = args.hours
     with connect_database(args.database, args.database_url):
         pass
-    server = ThreadingHTTPServer((args.host, args.port), LiveMapHandler)
-    print(f"Serving CHP live map on {args.host}:{args.port}")
+    server = EcsHTTPServer((args.host, args.port), LiveMapHandler)
+    log_event(
+        "info",
+        "Serving CHP live map",
+        **{
+            "event.action": "start",
+            "network.transport": "tcp",
+            "server.address": args.host,
+            "server.port": args.port,
+            "chp.hours": args.hours,
+        },
+    )
     server.serve_forever()
 
 
 if __name__ == "__main__":
-    main()
+    run_main(main)

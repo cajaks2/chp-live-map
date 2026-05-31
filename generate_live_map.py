@@ -99,10 +99,11 @@ def metadata_urls(base_path, public_url):
     asset_base = "" if base == "/" else base
     fallback_url = base if base == "/" else f"{base}/"
     canonical_url = (public_url or fallback_url).rstrip("/") + "/"
+    public_asset_base = canonical_url.rstrip("/") if public_url else asset_base
     return {
         "canonical": canonical_url,
-        "favicon": f"{asset_base}/favicon.svg",
-        "og_image": f"{canonical_url.rstrip('/')}/og-image.svg" if public_url else f"{asset_base}/og-image.svg",
+        "favicon": f"{public_asset_base}/favicon.svg",
+        "og_image": f"{public_asset_base}/og-image.svg",
     }
 
 

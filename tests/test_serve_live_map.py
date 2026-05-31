@@ -20,7 +20,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
     TestHandler.database_url = None
     TestHandler.hours = 72.0
     TestHandler.base_path = "/chp"
-    TestHandler.public_url = "https://home.flowy.us/chp/"
+    TestHandler.public_url = "https://chp.flowy.us/"
 
     server = EcsHTTPServer(("127.0.0.1", 0), TestHandler)
     thread = threading.Thread(target=server.serve_forever)
@@ -39,8 +39,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert "CHP Forest Incidents" in body
-            assert '<link rel="icon" href="/chp/favicon.svg" type="image/svg+xml">' in body
-            assert '<meta property="og:image" content="https://home.flowy.us/chp/og-image.svg">' in body
+            assert '<link rel="icon" href="https://chp.flowy.us/favicon.svg" type="image/svg+xml">' in body
+            assert '<meta property="og:image" content="https://chp.flowy.us/og-image.svg">' in body
             assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
             assert "Pragma" not in response.headers
             assert "Expires" not in response.headers

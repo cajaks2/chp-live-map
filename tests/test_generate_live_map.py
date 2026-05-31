@@ -95,16 +95,16 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
         "2026-05-31T08:05:00-07:00",
         72,
         base_path="/chp",
-        public_url="https://home.flowy.us/chp/",
+        public_url="https://chp.flowy.us/",
     )
 
     assert "CHP Forest Incidents (1 active, 2 total)" in html
     assert 'http-equiv="Cache-Control"' not in html
     assert '<meta name="description" content="Live CHP traffic incidents' in html
-    assert '<link rel="canonical" href="https://home.flowy.us/chp/">' in html
-    assert '<link rel="icon" href="/chp/favicon.svg" type="image/svg+xml">' in html
+    assert '<link rel="canonical" href="https://chp.flowy.us/">' in html
+    assert '<link rel="icon" href="https://chp.flowy.us/favicon.svg" type="image/svg+xml">' in html
     assert '<meta property="og:title" content="CHP Forest Incidents (1 active, 2 total)">' in html
-    assert '<meta property="og:image" content="https://home.flowy.us/chp/og-image.svg">' in html
+    assert '<meta property="og:image" content="https://chp.flowy.us/og-image.svg">' in html
     assert '<meta name="twitter:card" content="summary_large_image">' in html
     assert "1 active · 2 in last 72h · 1 mapped" in html
     assert 'Last updated <time id="generated-at" datetime="2026-05-31T08:05:00-07:00">' in html

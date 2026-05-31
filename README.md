@@ -1,6 +1,6 @@
 # CHP Live Forest Map
 
-Collect CHP CAD traffic incidents for Angeles National Forest roads and render a static live map with click-in details. The map defaults to a rolling 24-hour window: active incidents render red and cleared/non-active incidents render grey.
+Collect CHP CAD traffic incidents for Angeles National Forest roads and render a static live map with click-in details. The map defaults to a rolling 72-hour window: active incidents render red and cleared/non-active incidents render grey.
 
 The CHP CAD site does not expose a documented public API for the detail logs this project needs, so `scrape_chp_traffic.py` follows the same public WebForms flow as the website:
 

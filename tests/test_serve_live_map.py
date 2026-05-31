@@ -14,7 +14,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path):
 
     TestHandler.database = database
     TestHandler.database_url = None
-    TestHandler.hours = 24.0
+    TestHandler.hours = 72.0
     TestHandler.base_path = "/chp"
 
     server = EcsHTTPServer(("127.0.0.1", 0), TestHandler)

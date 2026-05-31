@@ -14,7 +14,7 @@ from scrape_chp_traffic import connect_database
 class LiveMapHandler(BaseHTTPRequestHandler):
     database = Path("chp_traffic.sqlite")
     database_url = None
-    hours = 24.0
+    hours = 72.0
     base_path = "/"
 
     def do_GET(self):
@@ -106,7 +106,7 @@ def parse_args():
     parser.add_argument("--port", type=int, default=int(os.environ.get("HTTP_PORT", "8080")))
     parser.add_argument("--database", type=Path, default=Path(os.environ.get("DATABASE", "chp_traffic.sqlite")))
     parser.add_argument("--database-url", default=os.environ.get("DATABASE_URL"))
-    parser.add_argument("--hours", type=float, default=float(os.environ.get("MAP_HOURS", "24")))
+    parser.add_argument("--hours", type=float, default=float(os.environ.get("MAP_HOURS", "72")))
     parser.add_argument("--base-path", default=os.environ.get("BASE_PATH", "/"))
     return parser.parse_args()
 

@@ -130,7 +130,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: scrape
-              image: cajaks2/chp-live-map:0.1.3
+              image: cajaks2/chp-live-map:0.1.4
               imagePullPolicy: IfNotPresent
               command:
                 - python3
@@ -142,7 +142,7 @@ spec:
                       name: chp-live-map-db
                       key: DATABASE_URL
                 - name: SERVICE_VERSION
-                  value: "0.1.3"
+                  value: "0.1.4"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -161,7 +161,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: cajaks2/chp-live-map:0.1.3
+          image: cajaks2/chp-live-map:0.1.4
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -176,11 +176,11 @@ spec:
                   name: chp-live-map-db
                   key: DATABASE_URL
             - name: MAP_HOURS
-              value: "24"
+              value: "72"
             - name: HTTP_PORT
               value: "8080"
             - name: SERVICE_VERSION
-              value: "0.1.3"
+              value: "0.1.4"
             - name: BASE_PATH
               value: /chp
           readinessProbe:

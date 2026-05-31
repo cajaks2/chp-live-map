@@ -575,7 +575,7 @@ def parse_args():
     parser.add_argument("--database", type=Path, default=Path("chp_traffic.sqlite"))
     parser.add_argument("--database-url", default=os.environ.get("DATABASE_URL"))
     parser.add_argument("--output", type=Path, default=Path("live_chp_map.html"))
-    parser.add_argument("--hours", type=float, default=24.0)
+    parser.add_argument("--hours", type=float, default=72.0)
     return parser.parse_args()
 
 

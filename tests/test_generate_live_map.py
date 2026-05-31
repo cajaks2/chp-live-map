@@ -43,7 +43,7 @@ def test_load_incidents_returns_active_first_with_detail_entries(tmp_path):
     conn.commit()
     conn.close()
 
-    incidents = load_incidents(database, 24)
+    incidents = load_incidents(database, 72)
 
     assert [incident["event_key"] for incident in incidents] == [
         "LACC|2026-05-31|0805",
@@ -90,10 +90,10 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
         },
     ]
 
-    html = build_html(incidents, "2026-05-31T08:05:00-07:00", 24)
+    html = build_html(incidents, "2026-05-31T08:05:00-07:00", 72)
 
     assert "CHP Forest Incidents (1 active, 2 total)" in html
-    assert "1 active · 2 in last 24h · 1 mapped" in html
+    assert "1 active · 2 in last 72h · 1 mapped" in html
     assert "Traffic <Hazard>" in html
     assert "function escapeHtml" in html
     assert "no map pin" in html

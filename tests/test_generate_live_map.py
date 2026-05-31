@@ -109,6 +109,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "scrollbar-width: thin" in html
     assert "mask-image: linear-gradient(to bottom" in html
     assert "overscroll-behavior: contain" in html
+    assert "margin-bottom: 1px" in html
     assert "1 active · 2 in last 72h · 1 mapped" in html
     assert 'Last updated <time id="generated-at" datetime="2026-05-31T08:05:00-07:00">' in html
     assert "function formatGeneratedAt" in html

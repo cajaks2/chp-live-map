@@ -250,10 +250,8 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       line-height: 1.35;
     }}
     #incident-list {{
-      display: grid;
       flex: 1 1 auto;
       min-height: 0;
-      gap: 1px;
       overflow-y: auto;
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
@@ -277,6 +275,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     .incident {{
       display: block;
       width: 100%;
+      margin-bottom: 1px;
       padding: 13px 16px;
       border: 0;
       text-align: left;

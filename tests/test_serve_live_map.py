@@ -52,6 +52,12 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert "in last 24h" in body
             assert '<a class="range-tab is-active" href="?hours=24" aria-current="page">24h</a>' in body
 
+        with urlopen(f"{base_url}/chp/?hours=9999", timeout=5) as response:
+            body = response.read().decode("utf-8")
+            assert response.status == 200
+            assert "in last 720h" in body
+            assert '<a class="range-tab is-active" href="?hours=720" aria-current="page">30d</a>' in body
+
         with urlopen(f"{base_url}/chp/favicon.svg", timeout=5) as response:
             assert response.status == 200
             assert response.headers["Content-Type"] == "image/svg+xml"

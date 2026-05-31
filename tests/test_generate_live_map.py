@@ -128,6 +128,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "justify-content: center" in html
     assert '<nav class="range-tabs" aria-label="History range">' in html
     assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in html
+    assert '<a class="range-tab" href="?hours=720">30d</a>' in html
     assert "1 active · 2 in last 72h · 1 mapped" in html
     assert 'Last updated <time id="generated-at" datetime="2026-05-31T08:05:00-07:00">' in html
     assert "function formatGeneratedAt" in html

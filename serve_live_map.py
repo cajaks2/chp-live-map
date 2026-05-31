@@ -14,7 +14,7 @@ from scrape_chp_traffic import connect_database
 MAP_CACHE_CONTROL = "public, max-age=30, s-maxage=60, stale-while-revalidate=120, stale-if-error=600"
 ASSET_CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800"
 MIN_HISTORY_HOURS = 1.0
-MAX_HISTORY_HOURS = 168.0
+MAX_HISTORY_HOURS = 720.0
 FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="12" fill="#18392b"/>
   <path d="M10 48 25 17l9 20 6-11 14 22Z" fill="#f4f7ee"/>

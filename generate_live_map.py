@@ -11,7 +11,7 @@ from ecs_logging import log_event, run_main
 
 DEFAULT_CENTER = [34.32, -118.12]
 DEFAULT_ZOOM = 10
-HISTORY_PRESETS = [(24, "24h"), (72, "72h"), (168, "7d")]
+HISTORY_PRESETS = [(24, "24h"), (72, "72h"), (168, "7d"), (720, "30d")]
 
 
 def load_incidents(database, hours, database_url=None):
@@ -268,7 +268,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     }}
     .range-tabs {{
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 3px;
       margin-top: 10px;
       padding: 3px;

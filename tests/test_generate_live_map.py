@@ -144,6 +144,14 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "function escapeHtml" in html
     assert "no map pin" in html
     assert "window.chpLiveMap" in html
+    assert "touch-action: none" in html
+    assert "-webkit-tap-highlight-color: transparent" in html
+    assert "tap: true" in html
+    assert "touchZoom: true" in html
+    assert "doubleClickZoom: true" in html
+    assert "keyboard: false" in html
+    assert "function setupDoubleTapZoom" in html
+    assert "setupDoubleTapZoom();" in html
     assert "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" in html
     assert "basemaps.cartocdn.com/light_all" not in html
     assert ".setView([34.32, -118.12], 10)" in html

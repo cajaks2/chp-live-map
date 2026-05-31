@@ -162,7 +162,14 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
   <style>
     .leaflet-container {{
       overflow: hidden;
-      touch-action: pan-x pan-y;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      outline: none;
+    }}
+    #map:focus,
+    .leaflet-container:focus {{
+      outline: none;
     }}
     .leaflet-pane,
     .leaflet-tile,
@@ -569,6 +576,10 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     mapEl.classList.add("is-loading");
     const map = L.map("map", {{
       preferCanvas: true,
+      tap: true,
+      touchZoom: true,
+      doubleClickZoom: true,
+      keyboard: false,
       zoomControl: false,
       zoomAnimation: false,
       fadeAnimation: false,
@@ -600,6 +611,57 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     const list = document.getElementById("incident-list");
     const detailsPanel = document.getElementById("details");
     window.chpLiveMap = {{ map, markers, incidents }};
+
+    function setupDoubleTapZoom() {{
+      let lastTap = null;
+      let touchStart = null;
+      let multiTouchUntil = 0;
+
+      mapEl.addEventListener("touchstart", (event) => {{
+        if (event.touches.length !== 1) {{
+          multiTouchUntil = Date.now() + 450;
+          lastTap = null;
+          touchStart = null;
+          return;
+        }}
+        const touch = event.touches[0];
+        touchStart = {{ x: touch.clientX, y: touch.clientY }};
+      }}, {{ passive: true }});
+
+      mapEl.addEventListener("touchmove", (event) => {{
+        if (!touchStart || event.touches.length !== 1) {{
+          return;
+        }}
+        const touch = event.touches[0];
+        if (Math.hypot(touch.clientX - touchStart.x, touch.clientY - touchStart.y) > 12) {{
+          touchStart = null;
+          lastTap = null;
+        }}
+      }}, {{ passive: true }});
+
+      mapEl.addEventListener("touchend", (event) => {{
+        if (Date.now() < multiTouchUntil || event.touches.length > 0 || event.changedTouches.length !== 1) {{
+          return;
+        }}
+        const touch = event.changedTouches[0];
+        const now = Date.now();
+        const currentTap = {{ x: touch.clientX, y: touch.clientY, time: now }};
+        const isDoubleTap = lastTap
+          && now - lastTap.time < 350
+          && Math.hypot(touch.clientX - lastTap.x, touch.clientY - lastTap.y) < 32;
+
+        if (isDoubleTap) {{
+          event.preventDefault();
+          const rect = mapEl.getBoundingClientRect();
+          const point = L.point(touch.clientX - rect.left, touch.clientY - rect.top);
+          const latLng = map.containerPointToLatLng(point);
+          map.setZoomAround(latLng, Math.min(map.getZoom() + 1, map.getMaxZoom()), {{ animate: false }});
+          lastTap = null;
+          return;
+        }}
+        lastTap = currentTap;
+      }}, {{ passive: false }});
+    }}
 
     function escapeHtml(value) {{
       return String(value ?? "").replace(/[&<>"']/g, (char) => ({{
@@ -795,6 +857,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     render();
     formatGeneratedAt();
     setupStaleRefresh();
+    setupDoubleTapZoom();
   </script>
 </body>
 </html>

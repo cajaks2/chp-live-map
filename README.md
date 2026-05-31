@@ -105,6 +105,25 @@ docker run --rm -p 8080:8080 -v "$PWD:/data" chp-live-map:latest \
 
 The default container command serves the dynamic web app on port `8080`. In Kubernetes, scraping is handled by a separate CronJob.
 
+For the pushed Kubernetes image workflow, use the Makefile:
+
+```sh
+make deploy VERSION=0.1.5
+```
+
+That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/amd64`, updates the Kubernetes manifest image tags and `SERVICE_VERSION`, applies the manifest, waits for the web rollout, and verifies the public `/chp/` page.
+
+Useful individual targets:
+
+```sh
+make build VERSION=0.1.5
+make update-manifest VERSION=0.1.5
+make apply
+make rollout
+make verify
+make k8s-status
+```
+
 ## Kubernetes
 
 Apply the manifest:

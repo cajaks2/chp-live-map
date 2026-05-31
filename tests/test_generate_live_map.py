@@ -93,6 +93,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     html = build_html(incidents, "2026-05-31T08:05:00-07:00", 72)
 
     assert "CHP Forest Incidents (1 active, 2 total)" in html
+    assert '<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">' in html
     assert "1 active · 2 in last 72h · 1 mapped" in html
     assert 'Last updated <time id="generated-at" datetime="2026-05-31T08:05:00-07:00">' in html
     assert "function formatGeneratedAt" in html

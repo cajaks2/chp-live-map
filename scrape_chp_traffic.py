@@ -28,12 +28,6 @@ DEFAULT_ROAD_KEYWORDS = [
     "san gabriel canyon",
     "glendora mountain",
     "glendora ridge",
-    "sr2",
-    "sr-2",
-    "state route 2",
-    "sr39",
-    "sr-39",
-    "state route 39",
 ]
 
 

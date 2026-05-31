@@ -30,7 +30,9 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path):
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert "CHP Forest Incidents" in body
-            assert response.headers["Cache-Control"] == "no-store"
+            assert response.headers["Cache-Control"] == "no-store, no-cache, must-revalidate, max-age=0"
+            assert response.headers["Pragma"] == "no-cache"
+            assert response.headers["Expires"] == "0"
 
         try:
             urlopen(f"{base_url}/missing", timeout=5)

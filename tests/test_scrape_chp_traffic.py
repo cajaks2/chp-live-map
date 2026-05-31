@@ -2,6 +2,7 @@ import datetime as dt
 import json
 
 from scrape_chp_traffic import (
+    DEFAULT_ROAD_KEYWORDS,
     connect_database,
     event_key,
     incident_date_for_time,
@@ -49,6 +50,17 @@ def test_matching_keywords_checks_location_fields_case_insensitively():
     }
 
     assert matching_keywords(incident, ["angeles crest", "big tujunga"]) == ["big tujunga"]
+
+
+def test_default_keywords_do_not_match_bare_sr2_connector():
+    incident = {
+        "type": "Traffic Hazard",
+        "location": "Sr2 N / Sr2 N Sr134 E Con",
+        "location_desc": "NB 2 TRANS TO EB 134",
+        "area": "Altadena",
+    }
+
+    assert matching_keywords(incident, DEFAULT_ROAD_KEYWORDS) == []
 
 
 def test_parse_lat_lon_from_span_and_map_link():

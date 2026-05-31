@@ -393,7 +393,7 @@ def build_html(incidents, generated_at, hours):
       <header>
         <h1>CHP Forest Incidents</h1>
         <div class="meta">{active_count} active · {len(incidents)} in last {hours:g}h · {mapped_count} mapped</div>
-        <div class="meta">Generated {html.escape(generated_at)}</div>
+        <div class="meta">Last updated <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></div>
       </header>
       <div id="incident-list"></div>
     </aside>
@@ -449,6 +449,24 @@ def build_html(incidents, generated_at, hours):
         '"': "&quot;",
         "'": "&#39;"
       }}[char]));
+    }}
+
+    function formatGeneratedAt() {{
+      const generatedAt = document.getElementById("generated-at");
+      if (!generatedAt) {{
+        return;
+      }}
+      const date = new Date(generatedAt.dateTime);
+      if (Number.isNaN(date.getTime())) {{
+        return;
+      }}
+      generatedAt.textContent = date.toLocaleString([], {{
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      }});
+      generatedAt.title = generatedAt.dateTime;
     }}
 
     function detailHtml(incident) {{
@@ -562,6 +580,7 @@ def build_html(incidents, generated_at, hours):
     }}
 
     render();
+    formatGeneratedAt();
   </script>
 </body>
 </html>

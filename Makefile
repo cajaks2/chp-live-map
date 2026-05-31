@@ -56,7 +56,9 @@ rollout:
 deploy: test build update-manifest apply rollout verify
 
 verify:
-	curl -k -fsS $(PUBLIC_URL) | rg -n 'CHP Forest Incidents|last 72h|setView'
+	curl -k -fsS $(PUBLIC_URL) -o /tmp/chp-live-map-verify.html
+	rg -n 'CHP Forest Incidents|last 72h|setView' /tmp/chp-live-map-verify.html
+	rg -n 'Last updated <time id="generated-at"' /tmp/chp-live-map-verify.html
 	kubectl -n $(NAMESPACE) logs -l app=$(DEPLOYMENT) --tail=10 --since=5m
 
 k8s-status:

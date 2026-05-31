@@ -137,7 +137,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: scrape
-              image: cajaks2/chp-live-map:0.1.24
+              image: cajaks2/chp-live-map:0.1.25
               imagePullPolicy: IfNotPresent
               command:
                 - python3
@@ -151,7 +151,7 @@ spec:
                       name: chp-live-map-db
                       key: DATABASE_URL
                 - name: SERVICE_VERSION
-                  value: "0.1.24"
+                  value: "0.1.25"
                 - name: CHP_USER_AGENT
                   value: "chp-live-map/0.1 (+https://chp.flowy.us/; contact: cajaks2@users.noreply.github.com)"
               resources:
@@ -179,7 +179,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: cajaks2/chp-live-map:0.1.24
+          image: cajaks2/chp-live-map:0.1.25
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -198,7 +198,7 @@ spec:
             - name: HTTP_PORT
               value: "8080"
             - name: SERVICE_VERSION
-              value: "0.1.24"
+              value: "0.1.25"
             - name: BASE_PATH
               value: /chp
             - name: PUBLIC_URL

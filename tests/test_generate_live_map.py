@@ -133,6 +133,11 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'Last updated <time id="generated-at" datetime="2026-05-31T08:05:00-07:00">' in html
     assert "function formatGeneratedAt" in html
     assert "function formatIncidentWhen" in html
+    assert 'new URLSearchParams(window.location.search).get("incident")' in html
+    assert 'url.searchParams.set("incident", incident.event_key)' in html
+    assert "function updateIncidentUrl" in html
+    assert "const linkedIncident = incidentFromUrl();" in html
+    assert "revealList: Boolean(linkedIncident)" in html
     assert "${escapeHtml(formatIncidentWhen(incident))}" in html
     assert "Detail Information" in html
     assert "Unit Information" in html

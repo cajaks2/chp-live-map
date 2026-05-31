@@ -727,6 +727,23 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       return `${{parsed.toLocaleDateString([], {{ month: "short", day: "numeric" }})}}, ${{incident.incident_time || ""}}`.trim();
     }}
 
+    function incidentFromUrl() {{
+      const selectedKey = new URLSearchParams(window.location.search).get("incident");
+      if (!selectedKey) {{
+        return null;
+      }}
+      return incidents.find((incident) => incident.event_key === selectedKey) || null;
+    }}
+
+    function updateIncidentUrl(incident) {{
+      if (!incident || !window.history?.replaceState) {{
+        return;
+      }}
+      const url = new URL(window.location.href);
+      url.searchParams.set("incident", incident.event_key);
+      window.history.replaceState({{ incident: incident.event_key }}, "", url);
+    }}
+
     function detailHtml(incident) {{
       if (!incident) {{
         return '<div class="empty">Select an incident to view CHP detail entries.</div>';
@@ -789,6 +806,9 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       detailsPanel.innerHTML = detailHtml(incident);
       document.querySelectorAll(".incident").forEach((button) => {{
         button.setAttribute("aria-current", button.dataset.eventKey === incident.event_key ? "true" : "false");
+        if (options.revealList && button.dataset.eventKey === incident.event_key) {{
+          button.scrollIntoView({{ block: "nearest" }});
+        }}
       }});
       markers.forEach((marker, eventKey) => {{
         const selected = eventKey === incident.event_key;
@@ -811,6 +831,9 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       }}
       if (options.revealDetails && window.matchMedia("(max-width: 760px)").matches) {{
         detailsPanel.scrollIntoView({{ behavior: "smooth", block: "start" }});
+      }}
+      if (options.updateUrl !== false) {{
+        updateIncidentUrl(incident);
       }}
     }}
 
@@ -851,7 +874,12 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       }});
 
       setTimeout(() => map.invalidateSize(), 50);
-      selectIncident(incidents[0], {{ pan: false }});
+      const linkedIncident = incidentFromUrl();
+      selectIncident(linkedIncident || incidents[0], {{
+        pan: Boolean(linkedIncident),
+        revealList: Boolean(linkedIncident),
+        updateUrl: Boolean(linkedIncident)
+      }});
     }}
 
     render();

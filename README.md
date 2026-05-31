@@ -72,6 +72,22 @@ Serve dynamically from SQL instead of a prebuilt HTML file:
 python3 serve_live_map.py --port 8080
 ```
 
+## Tests
+
+Install development dependencies and run the unit suite:
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python -m pytest -q
+```
+
+Run with statement coverage:
+
+```sh
+.venv/bin/python -m pytest --cov=scrape_chp_traffic --cov=generate_live_map --cov=serve_live_map --cov=ecs_logging --cov-report=term-missing
+```
+
 ## Container
 
 Build:

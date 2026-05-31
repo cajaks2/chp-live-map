@@ -224,13 +224,15 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       height: 100%;
     }}
     #sidebar {{
-      overflow: auto;
+      display: flex;
+      min-height: 0;
+      overflow: hidden;
+      flex-direction: column;
       border-right: 1px solid #d8ddd2;
       background: #fbfcf8;
     }}
     header {{
-      position: sticky;
-      top: 0;
+      flex: 0 0 auto;
       z-index: 2;
       padding: 16px 18px 14px;
       border-bottom: 1px solid #d8ddd2;
@@ -249,8 +251,28 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     }}
     #incident-list {{
       display: grid;
+      flex: 1 1 auto;
+      min-height: 0;
       gap: 1px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      scrollbar-width: thin;
+      scrollbar-color: #8fa195 #eef1ea;
       background: #d8ddd2;
+      -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 24px), transparent 100%);
+      mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 24px), transparent 100%);
+    }}
+    #incident-list::-webkit-scrollbar {{
+      width: 9px;
+    }}
+    #incident-list::-webkit-scrollbar-track {{
+      background: #eef1ea;
+    }}
+    #incident-list::-webkit-scrollbar-thumb {{
+      border: 2px solid #eef1ea;
+      border-radius: 999px;
+      background: #8fa195;
     }}
     .incident {{
       display: block;
@@ -408,10 +430,16 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         min-height: 100%;
       }}
       #sidebar {{
+        display: flex;
         max-height: 34vh;
-        overflow: auto;
+        overflow: hidden;
         border-right: 0;
         border-bottom: 1px solid #d8ddd2;
+      }}
+      #incident-list {{
+        min-height: 92px;
+        -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 32px), transparent 100%);
+        mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 32px), transparent 100%);
       }}
       #map {{
         height: 42vh;

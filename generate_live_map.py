@@ -29,8 +29,6 @@ def load_active_incidents(database):
             ) AS details_json
         FROM events e
         WHERE e.status = 'active'
-          AND e.latitude IS NOT NULL
-          AND e.longitude IS NOT NULL
         ORDER BY e.incident_date DESC, e.incident_time DESC, e.incident_no DESC
         """
     ).fetchall()
@@ -48,6 +46,9 @@ def load_active_incidents(database):
 
 def build_html(incidents, generated_at):
     data = json.dumps(incidents, ensure_ascii=False)
+    mapped_count = len(
+        [i for i in incidents if i.get("latitude") is not None and i.get("longitude") is not None]
+    )
     title = f"CHP Forest Incidents ({len(incidents)} active)"
     return f"""<!doctype html>
 <html lang="en">
@@ -68,7 +69,7 @@ def build_html(incidents, generated_at):
     }}
     #app {{
       display: grid;
-      grid-template-columns: minmax(280px, 360px) 1fr;
+      grid-template-columns: minmax(280px, 350px) minmax(340px, 1fr) minmax(300px, 390px);
       height: 100%;
     }}
     #sidebar {{
@@ -128,8 +129,75 @@ def build_html(incidents, generated_at):
       line-height: 1.35;
     }}
     #map {{
+      position: relative;
       height: 100%;
       min-height: 420px;
+      overflow: hidden;
+      background: #d9ded4;
+      z-index: 0;
+    }}
+    #details {{
+      position: relative;
+      z-index: 1;
+      overflow: auto;
+      border-left: 1px solid #d8ddd2;
+      background: #ffffff;
+    }}
+    .detail-panel {{
+      padding: 18px;
+    }}
+    .detail-panel h2 {{
+      margin: 0 0 6px;
+      font-size: 18px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }}
+    .detail-section {{
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid #e5e8e1;
+    }}
+    .detail-grid {{
+      display: grid;
+      grid-template-columns: 88px 1fr;
+      gap: 7px 12px;
+      font-size: 13px;
+      line-height: 1.35;
+    }}
+    .detail-grid dt {{
+      color: #58645d;
+    }}
+    .detail-grid dd {{
+      margin: 0;
+      overflow-wrap: anywhere;
+    }}
+    .detail-log {{
+      margin: 10px 0 0;
+      padding: 0;
+      list-style: none;
+      font-size: 13px;
+      line-height: 1.35;
+    }}
+    .detail-log li {{
+      padding: 9px 0;
+      border-top: 1px solid #edf0ea;
+    }}
+    .detail-log li:first-child {{
+      border-top: 0;
+    }}
+    .detail-log time {{
+      display: block;
+      margin-bottom: 3px;
+      color: #58645d;
+      font-size: 12px;
+    }}
+    .incident[aria-current="true"] {{
+      background: #e4efe4;
+      box-shadow: inset 3px 0 0 #277447;
+    }}
+    .mapless {{
+      color: #8a5b22;
+      font-weight: 600;
     }}
     .empty {{
       padding: 18px;
@@ -162,17 +230,21 @@ def build_html(incidents, generated_at):
     }}
     @media (max-width: 760px) {{
       #app {{
-        grid-template-columns: 1fr;
-        grid-template-rows: 42vh 1fr;
+        display: block;
+        height: auto;
+        min-height: 100%;
       }}
       #sidebar {{
-        order: 2;
         border-right: 0;
         border-top: 1px solid #d8ddd2;
       }}
       #map {{
-        order: 1;
-        min-height: 0;
+        height: 42vh;
+        min-height: 280px;
+      }}
+      #details {{
+        border-left: 0;
+        border-top: 1px solid #d8ddd2;
       }}
     }}
   </style>
@@ -182,12 +254,13 @@ def build_html(incidents, generated_at):
     <aside id="sidebar">
       <header>
         <h1>CHP Forest Incidents</h1>
-        <div class="meta">{len(incidents)} active incidents</div>
+        <div class="meta">{len(incidents)} active incidents · {mapped_count} mapped</div>
         <div class="meta">Generated {html.escape(generated_at)}</div>
       </header>
       <div id="incident-list"></div>
     </aside>
     <main id="map"></main>
+    <aside id="details"></aside>
   </div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
@@ -195,13 +268,17 @@ def build_html(incidents, generated_at):
     const incidents = {data};
 
     const map = L.map("map", {{ preferCanvas: true }}).setView({json.dumps(DEFAULT_CENTER)}, {DEFAULT_ZOOM});
-    L.tileLayer("https://tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png", {{
+    L.tileLayer("https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png", {{
+      subdomains: "abcd",
       maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      detectRetina: true,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
     }}).addTo(map);
 
     const markers = new Map();
     const list = document.getElementById("incident-list");
+    const detailsPanel = document.getElementById("details");
+    window.chpLiveMap = {{ map, markers, incidents }};
 
     function escapeHtml(value) {{
       return String(value ?? "").replace(/[&<>"']/g, (char) => ({{
@@ -230,45 +307,98 @@ def build_html(incidents, generated_at):
       `;
     }}
 
+    function detailHtml(incident) {{
+      if (!incident) {{
+        return '<div class="empty">Select an incident to view CHP detail entries.</div>';
+      }}
+      const details = (incident.detail_entries || []).map((entry) => `
+        <li>
+          <time>${{escapeHtml(entry.time)}} · Entry ${{escapeHtml(entry.entry_no)}}</time>
+          <div>${{escapeHtml(entry.text)}}</div>
+        </li>
+      `).join("");
+      const coordText = incident.latitude == null || incident.longitude == null
+        ? '<span class="mapless">No coordinates exposed by CHP for this incident.</span>'
+        : `${{escapeHtml(incident.latitude)}}, ${{escapeHtml(incident.longitude)}}`;
+      return `
+        <div class="detail-panel">
+          <h2>${{escapeHtml(incident.type || "CHP Incident")}}</h2>
+          <div class="meta">${{escapeHtml(incident.location || "")}}</div>
+          <section class="detail-section">
+            <dl class="detail-grid">
+              <dt>Incident</dt><dd>${{escapeHtml(incident.incident_no)}}</dd>
+              <dt>Time</dt><dd>${{escapeHtml(incident.incident_time)}}</dd>
+              <dt>Area</dt><dd>${{escapeHtml(incident.area)}}</dd>
+              <dt>Loc Desc</dt><dd>${{escapeHtml(incident.location_desc || "")}}</dd>
+              <dt>Coords</dt><dd>${{coordText}}</dd>
+              <dt>First Seen</dt><dd>${{escapeHtml(incident.first_seen)}}</dd>
+              <dt>Last Seen</dt><dd>${{escapeHtml(incident.last_seen)}}</dd>
+            </dl>
+          </section>
+          <section class="detail-section">
+            <div class="meta">CHP Detail Information</div>
+            ${{details ? `<ol class="detail-log">${{details}}</ol>` : '<div class="empty">No detail entries captured.</div>'}}
+          </section>
+        </div>
+      `;
+    }}
+
+    function selectIncident(incident, options = {{}}) {{
+      detailsPanel.innerHTML = detailHtml(incident);
+      document.querySelectorAll(".incident").forEach((button) => {{
+        button.setAttribute("aria-current", button.dataset.eventKey === incident.event_key ? "true" : "false");
+      }});
+      const marker = markers.get(incident.event_key);
+      if (marker && options.pan !== false) {{
+        map.setView([incident.latitude, incident.longitude], Math.max(map.getZoom(), 13));
+        marker.openPopup();
+      }}
+    }}
+
     function render() {{
       if (!incidents.length) {{
-        list.innerHTML = '<div class="empty">No active matching CHP incidents with coordinates are currently stored.</div>';
+        list.innerHTML = '<div class="empty">No active matching CHP incidents are currently stored.</div>';
+        detailsPanel.innerHTML = '<div class="empty">No active matching CHP incidents are currently stored.</div>';
         return;
       }}
 
       const bounds = [];
       incidents.forEach((incident) => {{
-        const marker = L.circleMarker([incident.latitude, incident.longitude], {{
-          radius: 8,
-          color: "#8f1d21",
-          weight: 2,
-          fillColor: "#d94a38",
-          fillOpacity: 0.85
-        }}).addTo(map);
-        marker.bindPopup(popupHtml(incident), {{ maxWidth: 390 }});
-        markers.set(incident.event_key, marker);
-        bounds.push([incident.latitude, incident.longitude]);
+        const hasCoords = incident.latitude != null && incident.longitude != null;
+        if (hasCoords) {{
+          const marker = L.circleMarker([incident.latitude, incident.longitude], {{
+            radius: 8,
+            color: "#8f1d21",
+            weight: 2,
+            fillColor: "#d94a38",
+            fillOpacity: 0.85
+          }}).addTo(map);
+          marker.bindPopup(popupHtml(incident), {{ maxWidth: 390 }});
+          marker.on("click", () => selectIncident(incident, {{ pan: false }}));
+          markers.set(incident.event_key, marker);
+          bounds.push([incident.latitude, incident.longitude]);
+        }}
 
         const button = document.createElement("button");
         button.className = "incident";
         button.type = "button";
+        button.dataset.eventKey = incident.event_key;
         button.innerHTML = `
           <strong>${{escapeHtml(incident.type || "CHP Incident")}}</strong>
           <span>${{escapeHtml(incident.location)}}</span>
-          <span>${{escapeHtml(incident.incident_time)}} · ${{escapeHtml(incident.area)}} · #${{escapeHtml(incident.incident_no)}}</span>
+          <span>${{escapeHtml(incident.incident_time)}} · ${{escapeHtml(incident.area)}} · #${{escapeHtml(incident.incident_no)}}${{hasCoords ? "" : " · no map pin"}}</span>
         `;
-        button.addEventListener("click", () => {{
-          map.setView([incident.latitude, incident.longitude], Math.max(map.getZoom(), 13));
-          marker.openPopup();
-        }});
+        button.addEventListener("click", () => selectIncident(incident));
         list.appendChild(button);
       }});
 
       if (bounds.length === 1) {{
         map.setView(bounds[0], 13);
-      }} else {{
+      }} else if (bounds.length > 1) {{
         map.fitBounds(bounds, {{ padding: [32, 32] }});
       }}
+      setTimeout(() => map.invalidateSize(), 50);
+      selectIncident(incidents[0], {{ pan: false }});
     }}
 
     render();

@@ -300,30 +300,6 @@ def build_html(incidents, generated_at):
       color: #58645d;
       font-size: 14px;
     }}
-    .popup {{
-      min-width: 260px;
-      max-width: 360px;
-    }}
-    .popup h2 {{
-      margin: 0 0 6px;
-      font-size: 16px;
-      letter-spacing: 0;
-    }}
-    .popup .line {{
-      margin: 3px 0;
-      font-size: 13px;
-    }}
-    .popup ol {{
-      margin: 10px 0 0;
-      padding-left: 20px;
-      max-height: 220px;
-      overflow: auto;
-      font-size: 12px;
-      line-height: 1.35;
-    }}
-    .popup li {{
-      margin-bottom: 6px;
-    }}
     @media (max-width: 760px) {{
       #app {{
         display: block;
@@ -331,8 +307,10 @@ def build_html(incidents, generated_at):
         min-height: 100%;
       }}
       #sidebar {{
+        max-height: 34vh;
+        overflow: auto;
         border-right: 0;
-        border-top: 1px solid #d8ddd2;
+        border-bottom: 1px solid #d8ddd2;
       }}
       #map {{
         height: 42vh;
@@ -409,23 +387,6 @@ def build_html(incidents, generated_at):
       }}[char]));
     }}
 
-    function popupHtml(incident) {{
-      const details = (incident.detail_entries || []).map((entry) => `
-        <li><strong>${{escapeHtml(entry.time)}} ${{escapeHtml(entry.entry_no)}}</strong><br>${{escapeHtml(entry.text)}}</li>
-      `).join("");
-      return `
-        <div class="popup">
-          <h2>${{escapeHtml(incident.type || "CHP Incident")}}</h2>
-          <div class="line"><strong>${{escapeHtml(incident.location)}}</strong></div>
-          <div class="line">${{escapeHtml(incident.location_desc || "")}}</div>
-          <div class="line">Incident ${{escapeHtml(incident.incident_no)}} · ${{escapeHtml(incident.incident_time)}} · ${{escapeHtml(incident.area)}}</div>
-          <div class="line">First seen ${{escapeHtml(incident.first_seen)}}</div>
-          <div class="line">Last seen ${{escapeHtml(incident.last_seen)}}</div>
-          ${{details ? `<ol>${{details}}</ol>` : ""}}
-        </div>
-      `;
-    }}
-
     function detailHtml(incident) {{
       if (!incident) {{
         return '<div class="empty">Select an incident to view CHP detail entries.</div>';
@@ -467,10 +428,25 @@ def build_html(incidents, generated_at):
       document.querySelectorAll(".incident").forEach((button) => {{
         button.setAttribute("aria-current", button.dataset.eventKey === incident.event_key ? "true" : "false");
       }});
+      markers.forEach((marker, eventKey) => {{
+        const selected = eventKey === incident.event_key;
+        marker.setStyle({{
+          radius: selected ? 10 : 8,
+          color: selected ? "#611113" : "#8f1d21",
+          weight: selected ? 3 : 2,
+          fillColor: selected ? "#f05a40" : "#d94a38",
+          fillOpacity: selected ? 0.95 : 0.85
+        }});
+        if (selected) {{
+          marker.bringToFront();
+        }}
+      }});
       const marker = markers.get(incident.event_key);
       if (marker && options.pan !== false) {{
         map.setView([incident.latitude, incident.longitude], Math.max(map.getZoom(), 13));
-        marker.openPopup();
+      }}
+      if (options.revealDetails && window.matchMedia("(max-width: 760px)").matches) {{
+        detailsPanel.scrollIntoView({{ behavior: "smooth", block: "start" }});
       }}
     }}
 
@@ -492,8 +468,7 @@ def build_html(incidents, generated_at):
             fillColor: "#d94a38",
             fillOpacity: 0.85
           }}).addTo(map);
-          marker.bindPopup(popupHtml(incident), {{ maxWidth: 390 }});
-          marker.on("click", () => selectIncident(incident, {{ pan: false }}));
+          marker.on("click", () => selectIncident(incident, {{ pan: false, revealDetails: true }}));
           markers.set(incident.event_key, marker);
           bounds.push([incident.latitude, incident.longitude]);
         }}

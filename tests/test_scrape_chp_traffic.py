@@ -14,6 +14,7 @@ from scrape_chp_traffic import (
     parse_lat_lon,
     parse_lat_lon_from_detail_html,
     parse_page,
+    fetch_details,
     should_fetch_details,
     store_scrape_run,
     touch_active_event,
@@ -64,6 +65,49 @@ def test_parser_keeps_repeated_detail_tables():
         ["3:54 PM", "6", "[41] LACORDS // WILL SEND CREW"],
         ["Unit Information"],
         ["1:15 PM", "13", "Unit At Scene"],
+    ]
+
+
+def test_fetch_details_preserves_detail_sections(monkeypatch):
+    class FakeOpener:
+        pass
+
+    parser = parse_page('<input type="hidden" name="__VIEWSTATE" value="abc">')
+
+    def fake_post_form(_opener, _url, _data, _timeout, _user_agent, _retries, _backoff):
+        return """
+        <span id="lblIncident">1520</span>
+        <span id="lblType">Fatality</span>
+        <span id="lblLocation">Angeles Forest Hwy</span>
+        <span id="lblLocationDesc">MM15.3</span>
+        <span id="lblLatLon">34.342694, -118.110713</span>
+        <table id="tblDetails">
+          <tr><th>Time</th><th>No.</th><th>Detail</th></tr>
+          <tr><td>3:54 PM</td><td>6</td><td>[41] LACORDS // WILL SEND CREW</td></tr>
+        </table>
+        <table id="tblDetails">
+          <tr><th>Unit Information</th></tr>
+          <tr><td>1:15 PM</td><td>13</td><td>Unit At Scene</td></tr>
+        </table>
+        """
+
+    monkeypatch.setattr("scrape_chp_traffic.post_form", fake_post_form)
+
+    details = fetch_details(FakeOpener(), "LACC", parser, 0, 30, "test-agent", 0, 0)
+
+    assert details["detail_entries"] == [
+        {
+            "section": "Detail Information",
+            "time": "3:54 PM",
+            "entry_no": "6",
+            "text": "[41] LACORDS // WILL SEND CREW",
+        },
+        {
+            "section": "Unit Information",
+            "time": "1:15 PM",
+            "entry_no": "13",
+            "text": "Unit At Scene",
+        },
     ]
 
 

@@ -70,7 +70,20 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
             "cleared_at": None,
             "latitude": 34.31,
             "longitude": -118.12,
-            "detail_entries": [{"time": "7:37 AM", "entry_no": "0001", "text": "Tow requested"}],
+            "detail_entries": [
+                {
+                    "section": "Detail Information",
+                    "time": "7:37 AM",
+                    "entry_no": "0001",
+                    "text": "Tow requested",
+                },
+                {
+                    "section": "Unit Information",
+                    "time": "7:39 AM",
+                    "entry_no": "0002",
+                    "text": "Unit Assigned",
+                },
+            ],
         },
         {
             "event_key": "LACC|2026-05-31|0801",
@@ -120,6 +133,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "function formatGeneratedAt" in html
     assert "function formatIncidentWhen" in html
     assert "${escapeHtml(formatIncidentWhen(incident))}" in html
+    assert "Detail Information" in html
+    assert "Unit Information" in html
+    assert "detail-subsection" in html
     assert 'id="stale-notice"' in html
     assert "function setupStaleRefresh" in html
     assert "ageMs > 120000" in html

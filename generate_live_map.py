@@ -469,6 +469,19 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       color: #58645d;
       font-size: 12px;
     }}
+    .detail-subsection {{
+      margin-top: 12px;
+    }}
+    .detail-subsection:first-child {{
+      margin-top: 8px;
+    }}
+    .detail-subsection h3 {{
+      margin: 0 0 6px;
+      color: #3f4a44;
+      font-size: 13px;
+      line-height: 1.3;
+      letter-spacing: 0;
+    }}
     .incident[aria-current="true"] {{
       background: #e4efe4;
       box-shadow: inset 3px 0 0 #277447;
@@ -659,11 +672,29 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       const isActive = incident.status === "active";
       const statusClass = isActive ? "status-active" : "status-cleared";
       const statusText = isActive ? "Active" : "Cleared";
-      const details = (incident.detail_entries || []).map((entry) => `
-        <li>
-          <time>${{escapeHtml(entry.time)}} · Entry ${{escapeHtml(entry.entry_no)}}</time>
-          <div>${{escapeHtml(entry.text)}}</div>
-        </li>
+      const groupedDetails = new Map();
+      (incident.detail_entries || []).forEach((entry) => {{
+        const fallbackSection = String(entry.text || "").startsWith("Unit ")
+          ? "Unit Information"
+          : "Detail Information";
+        const section = entry.section || fallbackSection;
+        if (!groupedDetails.has(section)) {{
+          groupedDetails.set(section, []);
+        }}
+        groupedDetails.get(section).push(entry);
+      }});
+      const details = Array.from(groupedDetails.entries()).map(([section, entries]) => `
+        <div class="detail-subsection">
+          <h3>${{escapeHtml(section)}}</h3>
+          <ol class="detail-log">
+            ${{entries.map((entry) => `
+              <li>
+                <time>${{escapeHtml(entry.time)}} · Entry ${{escapeHtml(entry.entry_no)}}</time>
+                <div>${{escapeHtml(entry.text)}}</div>
+              </li>
+            `).join("")}}
+          </ol>
+        </div>
       `).join("");
       const coordText = incident.latitude == null || incident.longitude == null
         ? '<span class="mapless">No coordinates exposed by CHP for this incident.</span>'
@@ -686,8 +717,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
             </dl>
           </section>
           <section class="detail-section">
-            <div class="meta">CHP Detail Information</div>
-            ${{details ? `<ol class="detail-log">${{details}}</ol>` : '<div class="empty">No detail entries captured.</div>'}}
+            ${{details || '<div class="empty">No detail entries captured.</div>'}}
           </section>
         </div>
       `;

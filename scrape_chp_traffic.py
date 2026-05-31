@@ -208,10 +208,18 @@ def fetch_details(opener, center, list_parser, select_index, timeout, user_agent
     if lat is None or lon is None:
         lat, lon = parse_lat_lon_from_detail_html(detail_text)
     detail_entries = []
-    for row in parser.tables.get("tblDetails", [])[1:]:
+    section = "Detail Information"
+    for row in parser.tables.get("tblDetails", []):
+        if len(row) == 1 and row[0]:
+            section = row[0]
+            continue
+        if row and normalize_header(row[0]) == "time":
+            section = "Detail Information"
+            continue
         if len(row) >= 3:
             detail_entries.append(
                 {
+                    "section": section,
                     "time": row[0],
                     "entry_no": row[1],
                     "text": " ".join(row[2:]).strip(),

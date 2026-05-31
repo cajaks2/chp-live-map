@@ -299,6 +299,34 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       color: #ffffff;
       background: #277447;
     }}
+    #stale-notice {{
+      display: none;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      padding: 8px 9px;
+      border: 1px solid #e4c56d;
+      border-radius: 6px;
+      color: #5c4614;
+      background: #fff7d8;
+      font-size: 12px;
+      line-height: 1.3;
+    }}
+    #stale-notice.is-visible {{
+      display: flex;
+    }}
+    #stale-notice button {{
+      flex: 0 0 auto;
+      min-height: 28px;
+      padding: 4px 8px;
+      border: 1px solid #c7a848;
+      border-radius: 5px;
+      color: #3d310f;
+      background: #ffffff;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }}
     #incident-list {{
       flex: 1 1 auto;
       min-height: 0;
@@ -509,6 +537,10 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         <div class="meta">{active_count} active · {len(incidents)} in last {hours:g}h · {mapped_count} mapped</div>
         <div class="meta">Last updated <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></div>
         <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
+        <div id="stale-notice" role="status">
+          <span>Data may be stale.</span>
+          <button type="button" id="refresh-page">Refresh</button>
+        </div>
       </header>
       <div id="incident-list"></div>
     </aside>
@@ -582,6 +614,30 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         minute: "2-digit"
       }});
       generatedAt.title = generatedAt.dateTime;
+    }}
+
+    function setupStaleRefresh() {{
+      const generatedAt = document.getElementById("generated-at");
+      const notice = document.getElementById("stale-notice");
+      const refreshButton = document.getElementById("refresh-page");
+      if (!generatedAt || !notice || !refreshButton) {{
+        return;
+      }}
+      const generatedTime = new Date(generatedAt.dateTime).getTime();
+      if (Number.isNaN(generatedTime)) {{
+        return;
+      }}
+      const refresh = () => window.location.reload();
+      refreshButton.addEventListener("click", refresh);
+      const update = () => {{
+        const ageMs = Date.now() - generatedTime;
+        notice.classList.toggle("is-visible", ageMs > 90000);
+        if (ageMs > 120000 && document.visibilityState === "visible") {{
+          refresh();
+        }}
+      }};
+      update();
+      window.setInterval(update, 15000);
     }}
 
     function formatIncidentWhen(incident) {{
@@ -708,6 +764,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
 
     render();
     formatGeneratedAt();
+    setupStaleRefresh();
   </script>
 </body>
 </html>

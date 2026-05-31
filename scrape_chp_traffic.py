@@ -56,7 +56,7 @@ class ChpTrafficParser(HTMLParser):
             self._span_parts = []
         if tag == "table" and attrs.get("id") in {"gvIncidents", "tblDetails"}:
             self._table_id = attrs["id"]
-            self.tables[self._table_id] = []
+            self.tables.setdefault(self._table_id, [])
         if self._table_id and tag == "tr":
             self._row = []
         if self._table_id and tag in {"td", "th"}:

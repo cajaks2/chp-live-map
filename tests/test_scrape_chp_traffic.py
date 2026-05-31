@@ -45,6 +45,28 @@ def test_parse_incidents_from_cad_table():
     ]
 
 
+def test_parser_keeps_repeated_detail_tables():
+    parser = parse_page(
+        """
+        <table id="tblDetails">
+          <tr><th>Time</th><th>No.</th><th>Detail</th></tr>
+          <tr><td>3:54 PM</td><td>6</td><td>[41] LACORDS // WILL SEND CREW</td></tr>
+        </table>
+        <table id="tblDetails">
+          <tr><th>Unit Information</th></tr>
+          <tr><td>1:15 PM</td><td>13</td><td>Unit At Scene</td></tr>
+        </table>
+        """
+    )
+
+    assert parser.tables["tblDetails"] == [
+        ["Time", "No.", "Detail"],
+        ["3:54 PM", "6", "[41] LACORDS // WILL SEND CREW"],
+        ["Unit Information"],
+        ["1:15 PM", "13", "Unit At Scene"],
+    ]
+
+
 def test_matching_keywords_checks_location_fields_case_insensitively():
     incident = {
         "type": "Traffic Hazard",

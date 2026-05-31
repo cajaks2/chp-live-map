@@ -164,8 +164,8 @@ def test_unchanged_active_event_can_skip_detail_refetch_and_still_touch_last_see
     assert not should_fetch_details(
         previous,
         incident,
-        dt.datetime.fromisoformat("2026-05-31T08:05:00-07:00"),
-        refresh_minutes=15,
+        dt.datetime.fromisoformat("2026-05-31T08:02:00-07:00"),
+        refresh_minutes=3,
     )
     touch_active_event(conn, previous, "2026-05-31T08:05:00-07:00")
     conn.commit()
@@ -205,14 +205,14 @@ def test_detail_refetch_happens_for_changed_or_stale_event(tmp_path):
     assert should_fetch_details(
         previous,
         {**row, "location": "Angeles Forest Hwy"},
-        dt.datetime.fromisoformat("2026-05-31T08:05:00-07:00"),
-        refresh_minutes=15,
+        dt.datetime.fromisoformat("2026-05-31T08:02:00-07:00"),
+        refresh_minutes=3,
     )
     assert should_fetch_details(
         previous,
         row,
-        dt.datetime.fromisoformat("2026-05-31T08:20:00-07:00"),
-        refresh_minutes=15,
+        dt.datetime.fromisoformat("2026-05-31T08:03:00-07:00"),
+        refresh_minutes=3,
     )
     conn.close()
 

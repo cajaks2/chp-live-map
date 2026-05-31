@@ -838,7 +838,7 @@ def parse_args():
     parser.add_argument("--interval", type=int, default=0, help="Poll interval in seconds. Default runs once.")
     parser.add_argument("--timeout", type=int, default=30)
     parser.add_argument("--detail-delay", type=float, default=0.2)
-    parser.add_argument("--detail-refresh-minutes", type=float, default=15.0)
+    parser.add_argument("--detail-refresh-minutes", type=float, default=3.0)
     parser.add_argument("--user-agent", default=os.environ.get("CHP_USER_AGENT", DEFAULT_USER_AGENT))
     parser.add_argument("--retries", type=int, default=int(os.environ.get("CHP_RETRIES", "2")))
     parser.add_argument("--retry-backoff", type=float, default=float(os.environ.get("CHP_RETRY_BACKOFF", "2")))

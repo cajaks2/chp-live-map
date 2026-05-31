@@ -17,7 +17,7 @@ The scraper is intentionally conservative:
 - It uses a descriptive `User-Agent` with a public project URL.
 - It checks `robots.txt` before scraping unless `--no-respect-robots` is set.
 - It retries transient HTTP failures with exponential backoff.
-- It skips detail-page refetches for unchanged active incidents for 15 minutes by default.
+- It skips detail-page refetches for unchanged active incidents for 3 minutes by default.
 - It records both total CHP incidents seen and filtered incidents acquired in `scrape_runs`.
 
 ## Requirements
@@ -47,7 +47,7 @@ Tune politeness controls:
 ```sh
 python3 scrape_chp_traffic.py \
   --detail-delay 0.5 \
-  --detail-refresh-minutes 15 \
+  --detail-refresh-minutes 3 \
   --retries 2 \
   --retry-backoff 2
 ```

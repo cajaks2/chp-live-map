@@ -130,7 +130,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: scrape
-              image: chp-live-map:latest
+              image: cajaks2/chp-live-map:0.1.0
               imagePullPolicy: IfNotPresent
               command:
                 - python3
@@ -159,7 +159,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: chp-live-map:latest
+          image: cajaks2/chp-live-map:0.1.0
           imagePullPolicy: IfNotPresent
           command:
             - python3

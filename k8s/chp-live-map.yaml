@@ -130,7 +130,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: scrape
-              image: cajaks2/chp-live-map:0.1.1
+              image: cajaks2/chp-live-map:0.1.2
               imagePullPolicy: IfNotPresent
               command:
                 - python3
@@ -142,7 +142,7 @@ spec:
                       name: chp-live-map-db
                       key: DATABASE_URL
                 - name: SERVICE_VERSION
-                  value: "0.1.1"
+                  value: "0.1.2"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -161,7 +161,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: cajaks2/chp-live-map:0.1.1
+          image: cajaks2/chp-live-map:0.1.2
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -180,7 +180,9 @@ spec:
             - name: HTTP_PORT
               value: "8080"
             - name: SERVICE_VERSION
-              value: "0.1.1"
+              value: "0.1.2"
+            - name: BASE_PATH
+              value: /chp
           readinessProbe:
             httpGet:
               path: /readyz
@@ -207,3 +209,23 @@ spec:
     - name: http
       port: 80
       targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chp-live-map
+  namespace: chp-live-map
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  ingressClassName: traefik
+  rules:
+    - http:
+        paths:
+          - path: /chp
+            pathType: Prefix
+            backend:
+              service:
+                name: chp-live-map
+                port:
+                  number: 80

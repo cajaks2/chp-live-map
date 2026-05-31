@@ -6,7 +6,7 @@ import traceback
 
 
 SERVICE_NAME = os.environ.get("SERVICE_NAME", "chp-live-map")
-SERVICE_VERSION = os.environ.get("SERVICE_VERSION", "0.1.1")
+SERVICE_VERSION = os.environ.get("SERVICE_VERSION", "0.1.2")
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "production")
 
 

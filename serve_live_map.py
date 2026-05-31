@@ -4,6 +4,7 @@ import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from ecs_logging import log_event, log_exception, run_main
 from generate_live_map import build_html, load_incidents
@@ -14,16 +15,21 @@ class LiveMapHandler(BaseHTTPRequestHandler):
     database = Path("chp_traffic.sqlite")
     database_url = None
     hours = 24.0
+    base_path = "/"
 
     def do_GET(self):
-        if self.path in {"/healthz", "/readyz"}:
+        path = urlsplit(self.path).path.rstrip("/") or "/"
+        base_path = self.base_path.rstrip("/") or "/"
+        map_paths = {"/", "/live_chp_map.html", base_path}
+
+        if path in {"/healthz", "/readyz"}:
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.end_headers()
             self.wfile.write(b"ok\n")
             return
 
-        if self.path not in {"/", "/live_chp_map.html"}:
+        if path not in map_paths:
             self.send_error(404)
             return
 
@@ -101,6 +107,7 @@ def parse_args():
     parser.add_argument("--database", type=Path, default=Path(os.environ.get("DATABASE", "chp_traffic.sqlite")))
     parser.add_argument("--database-url", default=os.environ.get("DATABASE_URL"))
     parser.add_argument("--hours", type=float, default=float(os.environ.get("MAP_HOURS", "24")))
+    parser.add_argument("--base-path", default=os.environ.get("BASE_PATH", "/"))
     return parser.parse_args()
 
 
@@ -109,6 +116,7 @@ def main():
     LiveMapHandler.database = args.database
     LiveMapHandler.database_url = args.database_url
     LiveMapHandler.hours = args.hours
+    LiveMapHandler.base_path = args.base_path
     with connect_database(args.database, args.database_url):
         pass
     server = EcsHTTPServer((args.host, args.port), LiveMapHandler)
@@ -120,6 +128,7 @@ def main():
             "network.transport": "tcp",
             "server.address": args.host,
             "server.port": args.port,
+            "url.path": args.base_path,
             "chp.hours": args.hours,
         },
     )

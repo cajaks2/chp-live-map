@@ -60,6 +60,74 @@ def build_html(incidents, generated_at):
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIINfQ9um5Lj053hphD7uW9P4U5F9VAt5x0=" crossorigin="">
   <style>
+    .leaflet-container {{
+      overflow: hidden;
+      touch-action: pan-x pan-y;
+    }}
+    .leaflet-pane,
+    .leaflet-tile,
+    .leaflet-marker-icon,
+    .leaflet-marker-shadow,
+    .leaflet-tile-container,
+    .leaflet-pane > svg,
+    .leaflet-pane > canvas,
+    .leaflet-zoom-box,
+    .leaflet-image-layer,
+    .leaflet-layer {{
+      position: absolute;
+      left: 0;
+      top: 0;
+    }}
+    .leaflet-tile {{
+      width: 256px;
+      height: 256px;
+      user-select: none;
+      -webkit-user-drag: none;
+    }}
+    .leaflet-pane {{
+      z-index: 400;
+    }}
+    .leaflet-tile-pane {{
+      z-index: 200;
+    }}
+    .leaflet-overlay-pane {{
+      z-index: 400;
+    }}
+    .leaflet-shadow-pane {{
+      z-index: 500;
+    }}
+    .leaflet-marker-pane {{
+      z-index: 600;
+    }}
+    .leaflet-tooltip-pane {{
+      z-index: 650;
+    }}
+    .leaflet-popup-pane {{
+      z-index: 700;
+    }}
+    .leaflet-control {{
+      position: relative;
+      z-index: 800;
+      pointer-events: auto;
+    }}
+    .leaflet-top,
+    .leaflet-bottom {{
+      position: absolute;
+      z-index: 1000;
+      pointer-events: none;
+    }}
+    .leaflet-top {{
+      top: 0;
+    }}
+    .leaflet-right {{
+      right: 0;
+    }}
+    .leaflet-bottom {{
+      bottom: 0;
+    }}
+    .leaflet-left {{
+      left: 0;
+    }}
     html, body {{
       height: 100%;
       margin: 0;
@@ -299,6 +367,7 @@ def build_html(incidents, generated_at):
     mapEl.classList.add("is-loading");
     const map = L.map("map", {{
       preferCanvas: true,
+      zoomControl: false,
       zoomAnimation: false,
       fadeAnimation: false,
       markerZoomAnimation: false

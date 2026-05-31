@@ -111,6 +111,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "overscroll-behavior: contain" in html
     assert "background: #fbfcf8" in html
     assert "border-bottom: 1px solid #e2e6de" in html
+    assert "align-items: center" in html
+    assert "justify-content: center" in html
     assert '<nav class="range-tabs" aria-label="History range">' in html
     assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in html
     assert "1 active · 2 in last 72h · 1 mapped" in html

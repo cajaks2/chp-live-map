@@ -277,14 +277,16 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       background: #eef1ea;
     }}
     .range-tab {{
-      display: block;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       min-height: 28px;
-      padding: 5px 7px;
+      padding: 0 7px;
       border-radius: 5px;
       color: #3f4a44;
       font-size: 12px;
       font-weight: 700;
-      line-height: 18px;
+      line-height: 1;
       text-align: center;
       text-decoration: none;
     }}

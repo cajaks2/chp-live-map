@@ -89,19 +89,56 @@ def load_incidents(database, hours, database_url=None):
     return incidents
 
 
-def build_html(incidents, generated_at, hours):
+def normalize_base_path(base_path):
+    base = (base_path or "/").rstrip("/")
+    return base or "/"
+
+
+def metadata_urls(base_path, public_url):
+    base = normalize_base_path(base_path)
+    asset_base = "" if base == "/" else base
+    fallback_url = base if base == "/" else f"{base}/"
+    canonical_url = (public_url or fallback_url).rstrip("/") + "/"
+    return {
+        "canonical": canonical_url,
+        "favicon": f"{asset_base}/favicon.svg",
+        "og_image": f"{canonical_url.rstrip('/')}/og-image.svg" if public_url else f"{asset_base}/og-image.svg",
+    }
+
+
+def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     data = json.dumps(incidents, ensure_ascii=False)
     mapped_count = len(
         [i for i in incidents if i.get("latitude") is not None and i.get("longitude") is not None]
     )
     active_count = len([i for i in incidents if i.get("status") == "active"])
     title = f"CHP Forest Incidents ({active_count} active, {len(incidents)} total)"
+    description = (
+        "Live CHP traffic incidents for Angeles Crest, Angeles Forest, Big Tujunga, "
+        "Glendora Mountain, and nearby forest roads."
+    )
+    urls = metadata_urls(base_path, public_url)
     return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{html.escape(title)}</title>
+  <meta name="description" content="{html.escape(description)}">
+  <link rel="canonical" href="{html.escape(urls["canonical"])}">
+  <link rel="icon" href="{html.escape(urls["favicon"])}" type="image/svg+xml">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{html.escape(title)}">
+  <meta property="og:description" content="{html.escape(description)}">
+  <meta property="og:url" content="{html.escape(urls["canonical"])}">
+  <meta property="og:image" content="{html.escape(urls["og_image"])}">
+  <meta property="og:image:type" content="image/svg+xml">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{html.escape(title)}">
+  <meta name="twitter:description" content="{html.escape(description)}">
+  <meta name="twitter:image" content="{html.escape(urls["og_image"])}">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIINfQ9um5Lj053hphD7uW9P4U5F9VAt5x0=" crossorigin="">
   <style>

@@ -3,7 +3,7 @@ from urllib.request import HTTPError, urlopen
 from urllib.request import Request
 
 import serve_live_map
-from serve_live_map import EcsHTTPServer, LiveMapHandler, MAP_CACHE_CONTROL
+from serve_live_map import ASSET_CACHE_CONTROL, EcsHTTPServer, LiveMapHandler, MAP_CACHE_CONTROL
 from scrape_chp_traffic import connect_database
 
 
@@ -20,6 +20,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
     TestHandler.database_url = None
     TestHandler.hours = 72.0
     TestHandler.base_path = "/chp"
+    TestHandler.public_url = "https://home.flowy.us/chp/"
 
     server = EcsHTTPServer(("127.0.0.1", 0), TestHandler)
     thread = threading.Thread(target=server.serve_forever)
@@ -38,9 +39,23 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert "CHP Forest Incidents" in body
+            assert '<link rel="icon" href="/chp/favicon.svg" type="image/svg+xml">' in body
+            assert '<meta property="og:image" content="https://home.flowy.us/chp/og-image.svg">' in body
             assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
             assert "Pragma" not in response.headers
             assert "Expires" not in response.headers
+
+        with urlopen(f"{base_url}/chp/favicon.svg", timeout=5) as response:
+            assert response.status == 200
+            assert response.headers["Content-Type"] == "image/svg+xml"
+            assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
+            assert b"<svg" in response.read()
+
+        with urlopen(f"{base_url}/chp/og-image.svg", timeout=5) as response:
+            assert response.status == 200
+            assert response.headers["Content-Type"] == "image/svg+xml"
+            assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
+            assert b"CHP Forest Incidents" in response.read()
 
         head_request = Request(f"{base_url}/chp/", method="HEAD")
         with urlopen(head_request, timeout=5) as response:

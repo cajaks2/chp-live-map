@@ -136,6 +136,34 @@ def build_html(incidents, generated_at):
       background: #d9ded4;
       z-index: 0;
     }}
+    #map::after {{
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 450;
+      pointer-events: none;
+      background:
+        linear-gradient(90deg, rgba(217,222,212,0.72), rgba(247,248,244,0.72), rgba(217,222,212,0.72)),
+        #d9ded4;
+      background-size: 220% 100%;
+      opacity: 0;
+      transition: opacity 160ms ease;
+    }}
+    #map.is-loading::after {{
+      opacity: 1;
+      animation: mapLoading 1.1s linear infinite;
+    }}
+    @keyframes mapLoading {{
+      from {{ background-position: 0 0; }}
+      to {{ background-position: -220% 0; }}
+    }}
+    #map .leaflet-tile-pane {{
+      opacity: 0;
+      transition: opacity 160ms ease;
+    }}
+    #map.tiles-ready .leaflet-tile-pane {{
+      opacity: 1;
+    }}
     #details {{
       position: relative;
       z-index: 1;
@@ -267,13 +295,35 @@ def build_html(incidents, generated_at):
   <script>
     const incidents = {data};
 
-    const map = L.map("map", {{ preferCanvas: true }}).setView({json.dumps(DEFAULT_CENTER)}, {DEFAULT_ZOOM});
-    L.tileLayer("https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png", {{
+    const mapEl = document.getElementById("map");
+    mapEl.classList.add("is-loading");
+    const map = L.map("map", {{
+      preferCanvas: true,
+      zoomAnimation: false,
+      fadeAnimation: false,
+      markerZoomAnimation: false
+    }}).setView({json.dumps(DEFAULT_CENTER)}, {DEFAULT_ZOOM});
+    const baseLayer = L.tileLayer("https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png", {{
       subdomains: "abcd",
       maxZoom: 19,
-      detectRetina: true,
+      keepBuffer: 8,
+      updateWhenIdle: true,
+      updateWhenZooming: false,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-    }}).addTo(map);
+    }});
+    baseLayer.on("load", () => {{
+      mapEl.classList.remove("is-loading");
+      mapEl.classList.add("tiles-ready");
+    }});
+    baseLayer.on("loading", () => {{
+      mapEl.classList.add("is-loading");
+      window.clearTimeout(window.chpTileLoadingTimer);
+      window.chpTileLoadingTimer = window.setTimeout(() => {{
+        mapEl.classList.remove("is-loading");
+        mapEl.classList.add("tiles-ready");
+      }}, 1800);
+    }});
+    baseLayer.addTo(map);
 
     const markers = new Map();
     const list = document.getElementById("incident-list");

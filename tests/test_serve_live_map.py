@@ -1,5 +1,6 @@
 import threading
 from urllib.request import HTTPError, urlopen
+from urllib.request import Request
 
 import serve_live_map
 from serve_live_map import EcsHTTPServer, LiveMapHandler
@@ -29,7 +30,11 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert response.status == 200
             assert response.read() == b"ok\n"
 
-        with urlopen(f"{base_url}/chp/", timeout=5) as response:
+        request = Request(
+            f"{base_url}/chp/",
+            headers={"X-Forwarded-For": "203.0.113.7, 10.42.0.63"},
+        )
+        with urlopen(request, timeout=5) as response:
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert "CHP Forest Incidents" in body
@@ -48,6 +53,10 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert "/healthz" not in logged_paths
         assert "/chp/" in logged_paths
         assert "/missing" in logged_paths
+        chp_log = next(kwargs for _args, kwargs in access_logs if kwargs["url.path"] == "/chp/")
+        assert chp_log["client.address"] == "203.0.113.7"
+        assert chp_log["client.nat.ip"] == "127.0.0.1"
+        assert chp_log["http.request.header.x_forwarded_for"] == "203.0.113.7, 10.42.0.63"
     finally:
         server.shutdown()
         server.server_close()

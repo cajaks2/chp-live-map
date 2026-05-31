@@ -17,6 +17,18 @@ class LiveMapHandler(BaseHTTPRequestHandler):
     hours = 72.0
     base_path = "/"
 
+    def client_log_fields(self):
+        forwarded_for = self.headers.get("X-Forwarded-For", "")
+        forwarded_ip = forwarded_for.split(",", 1)[0].strip()
+        real_ip = self.headers.get("X-Real-IP", "").strip()
+        client_ip = forwarded_ip or real_ip or self.client_address[0]
+        fields = {"client.address": client_ip}
+        if self.client_address[0] != client_ip:
+            fields["client.nat.ip"] = self.client_address[0]
+        if forwarded_for:
+            fields["http.request.header.x_forwarded_for"] = forwarded_for
+        return fields
+
     def do_GET(self):
         path = urlsplit(self.path).path.rstrip("/") or "/"
         base_path = self.base_path.rstrip("/") or "/"
@@ -46,8 +58,8 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                     "event.outcome": "failure",
                     "http.request.method": self.command,
                     "url.path": self.path,
-                    "client.address": self.client_address[0],
                     "http.response.status_code": 500,
+                    **self.client_log_fields(),
                 },
             )
             self.send_response(500)
@@ -81,10 +93,10 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             **{
                 "event.action": "http_request",
                 "event.outcome": "success" if status_code and status_code < 500 else "failure",
-                "client.address": self.client_address[0],
                 "http.request.method": self.command,
                 "http.response.status_code": status_code,
                 "url.path": self.path,
+                **self.client_log_fields(),
             },
         )
 

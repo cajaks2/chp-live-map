@@ -216,11 +216,14 @@ metadata:
   name: chp-live-map
   namespace: chp-live-map
   annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
     kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
-    - http:
+    - host: home.flowy.us
+      http:
         paths:
           - path: /chp
             pathType: Prefix
@@ -229,3 +232,7 @@ spec:
                 name: chp-live-map
                 port:
                   number: 80
+  tls:
+    - hosts:
+        - home.flowy.us
+      secretName: home-flowy-us-tls

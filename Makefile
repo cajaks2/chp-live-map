@@ -6,7 +6,7 @@ PLATFORM ?= linux/amd64
 MANIFEST ?= k8s/chp-live-map.yaml
 NAMESPACE ?= chp-live-map
 DEPLOYMENT ?= chp-live-map-web
-PUBLIC_URL ?= https://home.flowy.us/chp/
+PUBLIC_URL ?= https://chp.flowy.us/
 PYTHON ?= python3
 VENV ?= .venv
 

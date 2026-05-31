@@ -416,13 +416,13 @@ def build_html(incidents, generated_at, hours):
       fadeAnimation: false,
       markerZoomAnimation: false
     }}).setView({json.dumps(DEFAULT_CENTER)}, {DEFAULT_ZOOM});
-    const baseLayer = L.tileLayer("https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png", {{
-      subdomains: "abcd",
+    const baseLayer = L.tileLayer("https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png", {{
+      subdomains: "abc",
       maxZoom: 19,
       keepBuffer: 8,
       updateWhenIdle: true,
       updateWhenZooming: false,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }});
     baseLayer.on("load", () => {{
       mapEl.classList.remove("is-loading");

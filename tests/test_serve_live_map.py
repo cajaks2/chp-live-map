@@ -1,11 +1,14 @@
 import threading
 from urllib.request import HTTPError, urlopen
 
+import serve_live_map
 from serve_live_map import EcsHTTPServer, LiveMapHandler
 from scrape_chp_traffic import connect_database
 
 
-def test_live_map_handler_serves_health_base_path_and_404(tmp_path):
+def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch):
+    access_logs = []
+    monkeypatch.setattr(serve_live_map, "log_event", lambda *args, **kwargs: access_logs.append((args, kwargs)))
     database = tmp_path / "chp.sqlite"
     connect_database(database).close()
 
@@ -40,6 +43,11 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path):
             assert exc.code == 404
         else:
             raise AssertionError("expected /missing to return 404")
+
+        logged_paths = [kwargs["url.path"] for _args, kwargs in access_logs]
+        assert "/healthz" not in logged_paths
+        assert "/chp/" in logged_paths
+        assert "/missing" in logged_paths
     finally:
         server.shutdown()
         server.server_close()

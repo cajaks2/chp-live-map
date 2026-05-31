@@ -72,6 +72,9 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                 status_code = int(args[1])
             except (IndexError, TypeError, ValueError):
                 status_code = None
+        path = urlsplit(self.path).path.rstrip("/") or "/"
+        if path in {"/healthz", "/readyz"} and status_code and status_code < 500:
+            return
         log_event(
             "info",
             "HTTP request completed",

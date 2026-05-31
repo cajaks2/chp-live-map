@@ -101,6 +101,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "function escapeHtml" in html
     assert "no map pin" in html
     assert "window.chpLiveMap" in html
+    assert "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" in html
+    assert "basemaps.cartocdn.com/light_all" not in html
     assert ".setView([34.32, -118.12], 10)" in html
     assert "map.fitBounds" not in html
     assert json.dumps(incidents, ensure_ascii=False) in html

@@ -174,9 +174,12 @@ def fetch_details(opener, center, list_parser, select_index, timeout):
         "ddlSearches": "Choose One",
         "ddlResources": "Choose One",
     }
-    parser = parse_page(post_form(opener, CHP_TRAFFIC_URL, data, timeout))
+    detail_text = post_form(opener, CHP_TRAFFIC_URL, data, timeout)
+    parser = parse_page(detail_text)
     spans = parser.spans
     lat, lon = parse_lat_lon(spans.get("lblLatLon", ""))
+    if lat is None or lon is None:
+        lat, lon = parse_lat_lon_from_detail_html(detail_text)
     detail_entries = []
     for row in parser.tables.get("tblDetails", [])[1:]:
         if len(row) >= 3:
@@ -199,10 +202,31 @@ def fetch_details(opener, center, list_parser, select_index, timeout):
 
 
 def parse_lat_lon(value):
-    match = re.search(r"(-?\d+\.\d+)\s+(-?\d+\.\d+)", value or "")
+    match = re.search(r"(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)", value or "")
     if not match:
         return None, None
     return float(match.group(1)), float(match.group(2))
+
+
+def parse_lat_lon_from_detail_html(detail_text):
+    span_match = re.search(
+        r'<span[^>]+id="lblLatLon"[^>]*>(.*?)</span>',
+        detail_text or "",
+        re.I | re.S,
+    )
+    if span_match:
+        lat, lon = parse_lat_lon(html.unescape(span_match.group(1)))
+        if lat is not None and lon is not None:
+            return lat, lon
+
+    maps_match = re.search(
+        r"(?:maps/place/|[?&]q=)(-?\d+\.\d+)[,\s%20]+(-?\d+\.\d+)",
+        detail_text or "",
+        re.I,
+    )
+    if maps_match:
+        return float(maps_match.group(1)), float(maps_match.group(2))
+    return None, None
 
 
 def parse_updated_at(updated_text, now):
@@ -437,6 +461,7 @@ def scrape_once(args):
     now = dt.datetime.now().astimezone()
     observed_at = now.isoformat(timespec="seconds")
     seen_keys = set()
+    seen_with_coords = set()
     observations_inserted = 0
 
     with connect_database(args.database) as conn:
@@ -466,6 +491,8 @@ def scrape_once(args):
                 }
                 row["details_hash"] = details_hash(row)
                 seen_keys.add(row["event_key"])
+                if row["latitude"] is not None and row["longitude"] is not None:
+                    seen_with_coords.add(row["event_key"])
                 previous = upsert_active_event(conn, row)
                 if (
                     not previous
@@ -488,7 +515,7 @@ def scrape_once(args):
                 observations_inserted += 1
 
         store_scrape_run(conn, observed_at, args.center, len(seen_keys), observations_inserted)
-    return observations_inserted, len(seen_keys)
+    return observations_inserted, len(seen_keys), len(seen_with_coords)
 
 
 def parse_args():
@@ -511,10 +538,11 @@ def parse_args():
 def main():
     args = parse_args()
     while True:
-        changed_rows, active_seen = scrape_once(args)
+        changed_rows, active_seen, active_with_coords = scrape_once(args)
         print(
             f"{dt.datetime.now().isoformat(timespec='seconds')} "
-            f"active_seen={active_seen} observations_inserted={changed_rows}"
+            f"active_seen={active_seen} active_with_coords={active_with_coords} "
+            f"observations_inserted={changed_rows}"
         )
         if args.interval <= 0:
             break

@@ -3,7 +3,7 @@ from urllib.request import HTTPError, urlopen
 from urllib.request import Request
 
 import serve_live_map
-from serve_live_map import EcsHTTPServer, LiveMapHandler
+from serve_live_map import EcsHTTPServer, LiveMapHandler, MAP_CACHE_CONTROL
 from scrape_chp_traffic import connect_database
 
 
@@ -38,9 +38,15 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert "CHP Forest Incidents" in body
-            assert response.headers["Cache-Control"] == "no-store, no-cache, must-revalidate, max-age=0"
-            assert response.headers["Pragma"] == "no-cache"
-            assert response.headers["Expires"] == "0"
+            assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
+            assert "Pragma" not in response.headers
+            assert "Expires" not in response.headers
+
+        head_request = Request(f"{base_url}/chp/", method="HEAD")
+        with urlopen(head_request, timeout=5) as response:
+            assert response.status == 200
+            assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
+            assert response.read() == b""
 
         try:
             urlopen(f"{base_url}/missing", timeout=5)

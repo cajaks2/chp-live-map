@@ -11,6 +11,9 @@ from generate_live_map import build_html, load_incidents
 from scrape_chp_traffic import connect_database
 
 
+MAP_CACHE_CONTROL = "public, max-age=30, s-maxage=60, stale-while-revalidate=120, stale-if-error=600"
+
+
 class LiveMapHandler(BaseHTTPRequestHandler):
     database = Path("chp_traffic.sqlite")
     database_url = None
@@ -29,7 +32,13 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             fields["http.request.header.x_forwarded_for"] = forwarded_for
         return fields
 
+    def do_HEAD(self):
+        self.serve_request(send_body=False)
+
     def do_GET(self):
+        self.serve_request(send_body=True)
+
+    def serve_request(self, send_body):
         path = urlsplit(self.path).path.rstrip("/") or "/"
         base_path = self.base_path.rstrip("/") or "/"
         map_paths = {"/", "/live_chp_map.html", base_path}
@@ -38,7 +47,8 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.end_headers()
-            self.wfile.write(b"ok\n")
+            if send_body:
+                self.wfile.write(b"ok\n")
             return
 
         if path not in map_paths:
@@ -70,12 +80,11 @@ class LiveMapHandler(BaseHTTPRequestHandler):
 
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-        self.send_header("Pragma", "no-cache")
-        self.send_header("Expires", "0")
+        self.send_header("Cache-Control", MAP_CACHE_CONTROL)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        if send_body:
+            self.wfile.write(body)
 
     def log_message(self, fmt, *args):
         status_code = None

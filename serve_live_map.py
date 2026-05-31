@@ -4,7 +4,7 @@ import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from ecs_logging import log_event, log_exception, run_main
 from generate_live_map import build_html, load_incidents, normalize_base_path
@@ -13,6 +13,8 @@ from scrape_chp_traffic import connect_database
 
 MAP_CACHE_CONTROL = "public, max-age=30, s-maxage=60, stale-while-revalidate=120, stale-if-error=600"
 ASSET_CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800"
+MIN_HISTORY_HOURS = 1.0
+MAX_HISTORY_HOURS = 168.0
 FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="12" fill="#18392b"/>
   <path d="M10 48 25 17l9 20 6-11 14 22Z" fill="#f4f7ee"/>
@@ -39,6 +41,17 @@ class LiveMapHandler(BaseHTTPRequestHandler):
     hours = 72.0
     base_path = "/"
     public_url = None
+
+    def requested_hours(self):
+        params = parse_qs(urlsplit(self.path).query)
+        raw_hours = (params.get("hours") or [None])[0]
+        if raw_hours is None:
+            return self.hours
+        try:
+            hours = float(raw_hours)
+        except (TypeError, ValueError):
+            return self.hours
+        return min(max(hours, MIN_HISTORY_HOURS), MAX_HISTORY_HOURS)
 
     def client_log_fields(self):
         forwarded_for = self.headers.get("X-Forwarded-For", "")
@@ -94,11 +107,12 @@ class LiveMapHandler(BaseHTTPRequestHandler):
 
         try:
             generated_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
-            incidents = load_incidents(self.database, self.hours, self.database_url)
+            hours = self.requested_hours()
+            incidents = load_incidents(self.database, hours, self.database_url)
             body = build_html(
                 incidents,
                 generated_at,
-                self.hours,
+                hours,
                 base_path=self.base_path,
                 public_url=self.public_url,
             ).encode("utf-8")

@@ -11,6 +11,7 @@ from ecs_logging import log_event, run_main
 
 DEFAULT_CENTER = [34.32, -118.12]
 DEFAULT_ZOOM = 10
+HISTORY_PRESETS = [(24, "24h"), (72, "72h"), (168, "7d")]
 
 
 def load_incidents(database, hours, database_url=None):
@@ -105,6 +106,22 @@ def metadata_urls(base_path, public_url):
         "favicon": f"{public_asset_base}/favicon.svg",
         "og_image": f"{public_asset_base}/og-image.svg",
     }
+
+
+def history_controls(hours):
+    current = int(hours)
+    links = []
+    for preset_hours, label in HISTORY_PRESETS:
+        selected = preset_hours == current
+        links.append(
+            '<a class="range-tab{}" href="?hours={}"{}>{}</a>'.format(
+                " is-active" if selected else "",
+                preset_hours,
+                ' aria-current="page"' if selected else "",
+                html.escape(label),
+            )
+        )
+    return "".join(links)
 
 
 def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
@@ -249,6 +266,37 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       font-size: 13px;
       line-height: 1.35;
     }}
+    .range-tabs {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 3px;
+      margin-top: 10px;
+      padding: 3px;
+      border: 1px solid #d8ddd2;
+      border-radius: 8px;
+      background: #eef1ea;
+    }}
+    .range-tab {{
+      display: block;
+      min-height: 28px;
+      padding: 5px 7px;
+      border-radius: 5px;
+      color: #3f4a44;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 18px;
+      text-align: center;
+      text-decoration: none;
+    }}
+    .range-tab:hover,
+    .range-tab:focus {{
+      background: #ffffff;
+      outline: none;
+    }}
+    .range-tab.is-active {{
+      color: #ffffff;
+      background: #277447;
+    }}
     #incident-list {{
       flex: 1 1 auto;
       min-height: 0;
@@ -257,7 +305,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       scrollbar-gutter: stable;
       scrollbar-width: thin;
       scrollbar-color: #8fa195 #eef1ea;
-      background: #d8ddd2;
+      background: #fbfcf8;
       -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 24px), transparent 100%);
       mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 24px), transparent 100%);
     }}
@@ -275,9 +323,9 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     .incident {{
       display: block;
       width: 100%;
-      margin-bottom: 1px;
       padding: 13px 16px;
       border: 0;
+      border-bottom: 1px solid #e2e6de;
       text-align: left;
       color: inherit;
       background: #ffffff;
@@ -458,6 +506,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         <h1>CHP Forest Incidents</h1>
         <div class="meta">{active_count} active · {len(incidents)} in last {hours:g}h · {mapped_count} mapped</div>
         <div class="meta">Last updated <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></div>
+        <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
       </header>
       <div id="incident-list"></div>
     </aside>
@@ -531,6 +580,18 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         minute: "2-digit"
       }});
       generatedAt.title = generatedAt.dateTime;
+    }}
+
+    function formatIncidentWhen(incident) {{
+      const dateText = incident.incident_date || (incident.first_seen || "").slice(0, 10);
+      if (!dateText) {{
+        return incident.incident_time || "";
+      }}
+      const parsed = new Date(`${{dateText}}T12:00:00`);
+      if (Number.isNaN(parsed.getTime())) {{
+        return `${{dateText}} ${{incident.incident_time || ""}}`.trim();
+      }}
+      return `${{parsed.toLocaleDateString([], {{ month: "short", day: "numeric" }})}}, ${{incident.incident_time || ""}}`.trim();
     }}
 
     function detailHtml(incident) {{
@@ -633,7 +694,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
           <span class="status-pill ${{isActive ? "status-active" : "status-cleared"}}">${{isActive ? "Active" : "Cleared"}}</span>
           <strong>${{escapeHtml(incident.type || "CHP Incident")}}</strong>
           <span>${{escapeHtml(incident.location)}}</span>
-          <span>${{escapeHtml(incident.incident_time)}} · ${{escapeHtml(incident.area)}} · #${{escapeHtml(incident.incident_no)}}${{hasCoords ? "" : " · no map pin"}}</span>
+          <span>${{escapeHtml(formatIncidentWhen(incident))}} · ${{escapeHtml(incident.area)}} · #${{escapeHtml(incident.incident_no)}}${{hasCoords ? "" : " · no map pin"}}</span>
         `;
         button.addEventListener("click", () => selectIncident(incident));
         list.appendChild(button);

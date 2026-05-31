@@ -109,10 +109,15 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "scrollbar-width: thin" in html
     assert "mask-image: linear-gradient(to bottom" in html
     assert "overscroll-behavior: contain" in html
-    assert "margin-bottom: 1px" in html
+    assert "background: #fbfcf8" in html
+    assert "border-bottom: 1px solid #e2e6de" in html
+    assert '<nav class="range-tabs" aria-label="History range">' in html
+    assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in html
     assert "1 active · 2 in last 72h · 1 mapped" in html
     assert 'Last updated <time id="generated-at" datetime="2026-05-31T08:05:00-07:00">' in html
     assert "function formatGeneratedAt" in html
+    assert "function formatIncidentWhen" in html
+    assert "${escapeHtml(formatIncidentWhen(incident))}" in html
     assert "Traffic <Hazard>" in html
     assert "function escapeHtml" in html
     assert "no map pin" in html

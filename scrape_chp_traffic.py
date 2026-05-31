@@ -347,6 +347,7 @@ def init_database_sqlite(conn):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             observed_at TEXT NOT NULL,
             centers TEXT NOT NULL,
+            total_seen INTEGER NOT NULL DEFAULT 0,
             active_seen INTEGER NOT NULL,
             observations_inserted INTEGER NOT NULL
         );
@@ -356,6 +357,7 @@ def init_database_sqlite(conn):
         CREATE INDEX IF NOT EXISTS idx_observations_event ON observations(event_key, observed_at);
         """
     )
+    ensure_column_sqlite(conn, "scrape_runs", "total_seen", "INTEGER NOT NULL DEFAULT 0")
 
 
 def init_database_postgres(conn):
@@ -418,6 +420,7 @@ def init_database_postgres(conn):
             id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             observed_at TEXT NOT NULL,
             centers TEXT NOT NULL,
+            total_seen INTEGER NOT NULL DEFAULT 0,
             active_seen INTEGER NOT NULL,
             observations_inserted INTEGER NOT NULL
         )
@@ -428,7 +431,18 @@ def init_database_postgres(conn):
     ]
     for statement in statements:
         conn.execute(statement)
+    ensure_column_postgres(conn, "scrape_runs", "total_seen", "INTEGER NOT NULL DEFAULT 0")
     conn.commit()
+
+
+def ensure_column_sqlite(conn, table, column, definition):
+    existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+
+def ensure_column_postgres(conn, table, column, definition):
+    conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {definition}")
 
 
 def is_postgres(conn):
@@ -597,15 +611,15 @@ def mark_cleared(conn, event, observed_at):
     insert_observation(conn, row, "cleared")
 
 
-def store_scrape_run(conn, observed_at, centers, active_seen, observations_inserted):
-    placeholder = "%s, %s, %s, %s" if is_postgres(conn) else "?, ?, ?, ?"
+def store_scrape_run(conn, observed_at, centers, total_seen, active_seen, observations_inserted):
+    placeholder = "%s, %s, %s, %s, %s" if is_postgres(conn) else "?, ?, ?, ?, ?"
     conn.execute(
         f"""
         INSERT INTO scrape_runs (
-            observed_at, centers, active_seen, observations_inserted
+            observed_at, centers, total_seen, active_seen, observations_inserted
         ) VALUES ({placeholder})
         """,
-        (observed_at, ",".join(centers), active_seen, observations_inserted),
+        (observed_at, ",".join(centers), total_seen, active_seen, observations_inserted),
     )
 
 
@@ -614,6 +628,7 @@ def scrape_once(args):
     observed_at = now.isoformat(timespec="seconds")
     seen_keys = set()
     seen_with_coords = set()
+    total_seen = 0
     observations_inserted = 0
 
     with connect_database(args.database, args.database_url) as conn:
@@ -622,7 +637,9 @@ def scrape_once(args):
             updated_at, updated_as_of = parse_updated_at(
                 list_parser.spans.get("lblUpdated", ""), now
             )
-            for incident in parse_incidents(center, list_parser):
+            incidents = parse_incidents(center, list_parser)
+            total_seen += len(incidents)
+            for incident in incidents:
                 matches = matching_keywords(incident, args.road)
                 if not args.all_roads and not matches:
                     continue
@@ -684,8 +701,10 @@ def scrape_once(args):
                 mark_cleared(conn, event, observed_at)
                 observations_inserted += 1
 
-        store_scrape_run(conn, observed_at, args.center, len(seen_keys), observations_inserted)
-    return observations_inserted, len(seen_keys), len(seen_with_coords)
+        store_scrape_run(
+            conn, observed_at, args.center, total_seen, len(seen_keys), observations_inserted
+        )
+    return observations_inserted, total_seen, len(seen_keys), len(seen_with_coords)
 
 
 def parse_args():
@@ -709,13 +728,14 @@ def parse_args():
 def main():
     args = parse_args()
     while True:
-        changed_rows, active_seen, active_with_coords = scrape_once(args)
+        changed_rows, total_seen, active_seen, active_with_coords = scrape_once(args)
         log_event(
             "info",
             "CHP scrape completed",
             **{
                 "event.action": "scrape",
                 "event.outcome": "success",
+                "chp.total_seen": total_seen,
                 "chp.active_seen": active_seen,
                 "chp.active_with_coords": active_with_coords,
                 "chp.observations_inserted": changed_rows,

@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+import sqlite3
 
 from scrape_chp_traffic import (
     DEFAULT_ROAD_KEYWORDS,
@@ -13,6 +14,7 @@ from scrape_chp_traffic import (
     parse_lat_lon,
     parse_lat_lon_from_detail_html,
     parse_page,
+    store_scrape_run,
     upsert_active_event,
 )
 
@@ -121,4 +123,41 @@ def test_sqlite_event_lifecycle_records_active_and_cleared_observations(tmp_path
     assert event["cleared_at"] == "2026-05-31T08:05:00-07:00"
     assert [observation["status"] for observation in observations] == ["active", "cleared"]
     assert json.loads(observations[0]["details_json"]) == row["detail_entries"]
+    conn.close()
+
+
+def test_sqlite_scrape_runs_store_total_seen_and_migrate_existing_table(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    old_conn = sqlite3.connect(database)
+    old_conn.execute(
+        """
+        CREATE TABLE scrape_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            observed_at TEXT NOT NULL,
+            centers TEXT NOT NULL,
+            active_seen INTEGER NOT NULL,
+            observations_inserted INTEGER NOT NULL
+        )
+        """
+    )
+    old_conn.commit()
+    old_conn.close()
+
+    conn = connect_database(database)
+    store_scrape_run(
+        conn,
+        "2026-05-31T08:00:00-07:00",
+        ["LACC"],
+        total_seen=12,
+        active_seen=2,
+        observations_inserted=1,
+    )
+    conn.commit()
+
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(scrape_runs)")}
+    run = conn.execute("SELECT * FROM scrape_runs").fetchone()
+    assert "total_seen" in columns
+    assert run["total_seen"] == 12
+    assert run["active_seen"] == 2
+    assert run["observations_inserted"] == 1
     conn.close()

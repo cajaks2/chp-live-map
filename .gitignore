@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+*.sqlite
+*.sqlite-*
+live_chp_map.html
+.DS_Store

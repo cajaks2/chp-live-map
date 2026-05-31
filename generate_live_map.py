@@ -528,7 +528,6 @@ def build_html(incidents, generated_at, hours):
         return;
       }}
 
-      const bounds = [];
       incidents.forEach((incident) => {{
         const hasCoords = incident.latitude != null && incident.longitude != null;
         const isActive = incident.status === "active";
@@ -542,7 +541,6 @@ def build_html(incidents, generated_at, hours):
           }}).addTo(map);
           marker.on("click", () => selectIncident(incident, {{ pan: false, revealDetails: true }}));
           markers.set(incident.event_key, marker);
-          bounds.push([incident.latitude, incident.longitude]);
         }}
 
         const button = document.createElement("button");
@@ -559,11 +557,6 @@ def build_html(incidents, generated_at, hours):
         list.appendChild(button);
       }});
 
-      if (bounds.length === 1) {{
-        map.setView(bounds[0], 13);
-      }} else if (bounds.length > 1) {{
-        map.fitBounds(bounds, {{ padding: [32, 32] }});
-      }}
       setTimeout(() => map.invalidateSize(), 50);
       selectIncident(incidents[0], {{ pan: false }});
     }}

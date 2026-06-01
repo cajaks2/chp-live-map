@@ -121,9 +121,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '<meta property="og:image" content="https://chp.flowy.us/og-image.svg">' in html
     assert '<meta name="twitter:card" content="summary_large_image">' in html
     assert '<script type="application/ld+json">' in html
-    assert "&quot;@type&quot;: &quot;WebApplication&quot;" in html
-    assert "&quot;applicationCategory&quot;: &quot;MapApplication&quot;" in html
-    assert "&quot;@type&quot;: &quot;Dataset&quot;" in html
+    assert '"@type": "WebApplication"' in html
+    assert '"applicationCategory": "MapApplication"' in html
+    assert '"@type": "Dataset"' in html
     assert "CHP forest road incident history" in html
     assert "scrollbar-width: thin" in html
     assert 'id="incident-list-shell"' in html

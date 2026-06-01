@@ -226,6 +226,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
             },
         ],
     }
+    structured_data_json = json.dumps(structured_data, ensure_ascii=False).replace("<", "\\u003c")
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -248,7 +249,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
   <meta name="twitter:title" content="{html.escape(title)}">
   <meta name="twitter:description" content="{html.escape(description)}">
   <meta name="twitter:image" content="{html.escape(urls["og_image"])}">
-  <script type="application/ld+json">{html.escape(json.dumps(structured_data, ensure_ascii=False))}</script>
+  <script type="application/ld+json">{structured_data_json}</script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIINfQ9um5Lj053hphD7uW9P4U5F9VAt5x0=" crossorigin="">
   <style>

@@ -398,19 +398,39 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         inset 0 24px 18px -24px rgba(39, 62, 48, 0.42),
         inset 0 -30px 24px -24px rgba(39, 62, 48, 0.48);
     }}
-    #incident-list-shell.has-more-below::after {{
-      content: "";
+    #scroll-incidents {{
+      display: none;
       position: absolute;
       left: 50%;
-      bottom: 9px;
+      bottom: 7px;
       z-index: 3;
-      width: 11px;
-      height: 11px;
-      border-right: 2px solid #277447;
-      border-bottom: 2px solid #277447;
-      transform: translateX(-50%) rotate(45deg);
-      pointer-events: none;
-      filter: drop-shadow(0 1px 0 #ffffff);
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 28px;
+      border: 1px solid rgba(39, 116, 71, 0.4);
+      border-radius: 999px;
+      color: #277447;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 2px 8px rgba(24, 32, 38, 0.22);
+      transform: translateX(-50%);
+      cursor: pointer;
+    }}
+    #incident-list-shell.has-more-below #scroll-incidents {{
+      display: flex;
+    }}
+    #scroll-incidents::before {{
+      content: "";
+      width: 9px;
+      height: 9px;
+      margin-top: -4px;
+      border-right: 2px solid currentColor;
+      border-bottom: 2px solid currentColor;
+      transform: rotate(45deg);
+    }}
+    #scroll-incidents:focus {{
+      outline: 2px solid rgba(39, 116, 71, 0.45);
+      outline-offset: 2px;
     }}
     #incident-list {{
       height: 100%;
@@ -672,6 +692,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       </header>
       <div id="incident-list-shell">
         <div id="incident-list"></div>
+        <button type="button" id="scroll-incidents" aria-label="Scroll incident list down"></button>
       </div>
     </aside>
     <main id="map"></main>
@@ -722,6 +743,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     const markers = new Map();
     const listShell = document.getElementById("incident-list-shell");
     const list = document.getElementById("incident-list");
+    const scrollIncidentsButton = document.getElementById("scroll-incidents");
     const detailsPanel = document.getElementById("details");
     window.chpLiveMap = {{ map, markers, incidents }};
 
@@ -914,6 +936,21 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       const hasMoreBelow = list.scrollTop + list.clientHeight < list.scrollHeight - 3;
       listShell.classList.toggle("has-more-above", hasMoreAbove);
       listShell.classList.toggle("has-more-below", hasMoreBelow);
+      if (scrollIncidentsButton) {{
+        scrollIncidentsButton.disabled = !hasMoreBelow;
+      }}
+    }}
+
+    function scrollIncidentListDown() {{
+      if (!list) {{
+        return;
+      }}
+      const nextTop = Math.min(
+        list.scrollTop + Math.max(88, Math.floor(list.clientHeight * 0.9)),
+        list.scrollHeight - list.clientHeight
+      );
+      list.scrollTo({{ top: nextTop, behavior: "smooth" }});
+      window.setTimeout(updateListScrollCue, 250);
     }}
 
     function markerIcon(incident, selected = false) {{
@@ -1095,6 +1132,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     setupStaleRefresh();
     setupDoubleTapZoom();
     list.addEventListener("scroll", updateListScrollCue, {{ passive: true }});
+    scrollIncidentsButton?.addEventListener("click", scrollIncidentListDown);
     window.addEventListener("resize", updateListScrollCue);
   </script>
 </body>

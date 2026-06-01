@@ -123,8 +123,11 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'id="incident-list-shell"' in html
     assert "flex: 0 0 132px" in html
     assert "min-height: 132px" in html
-    assert "has-more-below::after" in html
+    assert 'id="scroll-incidents"' in html
+    assert "has-more-below #scroll-incidents" in html
     assert "function updateListScrollCue" in html
+    assert "function scrollIncidentListDown" in html
+    assert 'scrollIncidentsButton?.addEventListener("click", scrollIncidentListDown)' in html
     assert 'list.addEventListener("scroll", updateListScrollCue' in html
     assert "mask-image: linear-gradient(to bottom" in html
     assert "overscroll-behavior: contain" in html

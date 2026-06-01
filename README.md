@@ -198,12 +198,18 @@ Prometheus metrics:
 | `chp_live_map_history_window_hours` | gauge | The history-window size used for `/metrics` incident gauges. In production this is `72`, matching the default map view; user-selected `?hours=` values only affect that page/status request, not this process-level metric. |
 | `chp_live_map_data_updated_timestamp_seconds` | gauge | Unix timestamp of the newest observed incident data included in the metrics window. |
 | `chp_live_map_http_requests_total{method,route,status}` | counter | HTTP requests handled by the web process, grouped by method, coarse route, and status code. |
+| `chp_live_map_scrape_last_run_timestamp_seconds` | gauge | Unix timestamp for the latest completed CHP scrape. |
+| `chp_live_map_scrape_last_run_duration_seconds` | gauge | Duration of the latest completed CHP scrape. |
+| `chp_live_map_scrape_last_run_incidents{kind}` | gauge | Latest scrape incident counts: total CHP incidents seen, matched incidents acquired, and mapped matched incidents. |
+| `chp_live_map_scrape_last_run_observations_inserted` | gauge | Observation rows inserted by the latest scrape. |
+| `chp_live_map_scrape_last_run_details{result}` | gauge | Detail pages requested or skipped by the latest scrape. |
+| `chp_live_map_scrape_chp_http_requests_total{method,route,status}` | counter | Outbound requests made by the scraper to CHP, grouped by method, list/detail route, and response status. |
 
 ## SQL Tables
 
 - `events`: one row per CHP incident, updated with current status and latest fields.
 - `observations`: append-only status/detail snapshots when an incident is first seen, changes, or clears.
 - `detail_entries`: normalized detail-log entries for each stored observation.
-- `scrape_runs`: run metadata for basic monitoring.
+- `scrape_runs`: run metadata for monitoring, including total CHP incidents seen, filtered incidents acquired, detail-page fetch counts, scrape duration, and outbound CHP response-code counts.
 
 Generated files such as `*.sqlite` and `live_chp_map.html` are intentionally ignored by git.

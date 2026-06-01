@@ -94,11 +94,22 @@ def parse_page(text):
     return parser
 
 
-def request_text(opener, req, timeout, retries, backoff):
+def record_response_status(stats, method, route, status):
+    if stats is None:
+        return
+    key = f"{method}:{route}:{status}"
+    stats.setdefault("http_status_counts", {})
+    stats["http_status_counts"][key] = stats["http_status_counts"].get(key, 0) + 1
+
+
+def request_text(opener, req, timeout, retries, backoff, stats=None, route="traffic"):
     for attempt in range(retries + 1):
         try:
-            return opener.open(req, timeout=timeout).read().decode("utf-8", errors="replace")
+            with opener.open(req, timeout=timeout) as response:
+                record_response_status(stats, req.get_method(), route, response.status)
+                return response.read().decode("utf-8", errors="replace")
         except HTTPError as exc:
+            record_response_status(stats, req.get_method(), route, exc.code)
             retryable = exc.code in {429, 500, 502, 503, 504}
             if not retryable or attempt >= retries:
                 raise
@@ -106,12 +117,13 @@ def request_text(opener, req, timeout, retries, backoff):
             delay = float(retry_after) if retry_after and retry_after.isdigit() else backoff * (2 ** attempt)
             time.sleep(delay)
         except URLError:
+            record_response_status(stats, req.get_method(), route, "url_error")
             if attempt >= retries:
                 raise
             time.sleep(backoff * (2 ** attempt))
 
 
-def post_form(opener, url, data, timeout, user_agent, retries, backoff):
+def post_form(opener, url, data, timeout, user_agent, retries, backoff, stats=None, route="traffic"):
     req = Request(
         url,
         urlencode(data).encode("utf-8"),
@@ -121,12 +133,12 @@ def post_form(opener, url, data, timeout, user_agent, retries, backoff):
             "Referer": url,
         },
     )
-    return request_text(opener, req, timeout, retries, backoff)
+    return request_text(opener, req, timeout, retries, backoff, stats, route)
 
 
-def get_page(opener, url, timeout, user_agent, retries, backoff):
+def get_page(opener, url, timeout, user_agent, retries, backoff, stats=None, route="traffic"):
     req = Request(url, headers={"User-Agent": user_agent})
-    return request_text(opener, req, timeout, retries, backoff)
+    return request_text(opener, req, timeout, retries, backoff, stats, route)
 
 
 def build_user_agent(contact_email=None):
@@ -144,9 +156,9 @@ def robots_allows(user_agent, timeout):
     return parser.can_fetch(user_agent, CHP_TRAFFIC_URL)
 
 
-def select_center(center, timeout, user_agent, retries, backoff):
+def select_center(center, timeout, user_agent, retries, backoff, stats=None):
     opener = build_opener(HTTPCookieProcessor(CookieJar()))
-    initial = parse_page(get_page(opener, CHP_TRAFFIC_URL, timeout, user_agent, retries, backoff))
+    initial = parse_page(get_page(opener, CHP_TRAFFIC_URL, timeout, user_agent, retries, backoff, stats, "list"))
     data = {
         **initial.hidden,
         "ddlComCenter": center,
@@ -154,7 +166,7 @@ def select_center(center, timeout, user_agent, retries, backoff):
         "ddlResources": "Choose One",
         "btnCCGo": "OK",
     }
-    page_text = post_form(opener, CHP_TRAFFIC_URL, data, timeout, user_agent, retries, backoff)
+    page_text = post_form(opener, CHP_TRAFFIC_URL, data, timeout, user_agent, retries, backoff, stats, "list")
     return opener, parse_page(page_text)
 
 
@@ -198,7 +210,7 @@ def matching_keywords(incident, keywords):
     return [keyword for keyword in keywords if keyword.casefold() in haystack]
 
 
-def fetch_details(opener, center, list_parser, select_index, timeout, user_agent, retries, backoff):
+def fetch_details(opener, center, list_parser, select_index, timeout, user_agent, retries, backoff, stats=None):
     data = {
         **list_parser.hidden,
         "__EVENTTARGET": "gvIncidents",
@@ -207,7 +219,7 @@ def fetch_details(opener, center, list_parser, select_index, timeout, user_agent
         "ddlSearches": "Choose One",
         "ddlResources": "Choose One",
     }
-    detail_text = post_form(opener, CHP_TRAFFIC_URL, data, timeout, user_agent, retries, backoff)
+    detail_text = post_form(opener, CHP_TRAFFIC_URL, data, timeout, user_agent, retries, backoff, stats, "detail")
     parser = parse_page(detail_text)
     spans = parser.spans
     lat, lon = parse_lat_lon(spans.get("lblLatLon", ""))
@@ -393,7 +405,12 @@ def init_database_sqlite(conn):
             centers TEXT NOT NULL,
             total_seen INTEGER NOT NULL DEFAULT 0,
             active_seen INTEGER NOT NULL,
-            observations_inserted INTEGER NOT NULL
+            observations_inserted INTEGER NOT NULL,
+            active_with_coords INTEGER NOT NULL DEFAULT 0,
+            details_requested INTEGER NOT NULL DEFAULT 0,
+            details_skipped INTEGER NOT NULL DEFAULT 0,
+            duration_seconds REAL NOT NULL DEFAULT 0,
+            http_status_counts TEXT NOT NULL DEFAULT '{}'
         );
 
         CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
@@ -402,6 +419,11 @@ def init_database_sqlite(conn):
         """
     )
     ensure_column_sqlite(conn, "scrape_runs", "total_seen", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column_sqlite(conn, "scrape_runs", "active_with_coords", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column_sqlite(conn, "scrape_runs", "details_requested", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column_sqlite(conn, "scrape_runs", "details_skipped", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column_sqlite(conn, "scrape_runs", "duration_seconds", "REAL NOT NULL DEFAULT 0")
+    ensure_column_sqlite(conn, "scrape_runs", "http_status_counts", "TEXT NOT NULL DEFAULT '{}'")
 
 
 def init_database_postgres(conn):
@@ -466,7 +488,12 @@ def init_database_postgres(conn):
             centers TEXT NOT NULL,
             total_seen INTEGER NOT NULL DEFAULT 0,
             active_seen INTEGER NOT NULL,
-            observations_inserted INTEGER NOT NULL
+            observations_inserted INTEGER NOT NULL,
+            active_with_coords INTEGER NOT NULL DEFAULT 0,
+            details_requested INTEGER NOT NULL DEFAULT 0,
+            details_skipped INTEGER NOT NULL DEFAULT 0,
+            duration_seconds DOUBLE PRECISION NOT NULL DEFAULT 0,
+            http_status_counts TEXT NOT NULL DEFAULT '{}'
         )
         """,
         "CREATE INDEX IF NOT EXISTS idx_events_status ON events(status)",
@@ -476,6 +503,11 @@ def init_database_postgres(conn):
     for statement in statements:
         conn.execute(statement)
     ensure_column_postgres(conn, "scrape_runs", "total_seen", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column_postgres(conn, "scrape_runs", "active_with_coords", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column_postgres(conn, "scrape_runs", "details_requested", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column_postgres(conn, "scrape_runs", "details_skipped", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column_postgres(conn, "scrape_runs", "duration_seconds", "DOUBLE PRECISION NOT NULL DEFAULT 0")
+    ensure_column_postgres(conn, "scrape_runs", "http_status_counts", "TEXT NOT NULL DEFAULT '{}'")
     conn.commit()
 
 
@@ -711,19 +743,49 @@ def mark_cleared(conn, event, observed_at):
     insert_observation(conn, row, "cleared")
 
 
-def store_scrape_run(conn, observed_at, centers, total_seen, active_seen, observations_inserted):
-    placeholder = "%s, %s, %s, %s, %s" if is_postgres(conn) else "?, ?, ?, ?, ?"
+def store_scrape_run(
+    conn,
+    observed_at,
+    centers,
+    total_seen,
+    active_seen,
+    observations_inserted,
+    active_with_coords,
+    details_requested,
+    details_skipped,
+    duration_seconds,
+    http_status_counts,
+):
+    placeholder = (
+        "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s"
+        if is_postgres(conn)
+        else "?, ?, ?, ?, ?, ?, ?, ?, ?, ?"
+    )
     conn.execute(
         f"""
         INSERT INTO scrape_runs (
-            observed_at, centers, total_seen, active_seen, observations_inserted
+            observed_at, centers, total_seen, active_seen, observations_inserted,
+            active_with_coords, details_requested, details_skipped, duration_seconds,
+            http_status_counts
         ) VALUES ({placeholder})
         """,
-        (observed_at, ",".join(centers), total_seen, active_seen, observations_inserted),
+        (
+            observed_at,
+            ",".join(centers),
+            total_seen,
+            active_seen,
+            observations_inserted,
+            active_with_coords,
+            details_requested,
+            details_skipped,
+            duration_seconds,
+            json.dumps(http_status_counts, sort_keys=True),
+        ),
     )
 
 
 def scrape_once(args):
+    started_at = time.monotonic()
     now = dt.datetime.now().astimezone()
     observed_at = now.isoformat(timespec="seconds")
     seen_keys = set()
@@ -732,6 +794,7 @@ def scrape_once(args):
     details_requested = 0
     details_skipped = 0
     observations_inserted = 0
+    stats = {"http_status_counts": {}}
 
     if args.respect_robots and not robots_allows(args.user_agent, args.timeout):
         raise RuntimeError(f"robots.txt disallows scraping {CHP_TRAFFIC_URL} for {args.user_agent}")
@@ -739,7 +802,7 @@ def scrape_once(args):
     with connect_database(args.database, args.database_url) as conn:
         for center in args.center:
             opener, list_parser = select_center(
-                center, args.timeout, args.user_agent, args.retries, args.retry_backoff
+                center, args.timeout, args.user_agent, args.retries, args.retry_backoff, stats
             )
             updated_at, updated_as_of = parse_updated_at(
                 list_parser.spans.get("lblUpdated", ""), now
@@ -773,6 +836,7 @@ def scrape_once(args):
                     args.user_agent,
                     args.retries,
                     args.retry_backoff,
+                    stats,
                 )
                 merged = {
                     **incident,
@@ -828,7 +892,17 @@ def scrape_once(args):
                 observations_inserted += 1
 
         store_scrape_run(
-            conn, observed_at, args.center, total_seen, len(seen_keys), observations_inserted
+            conn,
+            observed_at,
+            args.center,
+            total_seen,
+            len(seen_keys),
+            observations_inserted,
+            len(seen_with_coords),
+            details_requested,
+            details_skipped,
+            time.monotonic() - started_at,
+            stats["http_status_counts"],
         )
     return (
         observations_inserted,
@@ -837,6 +911,8 @@ def scrape_once(args):
         len(seen_with_coords),
         details_requested,
         details_skipped,
+        time.monotonic() - started_at,
+        stats["http_status_counts"],
     )
 
 
@@ -877,6 +953,8 @@ def main():
             active_with_coords,
             details_requested,
             details_skipped,
+            duration_seconds,
+            http_status_counts,
         ) = scrape_once(args)
         log_event(
             "info",
@@ -890,6 +968,8 @@ def main():
                 "chp.observations_inserted": changed_rows,
                 "chp.details_requested": details_requested,
                 "chp.details_skipped": details_skipped,
+                "chp.duration_seconds": round(duration_seconds, 3),
+                "chp.http_status_counts": http_status_counts,
                 "chp.centers": args.center,
                 "http.request.header.user_agent": args.user_agent,
             },

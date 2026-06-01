@@ -83,7 +83,7 @@ def test_fetch_details_preserves_detail_sections(monkeypatch):
 
     parser = parse_page('<input type="hidden" name="__VIEWSTATE" value="abc">')
 
-    def fake_post_form(_opener, _url, _data, _timeout, _user_agent, _retries, _backoff):
+    def fake_post_form(_opener, _url, _data, _timeout, _user_agent, _retries, _backoff, *_args):
         return """
         <span id="lblIncident">1520</span>
         <span id="lblType">Fatality</span>
@@ -317,13 +317,24 @@ def test_sqlite_scrape_runs_store_total_seen_and_migrate_existing_table(tmp_path
         total_seen=12,
         active_seen=2,
         observations_inserted=1,
+        active_with_coords=1,
+        details_requested=2,
+        details_skipped=3,
+        duration_seconds=1.25,
+        http_status_counts={"GET:list:200": 1, "POST:detail:200": 2},
     )
     conn.commit()
 
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(scrape_runs)")}
     run = conn.execute("SELECT * FROM scrape_runs").fetchone()
     assert "total_seen" in columns
+    assert "http_status_counts" in columns
     assert run["total_seen"] == 12
     assert run["active_seen"] == 2
     assert run["observations_inserted"] == 1
+    assert run["active_with_coords"] == 1
+    assert run["details_requested"] == 2
+    assert run["details_skipped"] == 3
+    assert run["duration_seconds"] == 1.25
+    assert json.loads(run["http_status_counts"]) == {"GET:list:200": 1, "POST:detail:200": 2}
     conn.close()

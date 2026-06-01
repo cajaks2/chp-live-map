@@ -11,13 +11,29 @@ from serve_live_map import (
     MAP_CACHE_CONTROL,
 )
 from scrape_chp_traffic import connect_database
+from scrape_chp_traffic import store_scrape_run
 
 
 def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch):
     access_logs = []
     monkeypatch.setattr(serve_live_map, "log_event", lambda *args, **kwargs: access_logs.append((args, kwargs)))
     database = tmp_path / "chp.sqlite"
-    connect_database(database).close()
+    conn = connect_database(database)
+    store_scrape_run(
+        conn,
+        "2026-05-31T08:00:00-07:00",
+        ["LACC"],
+        total_seen=12,
+        active_seen=2,
+        observations_inserted=1,
+        active_with_coords=1,
+        details_requested=2,
+        details_skipped=3,
+        duration_seconds=1.25,
+        http_status_counts={"GET:list:200": 1, "POST:detail:200": 2},
+    )
+    conn.commit()
+    conn.close()
 
     class TestHandler(LiveMapHandler):
         pass
@@ -119,6 +135,10 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert response.headers["Cache-Control"] == "no-store"
             assert "chp_live_map_up 1" in body
             assert 'chp_live_map_incidents{status="total"} 0' in body
+            assert 'chp_live_map_scrape_last_run_incidents{kind="total_seen"} 12' in body
+            assert 'chp_live_map_scrape_last_run_details{result="requested"} 2' in body
+            assert 'chp_live_map_scrape_chp_http_requests_total{method="GET",route="list",status="200"} 1' in body
+            assert 'chp_live_map_scrape_chp_http_requests_total{method="POST",route="detail",status="200"} 2' in body
             assert "chp_live_map_http_requests_total" in body
 
         head_request = Request(f"{base_url}/chp/", method="HEAD")

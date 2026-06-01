@@ -174,8 +174,8 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     mapped_count = status["mapped_count"]
     title = f"CHP Forest Incidents ({active_count} active, {status['total_count']} total)"
     description = (
-        "Live CHP traffic incidents for Angeles Crest, Angeles Forest, Big Tujunga, "
-        "Glendora Mountain, and nearby forest roads."
+        "Live and historical CHP CAD traffic incidents for Angeles Crest, Angeles Forest, "
+        "Big Tujunga, Glendora Mountain, and nearby forest roads in the forest."
     )
     urls = metadata_urls(base_path, public_url)
     base = normalize_base_path(base_path)

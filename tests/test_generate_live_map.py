@@ -174,6 +174,13 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'id="stale-notice"' in html
     assert 'id="stale-notice-text"' in html
     assert 'id="dismiss-stale-notice"' in html
+    assert 'id="auto-refresh-enabled"' in html
+    assert "Auto refresh" in html
+    assert "refresh-options" in html
+    assert "chp-auto-refresh" in html
+    assert "autoRefreshToggle.checked" in html
+    assert "autoRefreshToggle.addEventListener" in html
+    assert "Automatically reload when new incident data is available" in html
     assert "let dismissed = false" in html
     assert "async () =>" in html
     assert "fetch(url" in html

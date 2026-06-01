@@ -486,6 +486,30 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       font-weight: 700;
       cursor: pointer;
     }}
+    .auto-refresh-control {{
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-height: 28px;
+      padding: 4px 6px;
+      border: 1px solid #d9c779;
+      border-radius: 5px;
+      color: #3d310f;
+      background: rgba(255, 255, 255, 0.62);
+      font-weight: 700;
+      cursor: pointer;
+    }}
+    .refresh-options {{
+      display: flex;
+      align-items: center;
+      margin-top: 8px;
+    }}
+    .auto-refresh-control input {{
+      width: 14px;
+      height: 14px;
+      margin: 0;
+      accent-color: #277447;
+    }}
     #incident-list-shell {{
       flex: 1 1 auto;
       min-height: 0;
@@ -790,6 +814,12 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         <div class="meta">{active_count} active · {len(incidents)} in last {hours:g}h · {mapped_count} mapped</div>
         <div class="meta">Last checked <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></div>
         <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
+        <div class="refresh-options">
+          <label class="auto-refresh-control" title="Automatically reload when new incident data is available">
+            <input type="checkbox" id="auto-refresh-enabled">
+            Auto refresh
+          </label>
+        </div>
         <details id="about-panel" class="about-panel" open>
           <summary>About this map</summary>
           <p class="about-blurb"><strong>What this is:</strong> a live mirror of public CHP CAD incidents for Angeles Crest, Angeles Forest, Big Tujunga, Glendora Mountain, and nearby forest roads. CHP is checked about once a minute; unchanged active incident details are refreshed about every 3 minutes. Cleared incidents stay visible inside the selected history window.</p>
@@ -974,7 +1004,8 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       const noticeText = document.getElementById("stale-notice-text");
       const refreshButton = document.getElementById("refresh-page");
       const dismissButton = document.getElementById("dismiss-stale-notice");
-      if (!generatedAt || !notice || !noticeText || !refreshButton || !dismissButton) {{
+      const autoRefreshToggle = document.getElementById("auto-refresh-enabled");
+      if (!generatedAt || !notice || !noticeText || !refreshButton || !dismissButton || !autoRefreshToggle) {{
         return;
       }}
       const generatedTime = new Date(generatedAt.getAttribute("datetime")).getTime();
@@ -985,8 +1016,12 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       let checkInFlight = false;
       let lastCheckedAt = 0;
       let lastHealthyCheckAt = generatedTime;
+      autoRefreshToggle.checked = window.localStorage.getItem("chp-auto-refresh") === "enabled";
       const refresh = () => window.location.reload();
       refreshButton.addEventListener("click", refresh);
+      autoRefreshToggle.addEventListener("change", () => {{
+        window.localStorage.setItem("chp-auto-refresh", autoRefreshToggle.checked ? "enabled" : "disabled");
+      }});
       dismissButton.addEventListener("click", () => {{
         dismissed = true;
         notice.classList.remove("is-visible");
@@ -1025,6 +1060,10 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
             setCheckedAt(latest.checked_at);
           }}
           if (latest.version && latest.version !== initialDataStatus.version) {{
+            if (autoRefreshToggle.checked) {{
+              refresh();
+              return;
+            }}
             showNotice("New incident data is available.");
           }} else {{
             hideNotice();

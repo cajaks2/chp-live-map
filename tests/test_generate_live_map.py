@@ -141,9 +141,12 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "border-bottom: 1px solid #e2e6de" in html
     assert "align-items: center" in html
     assert "justify-content: center" in html
+    assert '<details id="about-panel" class="about-panel" open>' in html
+    assert "<summary>About this map</summary>" in html
     assert '<p class="about-blurb"><strong>What this is:</strong>' in html
     assert "CHP is checked about once a minute" in html
     assert "unchanged active incident details are refreshed about every 3 minutes" in html
+    assert "mobileViewport.addEventListener" in html
     assert "Cleared incidents stay visible inside the selected history window" in html
     assert '<nav class="range-tabs" aria-label="History range">' in html
     assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in html

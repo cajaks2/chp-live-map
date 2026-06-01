@@ -399,7 +399,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       color: #ffffff;
       background: #277447;
     }}
-    .about-blurb {{
+    .about-panel {{
       margin-top: 10px;
       padding: 9px 10px;
       border: 1px solid #d8ddd2;
@@ -409,8 +409,37 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       font-size: 12px;
       line-height: 1.35;
     }}
+    .about-panel summary {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: #182026;
+      font-weight: 800;
+      cursor: pointer;
+      list-style: none;
+    }}
+    .about-panel summary::-webkit-details-marker {{
+      display: none;
+    }}
+    .about-panel summary::after {{
+      content: "";
+      width: 8px;
+      height: 8px;
+      margin-right: 2px;
+      border-right: 2px solid currentColor;
+      border-bottom: 2px solid currentColor;
+      transform: rotate(45deg);
+      transition: transform 0.16s ease;
+    }}
+    .about-panel[open] summary::after {{
+      transform: translateY(3px) rotate(225deg);
+    }}
     .about-blurb strong {{
       color: #182026;
+    }}
+    .about-blurb {{
+      margin: 7px 0 0;
     }}
     #stale-notice {{
       display: none;
@@ -747,7 +776,10 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         <div class="meta">{active_count} active · {len(incidents)} in last {hours:g}h · {mapped_count} mapped</div>
         <div class="meta">Last updated <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></div>
         <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
-        <p class="about-blurb"><strong>What this is:</strong> a live mirror of public CHP CAD incidents for Angeles Crest, Angeles Forest, Big Tujunga, Glendora Mountain, and nearby forest roads. CHP is checked about once a minute; unchanged active incident details are refreshed about every 3 minutes. Cleared incidents stay visible inside the selected history window.</p>
+        <details id="about-panel" class="about-panel" open>
+          <summary>About this map</summary>
+          <p class="about-blurb"><strong>What this is:</strong> a live mirror of public CHP CAD incidents for Angeles Crest, Angeles Forest, Big Tujunga, Glendora Mountain, and nearby forest roads. CHP is checked about once a minute; unchanged active incident details are refreshed about every 3 minutes. Cleared incidents stay visible inside the selected history window.</p>
+        </details>
         <div id="stale-notice" role="status">
           <span id="stale-notice-text">Data may be stale.</span>
           <button type="button" id="refresh-page">Refresh</button>
@@ -809,7 +841,20 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     const list = document.getElementById("incident-list");
     const scrollIncidentsButton = document.getElementById("scroll-incidents");
     const detailsPanel = document.getElementById("details");
+    const aboutPanel = document.getElementById("about-panel");
     window.chpLiveMap = {{ map, markers, incidents }};
+
+    const mobileViewport = window.matchMedia("(max-width: 760px)");
+
+    function syncAboutPanelForViewport() {{
+      if (!aboutPanel) {{
+        return;
+      }}
+      aboutPanel.open = !mobileViewport.matches;
+    }}
+
+    syncAboutPanelForViewport();
+    mobileViewport.addEventListener("change", syncAboutPanelForViewport);
 
     function setupDoubleTapZoom() {{
       let lastTap = null;

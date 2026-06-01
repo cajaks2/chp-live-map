@@ -14,7 +14,7 @@ services:
       retries: 5
 
   web:
-    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.36}
+    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.37}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -27,12 +27,12 @@ services:
       HTTP_PORT: "8080"
       BASE_PATH: /
       PUBLIC_URL: https://crestmap.us/
-      SERVICE_VERSION: ${VERSION:-0.1.36}
+      SERVICE_VERSION: ${VERSION:-0.1.37}
     ports:
       - "127.0.0.1:8080:8080"
 
   scrape:
-    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.36}
+    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.37}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -40,7 +40,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      SERVICE_VERSION: ${VERSION:-0.1.36}
+      SERVICE_VERSION: ${VERSION:-0.1.37}
       CHP_USER_AGENT: "chp-live-map/0.1 (+https://crestmap.us/; contact: cajaks2@users.noreply.github.com)"
     command:
       - /bin/sh
@@ -49,6 +49,35 @@ services:
         while true; do
           python3 /app/scrape_chp_traffic.py --detail-refresh-minutes 3
           sleep 60
+        done
+
+  postgres-backup:
+    image: postgres:16
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-21600}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - ./backups/postgres:/backups
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        mkdir -p /backups
+        while true; do
+          ts=$$(date -u +%Y%m%dT%H%M%SZ)
+          tmp="/backups/$${POSTGRES_DB}-$${ts}.dump.tmp"
+          out="/backups/$${POSTGRES_DB}-$${ts}.dump"
+          pg_dump -h postgres -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}" -Fc --clean --if-exists > "$${tmp}"
+          mv "$${tmp}" "$${out}"
+          find /backups -type f -name "$${POSTGRES_DB}-*.dump" -mtime +"$${BACKUP_RETENTION_DAYS}" -delete
+          sleep "$${BACKUP_INTERVAL_SECONDS}"
         done
 
 volumes:

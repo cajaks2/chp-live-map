@@ -173,7 +173,9 @@ cp .env.example .env
 docker compose up -d
 ```
 
-The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, and a scraper loop that polls every minute. nginx should remain the TLS front door and proxy `crestmap.us` and `chp.flowy.us` to `http://127.0.0.1:8080`.
+The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, a scraper loop that polls every minute, and a Postgres backup sidecar. nginx should remain the TLS front door and proxy `crestmap.us` and `chp.flowy.us` to `http://127.0.0.1:8080`.
+
+Backups are written as compressed custom-format `pg_dump` files under `/opt/chp-live-map/backups/postgres` every six hours by default. Tune `BACKUP_INTERVAL_SECONDS` and `BACKUP_RETENTION_DAYS` in `.env`.
 
 Files for that deployment live in `deploy/digitalocean/`.
 

@@ -1,7 +1,7 @@
 import datetime as dt
 import json
 
-from generate_live_map import build_html, load_incidents
+from generate_live_map import build_html, incident_status, load_incidents
 from scrape_chp_traffic import connect_database, insert_observation, upsert_active_event
 
 
@@ -137,6 +137,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '<a class="range-tab" href="?hours=720">30d</a>' in html
     assert "1 active · 2 in last 72h · 1 mapped" in html
     assert 'Last updated <time id="generated-at" datetime="2026-05-31T08:05:00-07:00">' in html
+    assert "const initialDataStatus" in html
+    assert 'const statusEndpoint = "/status.json"' in html
     assert "function formatGeneratedAt" in html
     assert "function formatIncidentWhen" in html
     assert 'new URLSearchParams(window.location.search).get("incident")' in html
@@ -149,11 +151,17 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "Unit Information" in html
     assert "detail-subsection" in html
     assert 'id="stale-notice"' in html
+    assert 'id="stale-notice-text"' in html
     assert 'id="dismiss-stale-notice"' in html
     assert "let dismissed = false" in html
+    assert "async () =>" in html
+    assert "fetch(url" in html
+    assert "latest.version !== initialDataStatus.version" in html
+    assert "New incident data is available." in html
+    assert "Data may be stale. Checked for updates in the background." in html
     assert 'dismissButton.addEventListener("click"' in html
     assert "function setupStaleRefresh" in html
-    assert "ageMs > 120000" in html
+    assert "ageMs > 180000" in html
     assert "Traffic <Hazard>" in html
     assert "function escapeHtml" in html
     assert "no map pin" in html
@@ -180,3 +188,23 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert ".setView([34.32, -118.12], 10)" in html
     assert "map.fitBounds" not in html
     assert json.dumps(incidents, ensure_ascii=False) in html
+
+
+def test_incident_status_changes_when_incident_data_changes():
+    first = [
+        {
+            **incident_row("LACC|2026-05-31|0805", "active", "2026-05-31T08:00:00-07:00", "0805"),
+            "status": "active",
+            "latest_observed_at": "2026-05-31T08:00:00-07:00",
+        }
+    ]
+    second = [dict(first[0], latest_observed_at="2026-05-31T08:01:00-07:00")]
+
+    first_status = incident_status(first, 72)
+    second_status = incident_status(second, 72)
+
+    assert first_status["active_count"] == 1
+    assert first_status["total_count"] == 1
+    assert first_status["mapped_count"] == 1
+    assert first_status["data_updated_at"] == "2026-05-31T08:00:00-07:00"
+    assert first_status["version"] != second_status["version"]

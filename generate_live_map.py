@@ -1,10 +1,12 @@
 import argparse
 import datetime as dt
+import hashlib
 import html
 import json
 import os
 import sqlite3
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from ecs_logging import log_event, run_main
 
@@ -124,18 +126,59 @@ def history_controls(hours):
     return "".join(links)
 
 
-def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
-    data = json.dumps(incidents, ensure_ascii=False)
+def incident_status(incidents, hours):
     mapped_count = len(
         [i for i in incidents if i.get("latitude") is not None and i.get("longitude") is not None]
     )
     active_count = len([i for i in incidents if i.get("status") == "active"])
-    title = f"CHP Forest Incidents ({active_count} active, {len(incidents)} total)"
+    data_updated_at = max(
+        [
+            i.get("latest_observed_at") or i.get("last_seen") or i.get("first_seen") or ""
+            for i in incidents
+        ],
+        default="",
+    )
+    version_source = [
+        {
+            "event_key": i.get("event_key"),
+            "status": i.get("status"),
+            "latest_observed_at": i.get("latest_observed_at"),
+            "details_hash": i.get("details_hash"),
+            "cleared_at": i.get("cleared_at"),
+        }
+        for i in incidents
+    ]
+    version = hashlib.sha256(
+        json.dumps(version_source, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()[:16]
+    return {
+        "active_count": active_count,
+        "total_count": len(incidents),
+        "mapped_count": mapped_count,
+        "hours": hours,
+        "data_updated_at": data_updated_at,
+        "version": version,
+    }
+
+
+def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
+    data = json.dumps(incidents, ensure_ascii=False)
+    status = incident_status(incidents, hours)
+    active_count = status["active_count"]
+    mapped_count = status["mapped_count"]
+    title = f"CHP Forest Incidents ({active_count} active, {status['total_count']} total)"
     description = (
         "Live CHP traffic incidents for Angeles Crest, Angeles Forest, Big Tujunga, "
         "Glendora Mountain, and nearby forest roads."
     )
     urls = metadata_urls(base_path, public_url)
+    base = normalize_base_path(base_path)
+    asset_base = "" if base == "/" else base
+    if public_url:
+        public_path = urlsplit(public_url).path.rstrip("/")
+        status_endpoint = f"{public_path}/status.json" if public_path else "/status.json"
+    else:
+        status_endpoint = f"{asset_base}/status.json"
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -622,7 +665,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         <div class="meta">Last updated <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></div>
         <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
         <div id="stale-notice" role="status">
-          <span>Data may be stale.</span>
+          <span id="stale-notice-text">Data may be stale.</span>
           <button type="button" id="refresh-page">Refresh</button>
           <button type="button" id="dismiss-stale-notice" aria-label="Dismiss stale data notice">Dismiss</button>
         </div>
@@ -638,6 +681,8 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
     const incidents = {data};
+    const initialDataStatus = {json.dumps(status, ensure_ascii=False)};
+    const statusEndpoint = "{html.escape(status_endpoint)}";
 
     const mapEl = document.getElementById("map");
     mapEl.classList.add("is-loading");
@@ -762,9 +807,10 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     function setupStaleRefresh() {{
       const generatedAt = document.getElementById("generated-at");
       const notice = document.getElementById("stale-notice");
+      const noticeText = document.getElementById("stale-notice-text");
       const refreshButton = document.getElementById("refresh-page");
       const dismissButton = document.getElementById("dismiss-stale-notice");
-      if (!generatedAt || !notice || !refreshButton || !dismissButton) {{
+      if (!generatedAt || !notice || !noticeText || !refreshButton || !dismissButton) {{
         return;
       }}
       const generatedTime = new Date(generatedAt.dateTime).getTime();
@@ -772,20 +818,59 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         return;
       }}
       let dismissed = false;
+      let checkInFlight = false;
+      let lastCheckedAt = 0;
       const refresh = () => window.location.reload();
       refreshButton.addEventListener("click", refresh);
       dismissButton.addEventListener("click", () => {{
         dismissed = true;
         notice.classList.remove("is-visible");
       }});
+      const showNotice = (message) => {{
+        noticeText.textContent = message;
+        notice.classList.add("is-visible");
+      }};
+      const checkForUpdates = async () => {{
+        if (dismissed || checkInFlight) {{
+          return;
+        }}
+        const now = Date.now();
+        if (now - lastCheckedAt < 30000) {{
+          return;
+        }}
+        checkInFlight = true;
+        lastCheckedAt = now;
+        try {{
+          const url = new URL(statusEndpoint, window.location.origin);
+          url.searchParams.set("hours", new URLSearchParams(window.location.search).get("hours") || String(initialDataStatus.hours || 72));
+          url.searchParams.set("check", String(now));
+          const response = await fetch(url, {{
+            cache: "no-store",
+            headers: {{ "Accept": "application/json" }}
+          }});
+          if (!response.ok) {{
+            return;
+          }}
+          const latest = await response.json();
+          if (latest.version && latest.version !== initialDataStatus.version) {{
+            showNotice("New incident data is available.");
+          }}
+        }} catch (_error) {{
+          // Keep the UI quiet on transient network failures.
+        }} finally {{
+          checkInFlight = false;
+        }}
+      }};
       const update = () => {{
         if (dismissed) {{
           return;
         }}
         const ageMs = Date.now() - generatedTime;
-        notice.classList.toggle("is-visible", ageMs > 90000);
-        if (ageMs > 120000 && document.visibilityState === "visible") {{
-          refresh();
+        if (ageMs > 60000 && document.visibilityState === "visible") {{
+          checkForUpdates();
+        }}
+        if (ageMs > 180000 && !notice.classList.contains("is-visible")) {{
+          showNotice("Data may be stale. Checked for updates in the background.");
         }}
       }};
       update();

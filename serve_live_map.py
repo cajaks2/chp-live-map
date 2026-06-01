@@ -1,5 +1,6 @@
 import argparse
 import datetime as dt
+import json
 import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -7,7 +8,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from ecs_logging import log_event, log_exception, run_main
-from generate_live_map import build_html, load_incidents, normalize_base_path
+from generate_live_map import build_html, incident_status, load_incidents, normalize_base_path
 from scrape_chp_traffic import connect_database
 
 
@@ -75,6 +76,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path.rstrip("/") or "/"
         base_path = normalize_base_path(self.base_path)
         map_paths = {"/", "/live_chp_map.html", base_path}
+        status_paths = {"/status.json", f"{'' if base_path == '/' else base_path}/status.json"}
         asset_base = "" if base_path == "/" else base_path
         asset_paths = {
             f"{asset_base}/favicon.svg": ("image/svg+xml", FAVICON_SVG.encode("utf-8")),
@@ -95,6 +97,44 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", content_type)
             self.send_header("Cache-Control", ASSET_CACHE_CONTROL)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            if send_body:
+                self.wfile.write(body)
+            return
+
+        if path in status_paths:
+            try:
+                hours = self.requested_hours()
+                incidents = load_incidents(self.database, hours, self.database_url)
+                payload = {
+                    **incident_status(incidents, hours),
+                    "checked_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+                }
+                body = json.dumps(payload, sort_keys=True).encode("utf-8")
+            except Exception as exc:
+                log_exception(
+                    "Failed to render CHP status",
+                    exc,
+                    **{
+                        "event.action": "http_request",
+                        "event.outcome": "failure",
+                        "http.request.method": self.command,
+                        "url.path": self.path,
+                        "http.response.status_code": 500,
+                        **self.client_log_fields(),
+                    },
+                )
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                if send_body:
+                    self.wfile.write(b'{"error":"failed to render status"}\n')
+                return
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "private, max-age=15, stale-while-revalidate=30")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             if send_body:

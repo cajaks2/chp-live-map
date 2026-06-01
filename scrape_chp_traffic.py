@@ -129,6 +129,12 @@ def get_page(opener, url, timeout, user_agent, retries, backoff):
     return request_text(opener, req, timeout, retries, backoff)
 
 
+def build_user_agent(contact_email=None):
+    if contact_email:
+        return f"chp-live-map/0.1 (+https://crestmap.us/; contact: {contact_email})"
+    return DEFAULT_USER_AGENT
+
+
 def robots_allows(user_agent, timeout):
     parser = urllib.robotparser.RobotFileParser(CHP_ROBOTS_URL)
     try:
@@ -847,12 +853,15 @@ def parse_args():
     parser.add_argument("--timeout", type=int, default=30)
     parser.add_argument("--detail-delay", type=float, default=0.2)
     parser.add_argument("--detail-refresh-minutes", type=float, default=3.0)
-    parser.add_argument("--user-agent", default=os.environ.get("CHP_USER_AGENT", DEFAULT_USER_AGENT))
+    parser.add_argument("--contact-email", default=os.environ.get("CHP_CONTACT_EMAIL"))
+    parser.add_argument("--user-agent", default=os.environ.get("CHP_USER_AGENT"))
     parser.add_argument("--retries", type=int, default=int(os.environ.get("CHP_RETRIES", "2")))
     parser.add_argument("--retry-backoff", type=float, default=float(os.environ.get("CHP_RETRY_BACKOFF", "2")))
     parser.add_argument("--no-respect-robots", action="store_false", dest="respect_robots")
     parser.set_defaults(respect_robots=True)
     args = parser.parse_args()
+    if not args.user_agent:
+        args.user_agent = build_user_agent(args.contact_email)
     args.center = args.center or DEFAULT_CENTERS
     args.road = args.road or DEFAULT_ROAD_KEYWORDS
     return args

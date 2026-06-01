@@ -212,7 +212,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert json.dumps(incidents, ensure_ascii=False) in html
 
 
-def test_incident_status_changes_when_incident_data_changes():
+def test_incident_status_ignores_observation_timestamp_for_version():
     first = [
         {
             **incident_row("LACC|2026-05-31|0805", "active", "2026-05-31T08:00:00-07:00", "0805"),
@@ -229,4 +229,17 @@ def test_incident_status_changes_when_incident_data_changes():
     assert first_status["total_count"] == 1
     assert first_status["mapped_count"] == 1
     assert first_status["data_updated_at"] == "2026-05-31T08:00:00-07:00"
-    assert first_status["version"] != second_status["version"]
+    assert first_status["version"] == second_status["version"]
+
+
+def test_incident_status_changes_when_incident_content_changes():
+    first = [
+        {
+            **incident_row("LACC|2026-05-31|0805", "active", "2026-05-31T08:00:00-07:00", "0805"),
+            "status": "active",
+            "latest_observed_at": "2026-05-31T08:00:00-07:00",
+        }
+    ]
+    second = [dict(first[0], details_hash="new-detail-hash")]
+
+    assert incident_status(first, 72)["version"] != incident_status(second, 72)["version"]

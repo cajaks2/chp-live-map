@@ -4,6 +4,7 @@ import sqlite3
 
 from scrape_chp_traffic import (
     DEFAULT_ROAD_KEYWORDS,
+    build_user_agent,
     connect_database,
     event_key,
     incident_date_for_time,
@@ -20,6 +21,14 @@ from scrape_chp_traffic import (
     touch_active_event,
     upsert_active_event,
 )
+
+
+def test_build_user_agent_optionally_includes_contact_email():
+    assert build_user_agent() == "chp-live-map/0.1 (+https://crestmap.us/)"
+    assert (
+        build_user_agent("ops@example.com")
+        == "chp-live-map/0.1 (+https://crestmap.us/; contact: ops@example.com)"
+    )
 
 
 def test_parse_incidents_from_cad_table():

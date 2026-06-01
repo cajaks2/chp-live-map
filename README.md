@@ -15,6 +15,7 @@ The scraper is intentionally conservative:
 - It defaults to the Los Angeles communications center only.
 - It filters the incident list by forest-road keywords before opening detail pages.
 - It uses a descriptive `User-Agent` with a public project URL.
+- Set `CHP_CONTACT_EMAIL` or pass `--contact-email` to include a contact address in that `User-Agent`.
 - It checks `robots.txt` before scraping unless `--no-respect-robots` is set.
 - It retries transient HTTP failures with exponential backoff.
 - It skips detail-page refetches for unchanged active incidents for 3 minutes by default.

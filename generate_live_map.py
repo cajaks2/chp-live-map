@@ -142,7 +142,13 @@ def incident_status(incidents, hours):
         {
             "event_key": i.get("event_key"),
             "status": i.get("status"),
-            "latest_observed_at": i.get("latest_observed_at"),
+            "incident_time": i.get("incident_time"),
+            "type": i.get("type"),
+            "location": i.get("location"),
+            "location_desc": i.get("location_desc"),
+            "area": i.get("area"),
+            "latitude": i.get("latitude"),
+            "longitude": i.get("longitude"),
             "details_hash": i.get("details_hash"),
             "cleared_at": i.get("cleared_at"),
         }

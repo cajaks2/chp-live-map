@@ -349,6 +349,19 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       color: #ffffff;
       background: #277447;
     }}
+    .about-blurb {{
+      margin-top: 10px;
+      padding: 9px 10px;
+      border: 1px solid #d8ddd2;
+      border-radius: 6px;
+      color: #3f4a44;
+      background: #f3f6ef;
+      font-size: 12px;
+      line-height: 1.35;
+    }}
+    .about-blurb strong {{
+      color: #182026;
+    }}
     #stale-notice {{
       display: none;
       align-items: center;
@@ -684,6 +697,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         <div class="meta">{active_count} active · {len(incidents)} in last {hours:g}h · {mapped_count} mapped</div>
         <div class="meta">Last updated <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></div>
         <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
+        <p class="about-blurb"><strong>What this is:</strong> a live mirror of public CHP CAD incidents for Angeles Crest, Angeles Forest, Big Tujunga, Glendora Mountain, and nearby forest roads. CHP is checked about once a minute; unchanged active incident details are refreshed about every 3 minutes. Cleared incidents stay visible inside the selected history window.</p>
         <div id="stale-notice" role="status">
           <span id="stale-notice-text">Data may be stale.</span>
           <button type="button" id="refresh-page">Refresh</button>

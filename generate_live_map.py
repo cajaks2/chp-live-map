@@ -822,7 +822,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         </div>
         <details id="about-panel" class="about-panel" open>
           <summary>About this map</summary>
-          <p class="about-blurb"><strong>What this is:</strong> a live mirror of public CHP CAD incidents for Angeles Crest, Angeles Forest, Big Tujunga, Glendora Mountain, and nearby forest roads. CHP is checked about once a minute; unchanged active incident details are refreshed about every 3 minutes. Cleared incidents stay visible inside the selected history window.</p>
+          <p class="about-blurb"><strong>What this is:</strong> a live mirror of public <a href="https://cad.chp.ca.gov/Traffic.aspx" rel="noopener">CHP CAD traffic incidents</a> for Angeles Crest, Angeles Forest, Big Tujunga, Glendora Mountain, and nearby forest roads. CHP is checked about once a minute; unchanged active incident details are refreshed about every 3 minutes. Cleared incidents stay visible inside the selected history window.</p>
           <a class="about-link" href="https://github.com/cajaks2/chp-live-map#readme" rel="noopener">Project README</a>
         </details>
         <div id="stale-notice" role="status">

@@ -144,6 +144,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '<details id="about-panel" class="about-panel" open>' in html
     assert "<summary>About this map</summary>" in html
     assert '<p class="about-blurb"><strong>What this is:</strong>' in html
+    assert 'href="https://cad.chp.ca.gov/Traffic.aspx"' in html
+    assert "CHP CAD traffic incidents</a>" in html
     assert 'href="https://github.com/cajaks2/chp-live-map#readme"' in html
     assert "Project README" in html
     assert "CHP is checked about once a minute" in html

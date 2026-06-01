@@ -372,6 +372,16 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       font-size: 13px;
       line-height: 1.35;
     }}
+    .checked-meta {{
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0 5px;
+    }}
+    .checked-meta time {{
+      display: inline-flex;
+      align-items: center;
+    }}
     .range-tabs {{
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -490,9 +500,9 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      margin-left: 4px;
       color: #46534b;
       font-weight: 700;
+      line-height: 1.35;
       cursor: pointer;
     }}
     .auto-refresh-control input {{
@@ -810,7 +820,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       <header>
         <h1>CHP Forest Incidents</h1>
         <div class="meta">{active_count} active · {len(incidents)} in last {hours:g}h · {mapped_count} mapped</div>
-        <div class="meta">Last checked <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time> ·
+        <div class="meta checked-meta"><span>Last checked <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span><span aria-hidden="true">·</span>
           <label class="auto-refresh-control" title="Automatically reload when new incident data is available">
             <input type="checkbox" id="auto-refresh-enabled">
             Auto refresh

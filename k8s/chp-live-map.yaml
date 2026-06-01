@@ -236,7 +236,7 @@ spec:
               value: /chp
             - name: PUBLIC_URL
               value: https://crestmap.us/
-            - name: GOOGLE_TAG_MANAGER_ID
+            - name: GOOGLE_ANALYTICS_ID
               value: ""
           resources:
             requests:

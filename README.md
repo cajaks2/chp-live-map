@@ -178,7 +178,7 @@ The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, a long-lived s
 
 Backups are written as compressed custom-format `pg_dump` files under `/opt/chp-live-map/backups/postgres` every six hours by default. Tune `BACKUP_INTERVAL_SECONDS` and `BACKUP_RETENTION_DAYS` in `.env`.
 
-Optional Google Tag Manager can be enabled by setting `GOOGLE_TAG_MANAGER_ID` in `.env` to a container ID such as `GTM-XXXXXXXX`. Leave it blank to omit the GTM script entirely. Configure GA4 or other tags inside the GTM container so the site does not need multiple analytics snippets.
+Optional GA4 analytics can be enabled by setting `GOOGLE_ANALYTICS_ID` in `.env` to a Measurement ID such as `G-XXXXXXXXXX`. Leave it blank to omit the Google Analytics script entirely.
 
 Files for that deployment live in `deploy/digitalocean/`.
 

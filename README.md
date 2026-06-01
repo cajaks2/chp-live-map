@@ -178,6 +178,8 @@ The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, a long-lived s
 
 Backups are written as compressed custom-format `pg_dump` files under `/opt/chp-live-map/backups/postgres` every six hours by default. Tune `BACKUP_INTERVAL_SECONDS` and `BACKUP_RETENTION_DAYS` in `.env`.
 
+Optional GA4 analytics can be enabled by setting `GOOGLE_ANALYTICS_ID` in `.env` to a Measurement ID such as `G-XXXXXXXXXX`. Leave it blank to omit the Google Analytics script entirely.
+
 Files for that deployment live in `deploy/digitalocean/`.
 
 The web service also exposes:

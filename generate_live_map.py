@@ -167,7 +167,22 @@ def incident_status(incidents, hours):
     }
 
 
-def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
+def analytics_script(google_analytics_id=None):
+    if not google_analytics_id:
+        return ""
+    escaped_id = html.escape(google_analytics_id, quote=True)
+    js_id = json.dumps(google_analytics_id)
+    return f"""  <script async src="https://www.googletagmanager.com/gtag/js?id={escaped_id}"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){{dataLayer.push(arguments);}}
+    gtag("js", new Date());
+    gtag("config", {js_id});
+  </script>
+"""
+
+
+def build_html(incidents, generated_at, hours, base_path="/", public_url=None, google_analytics_id=None):
     data = json.dumps(incidents, ensure_ascii=False)
     status = incident_status(incidents, hours)
     active_count = status["active_count"]
@@ -256,6 +271,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
   <meta name="twitter:description" content="{html.escape(description)}">
   <meta name="twitter:image" content="{html.escape(urls["og_image"])}">
   <script type="application/ld+json">{structured_data_json}</script>
+{analytics_script(google_analytics_id)}\
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIINfQ9um5Lj053hphD7uW9P4U5F9VAt5x0=" crossorigin="">
   <style>

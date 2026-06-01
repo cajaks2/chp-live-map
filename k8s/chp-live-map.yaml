@@ -236,6 +236,8 @@ spec:
               value: /chp
             - name: PUBLIC_URL
               value: https://crestmap.us/
+            - name: GOOGLE_ANALYTICS_ID
+              value: ""
           resources:
             requests:
               cpu: 25m

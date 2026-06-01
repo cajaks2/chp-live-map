@@ -427,6 +427,10 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       border-radius: 999px;
       background: #d94a38;
       box-shadow: 0 1px 6px rgba(24, 32, 38, 0.32);
+      cursor: pointer;
+      pointer-events: auto;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }}
     .incident-marker.is-cleared {{
       border-color: #5f6862;
@@ -837,6 +841,36 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       }});
     }}
 
+    function bindMarkerInteraction(marker, incident) {{
+      let lastSelect = 0;
+      const selectFromMarker = (event) => {{
+        if (event) {{
+          L.DomEvent.stop(event);
+        }}
+        const now = Date.now();
+        if (now - lastSelect < 350 || (event?.type === "click" && now - lastSelect < 700)) {{
+          return;
+        }}
+        lastSelect = now;
+        selectIncident(incident, {{ pan: false, revealDetails: true }});
+      }};
+
+      const bindElement = () => {{
+        const element = marker.getElement();
+        if (!element) {{
+          return;
+        }}
+        L.DomEvent.disableClickPropagation(element);
+        L.DomEvent.on(element, "touchend", selectFromMarker);
+        L.DomEvent.on(element, "pointerup", selectFromMarker);
+        L.DomEvent.on(element, "click", selectFromMarker);
+      }};
+
+      marker.on("click", selectFromMarker);
+      marker.on("add", bindElement);
+      bindElement();
+    }}
+
     function detailHtml(incident) {{
       if (!incident) {{
         return '<div class="empty">Select an incident to view CHP detail entries.</div>';
@@ -943,7 +977,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
             keyboard: false,
             title: `${{incident.type || "CHP Incident"}} ${{incident.location || ""}}`.trim()
           }}).addTo(map);
-          marker.on("click", () => selectIncident(incident, {{ pan: false, revealDetails: true }}));
+          bindMarkerInteraction(marker, incident);
           markers.set(incident.event_key, marker);
         }}
 

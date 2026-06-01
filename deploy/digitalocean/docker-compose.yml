@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.32}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MAP_HOURS: "72"
+      HTTP_HOST: 0.0.0.0
+      HTTP_PORT: "8080"
+      BASE_PATH: /
+      PUBLIC_URL: https://chp.flowy.us/
+      SERVICE_VERSION: ${VERSION:-0.1.32}
+    ports:
+      - "127.0.0.1:8080:8080"
+
+  scrape:
+    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.32}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SERVICE_VERSION: ${VERSION:-0.1.32}
+      CHP_USER_AGENT: "chp-live-map/0.1 (+https://chp.flowy.us/; contact: cajaks2@users.noreply.github.com)"
+    command:
+      - /bin/sh
+      - -c
+      - |
+        while true; do
+          python3 /app/scrape_chp_traffic.py --detail-refresh-minutes 3
+          sleep 60
+        done
+
+volumes:
+  postgres-data:

@@ -163,6 +163,20 @@ The manifest creates:
 
 Edit `POSTGRES_PASSWORD` and `DATABASE_URL` in the manifest before using it outside a local/private cluster.
 
+## DigitalOcean Docker Compose
+
+The public `chp.flowy.us` deployment can run directly on a single VM behind nginx:
+
+```sh
+cd /opt/chp-live-map
+cp .env.example .env
+docker compose up -d
+```
+
+The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, and a scraper loop that polls every minute. nginx should remain the TLS front door and proxy `chp.flowy.us` to `http://127.0.0.1:8080`.
+
+Files for that deployment live in `deploy/digitalocean/`.
+
 ## SQL Tables
 
 - `events`: one row per CHP incident, updated with current status and latest fields.

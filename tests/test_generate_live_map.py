@@ -178,7 +178,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'id="dismiss-stale-notice"' in html
     assert 'id="auto-refresh-enabled"' in html
     assert "Auto refresh" in html
-    assert "refresh-options" in html
+    assert "refresh-options" not in html
     assert "chp-auto-refresh" in html
     assert "autoRefreshToggle.checked" in html
     assert "autoRefreshToggle.addEventListener" in html

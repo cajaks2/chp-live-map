@@ -489,24 +489,15 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     .auto-refresh-control {{
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      min-height: 28px;
-      padding: 4px 6px;
-      border: 1px solid #d9c779;
-      border-radius: 5px;
-      color: #3d310f;
-      background: rgba(255, 255, 255, 0.62);
+      gap: 4px;
+      margin-left: 4px;
+      color: #46534b;
       font-weight: 700;
       cursor: pointer;
     }}
-    .refresh-options {{
-      display: flex;
-      align-items: center;
-      margin-top: 8px;
-    }}
     .auto-refresh-control input {{
-      width: 14px;
-      height: 14px;
+      width: 13px;
+      height: 13px;
       margin: 0;
       accent-color: #277447;
     }}
@@ -812,14 +803,13 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       <header>
         <h1>CHP Forest Incidents</h1>
         <div class="meta">{active_count} active · {len(incidents)} in last {hours:g}h · {mapped_count} mapped</div>
-        <div class="meta">Last checked <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></div>
-        <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
-        <div class="refresh-options">
+        <div class="meta">Last checked <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time> ·
           <label class="auto-refresh-control" title="Automatically reload when new incident data is available">
             <input type="checkbox" id="auto-refresh-enabled">
             Auto refresh
           </label>
         </div>
+        <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
         <details id="about-panel" class="about-panel" open>
           <summary>About this map</summary>
           <p class="about-blurb"><strong>What this is:</strong> a live mirror of public <a href="https://cad.chp.ca.gov/Traffic.aspx" rel="noopener">CHP CAD traffic incidents</a> for Angeles Crest, Angeles Forest, Big Tujunga, Glendora Mountain, and nearby forest roads. CHP is checked about once a minute; unchanged active incident details are refreshed about every 3 minutes. Cleared incidents stay visible inside the selected history window.</p>

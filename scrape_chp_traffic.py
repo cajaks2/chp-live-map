@@ -6,16 +6,18 @@ import json
 import os
 import re
 import sqlite3
+import threading
 import time
 import urllib.robotparser
 from html.parser import HTMLParser
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookiejar import CookieJar
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
-from ecs_logging import log_event, run_main
+from ecs_logging import log_event, log_exception, run_main
 
 
 CHP_TRAFFIC_URL = "https://cad.chp.ca.gov/Traffic.aspx"
@@ -33,6 +35,132 @@ DEFAULT_ROAD_KEYWORDS = [
     "glendora mountain",
     "glendora ridge",
 ]
+SCRAPER_START_TIME = time.time()
+
+
+def metric_escape(value):
+    return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
+def metric_line(name, value, labels=None):
+    if labels:
+        label_text = ",".join(f'{key}="{metric_escape(label)}"' for key, label in labels.items())
+        return f"{name}{{{label_text}}} {value}"
+    return f"{name} {value}"
+
+
+class ScraperMetrics:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.scrapes = {"success": 0, "failure": 0}
+        self.http_status_counts = {}
+        self.last = {}
+
+    def record_chp_http(self, method, route, status):
+        key = (str(method), str(route), str(status))
+        with self.lock:
+            self.http_status_counts[key] = self.http_status_counts.get(key, 0) + 1
+
+    def record_success(
+        self,
+        observed_at,
+        changed_rows,
+        total_seen,
+        active_seen,
+        active_with_coords,
+        details_requested,
+        details_skipped,
+        duration_seconds,
+    ):
+        with self.lock:
+            self.scrapes["success"] += 1
+            self.last = {
+                "outcome": "success",
+                "observed_at": observed_at,
+                "duration_seconds": duration_seconds,
+                "observations_inserted": changed_rows,
+                "total_seen": total_seen,
+                "active_seen": active_seen,
+                "active_with_coords": active_with_coords,
+                "details_requested": details_requested,
+                "details_skipped": details_skipped,
+                "error_type": "",
+            }
+
+    def record_failure(self, observed_at, duration_seconds, exc):
+        with self.lock:
+            self.scrapes["failure"] += 1
+            self.last = {
+                "outcome": "failure",
+                "observed_at": observed_at,
+                "duration_seconds": duration_seconds,
+                "observations_inserted": 0,
+                "total_seen": 0,
+                "active_seen": 0,
+                "active_with_coords": 0,
+                "details_requested": 0,
+                "details_skipped": 0,
+                "error_type": exc.__class__.__name__,
+            }
+
+    def render(self):
+        with self.lock:
+            scrapes = dict(self.scrapes)
+            http_counts = dict(self.http_status_counts)
+            last = dict(self.last)
+        lines = [
+            "# HELP chp_live_map_scraper_up Whether the scraper metrics service is running.",
+            "# TYPE chp_live_map_scraper_up gauge",
+            "chp_live_map_scraper_up 1",
+            "# HELP chp_live_map_scraper_process_start_time_seconds Unix timestamp when the scraper process started.",
+            "# TYPE chp_live_map_scraper_process_start_time_seconds gauge",
+            metric_line("chp_live_map_scraper_process_start_time_seconds", f"{SCRAPER_START_TIME:.3f}"),
+            "# HELP chp_live_map_scraper_scrapes_total Scrape attempts by outcome.",
+            "# TYPE chp_live_map_scraper_scrapes_total counter",
+        ]
+        for outcome, count in sorted(scrapes.items()):
+            lines.append(metric_line("chp_live_map_scraper_scrapes_total", count, {"outcome": outcome}))
+        lines.extend(
+            [
+                "# HELP chp_live_map_scraper_last_run_timestamp_seconds Unix timestamp of the latest scraper run.",
+                "# TYPE chp_live_map_scraper_last_run_timestamp_seconds gauge",
+                metric_line(
+                    "chp_live_map_scraper_last_run_timestamp_seconds",
+                    f"{parse_metric_timestamp(last.get('observed_at')):.3f}",
+                    {"outcome": last.get("outcome", "none"), "error_type": last.get("error_type", "")},
+                ),
+                "# HELP chp_live_map_scraper_last_run_duration_seconds Duration of the latest scraper run.",
+                "# TYPE chp_live_map_scraper_last_run_duration_seconds gauge",
+                metric_line("chp_live_map_scraper_last_run_duration_seconds", last.get("duration_seconds", 0)),
+                "# HELP chp_live_map_scraper_last_run_incidents Incidents seen by the latest scraper run.",
+                "# TYPE chp_live_map_scraper_last_run_incidents gauge",
+                metric_line("chp_live_map_scraper_last_run_incidents", last.get("total_seen", 0), {"kind": "total_seen"}),
+                metric_line("chp_live_map_scraper_last_run_incidents", last.get("active_seen", 0), {"kind": "matched"}),
+                metric_line("chp_live_map_scraper_last_run_incidents", last.get("active_with_coords", 0), {"kind": "mapped"}),
+                "# HELP chp_live_map_scraper_last_run_observations_inserted Observation rows inserted by the latest scraper run.",
+                "# TYPE chp_live_map_scraper_last_run_observations_inserted gauge",
+                metric_line("chp_live_map_scraper_last_run_observations_inserted", last.get("observations_inserted", 0)),
+                "# HELP chp_live_map_scraper_last_run_details Detail pages requested or skipped by the latest scraper run.",
+                "# TYPE chp_live_map_scraper_last_run_details gauge",
+                metric_line("chp_live_map_scraper_last_run_details", last.get("details_requested", 0), {"result": "requested"}),
+                metric_line("chp_live_map_scraper_last_run_details", last.get("details_skipped", 0), {"result": "skipped"}),
+                "# HELP chp_live_map_scraper_chp_http_requests_total Outbound CHP HTTP requests made by scraper, grouped by method, route, and status.",
+                "# TYPE chp_live_map_scraper_chp_http_requests_total counter",
+            ]
+        )
+        for (method, route, status), count in sorted(http_counts.items()):
+            lines.append(
+                metric_line(
+                    "chp_live_map_scraper_chp_http_requests_total",
+                    count,
+                    {"method": method, "route": route, "status": status},
+                )
+            )
+        lines.append("")
+        return "\n".join(lines).encode("utf-8")
+
+
+SCRAPER_METRICS = ScraperMetrics()
 
 
 class ChpTrafficParser(HTMLParser):
@@ -88,6 +216,15 @@ def clean_text(value):
     return re.sub(r"\s+", " ", value).strip()
 
 
+def parse_metric_timestamp(value):
+    if not value:
+        return 0.0
+    try:
+        return dt.datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return 0.0
+
+
 def parse_page(text):
     parser = ChpTrafficParser()
     parser.feed(text)
@@ -95,6 +232,7 @@ def parse_page(text):
 
 
 def record_response_status(stats, method, route, status):
+    SCRAPER_METRICS.record_chp_http(method, route, status)
     if stats is None:
         return
     key = f"{method}:{route}:{status}"
@@ -154,6 +292,52 @@ def robots_allows(user_agent, timeout):
     except (OSError, HTTPError, URLError):
         return True
     return parser.can_fetch(user_agent, CHP_TRAFFIC_URL)
+
+
+class ScraperMetricsHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        path = self.path.split("?", 1)[0]
+        if path in {"/healthz", "/readyz"}:
+            body = b"ok\n"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if path == "/metrics":
+            body = SCRAPER_METRICS.render()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        self.send_response(404)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(b"not found\n")
+
+    def log_message(self, _format, *_args):
+        return
+
+
+def start_metrics_server(host, port):
+    server = ThreadingHTTPServer((host, port), ScraperMetricsHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    log_event(
+        "info",
+        "Scraper metrics server started",
+        **{
+            "event.action": "metrics_start",
+            "event.outcome": "success",
+            "server.address": host,
+            "server.port": port,
+        },
+    )
+    return server
 
 
 def select_center(center, timeout, user_agent, retries, backoff, stats=None):
@@ -913,6 +1097,7 @@ def scrape_once(args):
         details_skipped,
         time.monotonic() - started_at,
         stats["http_status_counts"],
+        observed_at,
     )
 
 
@@ -926,6 +1111,8 @@ def parse_args():
     parser.add_argument("--database", type=Path, default=Path("chp_traffic.sqlite"))
     parser.add_argument("--database-url", default=os.environ.get("DATABASE_URL"))
     parser.add_argument("--interval", type=int, default=0, help="Poll interval in seconds. Default runs once.")
+    parser.add_argument("--metrics-host", default=os.environ.get("SCRAPER_METRICS_HOST"))
+    parser.add_argument("--metrics-port", type=int, default=int(os.environ.get("SCRAPER_METRICS_PORT", "0")))
     parser.add_argument("--timeout", type=int, default=30)
     parser.add_argument("--detail-delay", type=float, default=0.2)
     parser.add_argument("--detail-refresh-minutes", type=float, default=3.0)
@@ -945,38 +1132,73 @@ def parse_args():
 
 def main():
     args = parse_args()
+    metrics_server = None
+    if args.metrics_port > 0:
+        metrics_server = start_metrics_server(args.metrics_host or "127.0.0.1", args.metrics_port)
     while True:
-        (
-            changed_rows,
-            total_seen,
-            active_seen,
-            active_with_coords,
-            details_requested,
-            details_skipped,
-            duration_seconds,
-            http_status_counts,
-        ) = scrape_once(args)
-        log_event(
-            "info",
-            "CHP scrape completed",
-            **{
-                "event.action": "scrape",
-                "event.outcome": "success",
-                "chp.total_seen": total_seen,
-                "chp.active_seen": active_seen,
-                "chp.active_with_coords": active_with_coords,
-                "chp.observations_inserted": changed_rows,
-                "chp.details_requested": details_requested,
-                "chp.details_skipped": details_skipped,
-                "chp.duration_seconds": round(duration_seconds, 3),
-                "chp.http_status_counts": http_status_counts,
-                "chp.centers": args.center,
-                "http.request.header.user_agent": args.user_agent,
-            },
-        )
+        started_at = time.monotonic()
+        observed_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
+        try:
+            (
+                changed_rows,
+                total_seen,
+                active_seen,
+                active_with_coords,
+                details_requested,
+                details_skipped,
+                duration_seconds,
+                http_status_counts,
+                scrape_observed_at,
+            ) = scrape_once(args)
+            SCRAPER_METRICS.record_success(
+                scrape_observed_at,
+                changed_rows,
+                total_seen,
+                active_seen,
+                active_with_coords,
+                details_requested,
+                details_skipped,
+                duration_seconds,
+            )
+            log_event(
+                "info",
+                "CHP scrape completed",
+                **{
+                    "event.action": "scrape",
+                    "event.outcome": "success",
+                    "chp.total_seen": total_seen,
+                    "chp.active_seen": active_seen,
+                    "chp.active_with_coords": active_with_coords,
+                    "chp.observations_inserted": changed_rows,
+                    "chp.details_requested": details_requested,
+                    "chp.details_skipped": details_skipped,
+                    "chp.duration_seconds": round(duration_seconds, 3),
+                    "chp.http_status_counts": http_status_counts,
+                    "chp.centers": args.center,
+                    "http.request.header.user_agent": args.user_agent,
+                },
+            )
+        except Exception as exc:
+            duration_seconds = time.monotonic() - started_at
+            SCRAPER_METRICS.record_failure(observed_at, duration_seconds, exc)
+            log_exception(
+                "CHP scrape failed",
+                exc,
+                **{
+                    "event.action": "scrape",
+                    "event.outcome": "failure",
+                    "chp.duration_seconds": round(duration_seconds, 3),
+                    "chp.centers": args.center,
+                    "http.request.header.user_agent": args.user_agent,
+                },
+            )
+            if args.interval <= 0:
+                raise
         if args.interval <= 0:
             break
         time.sleep(args.interval)
+    if metrics_server:
+        metrics_server.shutdown()
 
 
 if __name__ == "__main__":

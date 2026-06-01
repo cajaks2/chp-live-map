@@ -174,7 +174,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, a scraper loop that polls every minute, and a Postgres backup sidecar. nginx should remain the TLS front door and proxy `crestmap.us` and `chp.flowy.us` to `http://127.0.0.1:8080`.
+The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, a long-lived scraper service that polls every minute and exposes scraper metrics on `127.0.0.1:8081`, and a Postgres backup sidecar. nginx should remain the TLS front door and proxy `crestmap.us` and `chp.flowy.us` to `http://127.0.0.1:8080`.
 
 Backups are written as compressed custom-format `pg_dump` files under `/opt/chp-live-map/backups/postgres` every six hours by default. Tune `BACKUP_INTERVAL_SECONDS` and `BACKUP_RETENTION_DAYS` in `.env`.
 
@@ -183,7 +183,8 @@ Files for that deployment live in `deploy/digitalocean/`.
 The web service also exposes:
 
 - `/status.json`: lightweight status/version check used by the browser to decide whether a refresh is useful.
-- `/metrics`: Prometheus text-format metrics for process uptime, incident counts, data freshness, and HTTP request counters.
+- Web `/metrics`: Prometheus text-format metrics for web process uptime, incident counts, data freshness, HTTP request counters, and DB-backed latest scrape data.
+- Scraper `:8081/metrics`: Prometheus text-format metrics emitted by the long-lived scraper service, including scrape attempt counters and outbound CHP response-code counters.
 
 Prometheus metrics:
 
@@ -204,6 +205,11 @@ Prometheus metrics:
 | `chp_live_map_scrape_last_run_observations_inserted` | gauge | Observation rows inserted by the latest scrape. |
 | `chp_live_map_scrape_last_run_details{result}` | gauge | Detail pages requested or skipped by the latest scrape. |
 | `chp_live_map_scrape_chp_http_requests_total{method,route,status}` | counter | Outbound requests made by the scraper to CHP, grouped by method, list/detail route, and response status. |
+| `chp_live_map_scraper_up` | gauge | `1` when the scraper service metrics endpoint is running. |
+| `chp_live_map_scraper_scrapes_total{outcome}` | counter | Scrape attempts by success/failure from the long-lived scraper process. |
+| `chp_live_map_scraper_last_run_timestamp_seconds{outcome,error_type}` | gauge | Timestamp of the latest scraper run from the scraper service. |
+| `chp_live_map_scraper_last_run_incidents{kind}` | gauge | Latest scraper-service incident counts. |
+| `chp_live_map_scraper_chp_http_requests_total{method,route,status}` | counter | Outbound CHP HTTP requests counted in the scraper process. |
 
 ## SQL Tables
 

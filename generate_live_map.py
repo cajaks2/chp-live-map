@@ -441,6 +441,14 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     .about-blurb {{
       margin: 7px 0 0;
     }}
+    .about-link {{
+      display: inline-block;
+      margin-top: 7px;
+      color: #1f6840;
+      font-weight: 800;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }}
     #stale-notice {{
       display: none;
       align-items: center;
@@ -779,6 +787,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         <details id="about-panel" class="about-panel" open>
           <summary>About this map</summary>
           <p class="about-blurb"><strong>What this is:</strong> a live mirror of public CHP CAD incidents for Angeles Crest, Angeles Forest, Big Tujunga, Glendora Mountain, and nearby forest roads. CHP is checked about once a minute; unchanged active incident details are refreshed about every 3 minutes. Cleared incidents stay visible inside the selected history window.</p>
+          <a class="about-link" href="https://github.com/cajaks2/chp-live-map#readme" rel="noopener">Project README</a>
         </details>
         <div id="stale-notice" role="status">
           <span id="stale-notice-text">Data may be stale.</span>

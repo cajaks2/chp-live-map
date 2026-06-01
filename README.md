@@ -184,6 +184,20 @@ The web service also exposes:
 - `/status.json`: lightweight status/version check used by the browser to decide whether a refresh is useful.
 - `/metrics`: Prometheus text-format metrics for process uptime, incident counts, data freshness, and HTTP request counters.
 
+Prometheus metrics:
+
+| Metric | Type | Meaning |
+| --- | --- | --- |
+| `chp_live_map_up` | gauge | `1` when the web process can render metrics. |
+| `chp_live_map_process_start_time_seconds` | gauge | Unix timestamp for the current web process start time. |
+| `chp_live_map_incidents{status="total"}` | gauge | Incident count in the default map history window. |
+| `chp_live_map_incidents{status="active"}` | gauge | Active incident count in the default map history window. |
+| `chp_live_map_incidents{status="cleared"}` | gauge | Cleared incident count in the default map history window. |
+| `chp_live_map_incidents{status="mapped"}` | gauge | Incidents with coordinates in the default map history window. |
+| `chp_live_map_history_window_hours` | gauge | The history-window size used for `/metrics` incident gauges. In production this is `72`, matching the default map view; user-selected `?hours=` values only affect that page/status request, not this process-level metric. |
+| `chp_live_map_data_updated_timestamp_seconds` | gauge | Unix timestamp of the newest observed incident data included in the metrics window. |
+| `chp_live_map_http_requests_total{method,route,status}` | counter | HTTP requests handled by the web process, grouped by method, coarse route, and status code. |
+
 ## SQL Tables
 
 - `events`: one row per CHP incident, updated with current status and latest fields.

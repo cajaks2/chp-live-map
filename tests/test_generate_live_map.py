@@ -120,6 +120,10 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '<meta property="og:image" content="https://chp.flowy.us/og-image.svg">' in html
     assert '<meta name="twitter:card" content="summary_large_image">' in html
     assert "scrollbar-width: thin" in html
+    assert 'id="incident-list-shell"' in html
+    assert "has-more-below::after" in html
+    assert "function updateListScrollCue" in html
+    assert 'list.addEventListener("scroll", updateListScrollCue' in html
     assert "mask-image: linear-gradient(to bottom" in html
     assert "overscroll-behavior: contain" in html
     assert "background: #fbfcf8" in html
@@ -158,6 +162,12 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "touchZoom: true" in html
     assert "doubleClickZoom: true" in html
     assert "keyboard: false" in html
+    assert "preferCanvas: false" in html
+    assert "markerZoomAnimation: true" in html
+    assert "updateWhenZooming: true" in html
+    assert "function markerIcon" in html
+    assert "L.marker([incident.latitude, incident.longitude]" in html
+    assert "L.circleMarker" not in html
     assert "function setupDoubleTapZoom" in html
     assert "setupDoubleTapZoom();" in html
     assert "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" in html

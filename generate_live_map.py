@@ -337,9 +337,40 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       font-weight: 700;
       cursor: pointer;
     }}
-    #incident-list {{
+    #incident-list-shell {{
       flex: 1 1 auto;
       min-height: 0;
+      position: relative;
+      overflow: hidden;
+      background: #fbfcf8;
+    }}
+    #incident-list-shell.has-more-above {{
+      box-shadow: inset 0 24px 18px -24px rgba(39, 62, 48, 0.42);
+    }}
+    #incident-list-shell.has-more-below {{
+      box-shadow: inset 0 -30px 24px -24px rgba(39, 62, 48, 0.48);
+    }}
+    #incident-list-shell.has-more-above.has-more-below {{
+      box-shadow:
+        inset 0 24px 18px -24px rgba(39, 62, 48, 0.42),
+        inset 0 -30px 24px -24px rgba(39, 62, 48, 0.48);
+    }}
+    #incident-list-shell.has-more-below::after {{
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: 9px;
+      z-index: 3;
+      width: 11px;
+      height: 11px;
+      border-right: 2px solid #277447;
+      border-bottom: 2px solid #277447;
+      transform: translateX(-50%) rotate(45deg);
+      pointer-events: none;
+      filter: drop-shadow(0 1px 0 #ffffff);
+    }}
+    #incident-list {{
+      height: 100%;
       overflow-y: auto;
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
@@ -387,6 +418,29 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       color: #58645d;
       font-size: 12px;
       line-height: 1.35;
+    }}
+    .incident-marker {{
+      box-sizing: border-box;
+      width: 22px;
+      height: 22px;
+      border: 3px solid #7a1a1d;
+      border-radius: 999px;
+      background: #d94a38;
+      box-shadow: 0 1px 6px rgba(24, 32, 38, 0.32);
+    }}
+    .incident-marker.is-cleared {{
+      border-color: #5f6862;
+      background: #b8bfba;
+    }}
+    .incident-marker.is-selected {{
+      width: 28px;
+      height: 28px;
+      border-width: 4px;
+      background: #f05a40;
+      box-shadow: 0 2px 9px rgba(24, 32, 38, 0.42);
+    }}
+    .incident-marker.is-selected.is-cleared {{
+      background: #9da5a0;
     }}
     #map {{
       position: relative;
@@ -536,8 +590,10 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         border-right: 0;
         border-bottom: 1px solid #d8ddd2;
       }}
-      #incident-list {{
+      #incident-list-shell {{
         min-height: 92px;
+      }}
+      #incident-list {{
         -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 32px), transparent 100%);
         mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 32px), transparent 100%);
       }}
@@ -566,7 +622,9 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
           <button type="button" id="dismiss-stale-notice" aria-label="Dismiss stale data notice">Dismiss</button>
         </div>
       </header>
-      <div id="incident-list"></div>
+      <div id="incident-list-shell">
+        <div id="incident-list"></div>
+      </div>
     </aside>
     <main id="map"></main>
     <aside id="details"></aside>
@@ -579,22 +637,22 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     const mapEl = document.getElementById("map");
     mapEl.classList.add("is-loading");
     const map = L.map("map", {{
-      preferCanvas: true,
+      preferCanvas: false,
       tap: true,
       touchZoom: true,
       doubleClickZoom: true,
       keyboard: false,
       zoomControl: false,
-      zoomAnimation: false,
-      fadeAnimation: false,
-      markerZoomAnimation: false
+      zoomAnimation: true,
+      fadeAnimation: true,
+      markerZoomAnimation: true
     }}).setView({json.dumps(DEFAULT_CENTER)}, {DEFAULT_ZOOM});
     const baseLayer = L.tileLayer("https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png", {{
       subdomains: "abc",
       maxZoom: 19,
       keepBuffer: 8,
-      updateWhenIdle: true,
-      updateWhenZooming: false,
+      updateWhenIdle: false,
+      updateWhenZooming: true,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }});
     baseLayer.on("load", () => {{
@@ -612,6 +670,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     baseLayer.addTo(map);
 
     const markers = new Map();
+    const listShell = document.getElementById("incident-list-shell");
     const list = document.getElementById("incident-list");
     const detailsPanel = document.getElementById("details");
     window.chpLiveMap = {{ map, markers, incidents }};
@@ -757,6 +816,26 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       window.history.replaceState({{ incident: incident.event_key }}, "", url);
     }}
 
+    function updateListScrollCue() {{
+      if (!listShell || !list) {{
+        return;
+      }}
+      const hasMoreAbove = list.scrollTop > 3;
+      const hasMoreBelow = list.scrollTop + list.clientHeight < list.scrollHeight - 3;
+      listShell.classList.toggle("has-more-above", hasMoreAbove);
+      listShell.classList.toggle("has-more-below", hasMoreBelow);
+    }}
+
+    function markerIcon(incident, selected = false) {{
+      const isActive = incident.status === "active";
+      const size = selected ? 28 : 22;
+      return L.divIcon({{
+        className: ["incident-marker", isActive ? "is-active" : "is-cleared", selected ? "is-selected" : ""].join(" "),
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2]
+      }});
+    }}
+
     function detailHtml(incident) {{
       if (!incident) {{
         return '<div class="empty">Select an incident to view CHP detail entries.</div>';
@@ -826,15 +905,12 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       markers.forEach((marker, eventKey) => {{
         const selected = eventKey === incident.event_key;
         const markerIncident = incidents.find((item) => item.event_key === eventKey);
-        const isActive = markerIncident?.status === "active";
-        marker.setStyle({{
-          radius: selected ? 10 : 8,
-          color: selected ? (isActive ? "#611113" : "#3f4642") : (isActive ? "#8f1d21" : "#6e7771"),
-          weight: selected ? 3 : 2,
-          fillColor: selected ? (isActive ? "#f05a40" : "#9da5a0") : (isActive ? "#d94a38" : "#b8bfba"),
-          fillOpacity: selected ? 0.95 : 0.72
-        }});
-        if (selected) {{
+        if (!markerIncident) {{
+          return;
+        }}
+        marker.setIcon(markerIcon(markerIncident, selected));
+        marker.setZIndexOffset(selected ? 1000 : 0);
+        if (selected && marker.bringToFront) {{
           marker.bringToFront();
         }}
       }});
@@ -861,12 +937,10 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         const hasCoords = incident.latitude != null && incident.longitude != null;
         const isActive = incident.status === "active";
         if (hasCoords) {{
-          const marker = L.circleMarker([incident.latitude, incident.longitude], {{
-            radius: 8,
-            color: isActive ? "#8f1d21" : "#6e7771",
-            weight: 2,
-            fillColor: isActive ? "#d94a38" : "#b8bfba",
-            fillOpacity: isActive ? 0.85 : 0.72
+          const marker = L.marker([incident.latitude, incident.longitude], {{
+            icon: markerIcon(incident),
+            keyboard: false,
+            title: `${{incident.type || "CHP Incident"}} ${{incident.location || ""}}`.trim()
           }}).addTo(map);
           marker.on("click", () => selectIncident(incident, {{ pan: false, revealDetails: true }}));
           markers.set(incident.event_key, marker);
@@ -887,6 +961,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       }});
 
       setTimeout(() => map.invalidateSize(), 50);
+      window.requestAnimationFrame(updateListScrollCue);
       const linkedIncident = incidentFromUrl();
       selectIncident(linkedIncident || incidents[0], {{
         pan: Boolean(linkedIncident),
@@ -899,6 +974,8 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     formatGeneratedAt();
     setupStaleRefresh();
     setupDoubleTapZoom();
+    list.addEventListener("scroll", updateListScrollCue, {{ passive: true }});
+    window.addEventListener("resize", updateListScrollCue);
   </script>
 </body>
 </html>

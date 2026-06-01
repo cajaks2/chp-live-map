@@ -123,7 +123,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '<meta property="og:image:type" content="image/png">' in html
     assert '<meta name="twitter:card" content="summary_large_image">' in html
     assert '<script type="application/ld+json">' in html
-    assert "googletagmanager.com/gtag/js" not in html
+    assert "googletagmanager.com/gtm.js" not in html
     assert '"@type": "WebApplication"' in html
     assert '"applicationCategory": "MapApplication"' in html
     assert '"@type": "Dataset"' in html
@@ -190,10 +190,12 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
         incidents,
         "2026-05-31T08:05:00-07:00",
         72,
-        google_analytics_id="G-TEST123",
+        google_tag_manager_id="GTM-TEST123",
     )
-    assert "https://www.googletagmanager.com/gtag/js?id=G-TEST123" in analytics_html
-    assert 'gtag("config", "G-TEST123");' in analytics_html
+    assert "Google Tag Manager" in analytics_html
+    assert "https://www.googletagmanager.com/gtm.js?id=" in analytics_html
+    assert '"GTM-TEST123"' in analytics_html
+    assert "https://www.googletagmanager.com/ns.html?id=GTM-TEST123" in analytics_html
     assert "Automatically reload when new incident data is available" in html
     assert "let dismissed = false" in html
     assert "async () =>" in html

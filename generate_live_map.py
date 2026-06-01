@@ -167,22 +167,33 @@ def incident_status(incidents, hours):
     }
 
 
-def analytics_script(google_analytics_id=None):
-    if not google_analytics_id:
+def tag_manager_head(google_tag_manager_id=None):
+    if not google_tag_manager_id:
         return ""
-    escaped_id = html.escape(google_analytics_id, quote=True)
-    js_id = json.dumps(google_analytics_id)
-    return f"""  <script async src="https://www.googletagmanager.com/gtag/js?id={escaped_id}"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag(){{dataLayer.push(arguments);}}
-    gtag("js", new Date());
-    gtag("config", {js_id});
-  </script>
+    escaped_id = html.escape(google_tag_manager_id, quote=True)
+    js_id = json.dumps(google_tag_manager_id)
+    return f"""  <!-- Google Tag Manager -->
+  <script>(function(w,d,s,l,i){{w[l]=w[l]||[];w[l].push({{'gtm.start':
+  new Date().getTime(),event:'gtm.js'}});var f=d.getElementsByTagName(s)[0],
+  j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+  'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+  }})(window,document,'script','dataLayer',{js_id});</script>
+  <!-- End Google Tag Manager -->
 """
 
 
-def build_html(incidents, generated_at, hours, base_path="/", public_url=None, google_analytics_id=None):
+def tag_manager_body(google_tag_manager_id=None):
+    if not google_tag_manager_id:
+        return ""
+    escaped_id = html.escape(google_tag_manager_id, quote=True)
+    return f"""  <!-- Google Tag Manager (noscript) -->
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id={escaped_id}"
+  height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <!-- End Google Tag Manager (noscript) -->
+"""
+
+
+def build_html(incidents, generated_at, hours, base_path="/", public_url=None, google_tag_manager_id=None):
     data = json.dumps(incidents, ensure_ascii=False)
     status = incident_status(incidents, hours)
     active_count = status["active_count"]
@@ -271,7 +282,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
   <meta name="twitter:description" content="{html.escape(description)}">
   <meta name="twitter:image" content="{html.escape(urls["og_image"])}">
   <script type="application/ld+json">{structured_data_json}</script>
-{analytics_script(google_analytics_id)}\
+{tag_manager_head(google_tag_manager_id)}\
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIINfQ9um5Lj053hphD7uW9P4U5F9VAt5x0=" crossorigin="">
   <style>
@@ -831,6 +842,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
   </style>
 </head>
 <body>
+{tag_manager_body(google_tag_manager_id)}\
   <div id="app">
     <aside id="sidebar">
       <header>

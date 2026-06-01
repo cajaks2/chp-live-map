@@ -290,7 +290,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
     hours = 72.0
     base_path = "/"
     public_url = None
-    google_analytics_id = None
+    google_tag_manager_id = None
 
     def requested_hours(self):
         params = parse_qs(urlsplit(self.path).query)
@@ -488,7 +488,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                 hours,
                 base_path=self.base_path,
                 public_url=self.public_url,
-                google_analytics_id=self.google_analytics_id,
+                google_tag_manager_id=self.google_tag_manager_id,
             ).encode("utf-8")
         except Exception as exc:
             log_exception(
@@ -568,7 +568,7 @@ def parse_args():
     parser.add_argument("--hours", type=float, default=float(os.environ.get("MAP_HOURS", "72")))
     parser.add_argument("--base-path", default=os.environ.get("BASE_PATH", "/"))
     parser.add_argument("--public-url", default=os.environ.get("PUBLIC_URL"))
-    parser.add_argument("--google-analytics-id", default=os.environ.get("GOOGLE_ANALYTICS_ID"))
+    parser.add_argument("--google-tag-manager-id", default=os.environ.get("GOOGLE_TAG_MANAGER_ID"))
     return parser.parse_args()
 
 
@@ -579,7 +579,7 @@ def main():
     LiveMapHandler.hours = args.hours
     LiveMapHandler.base_path = args.base_path
     LiveMapHandler.public_url = args.public_url
-    LiveMapHandler.google_analytics_id = args.google_analytics_id
+    LiveMapHandler.google_tag_manager_id = args.google_tag_manager_id
     with connect_database(args.database, args.database_url):
         pass
     server = EcsHTTPServer((args.host, args.port), LiveMapHandler)

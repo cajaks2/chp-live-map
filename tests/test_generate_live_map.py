@@ -127,8 +127,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "CHP forest road incident history" in html
     assert "scrollbar-width: thin" in html
     assert 'id="incident-list-shell"' in html
-    assert "flex: 0 0 132px" in html
-    assert "min-height: 132px" in html
+    assert "flex-basis: clamp(176px, 28svh, 240px)" in html
+    assert "min-height: 176px" in html
     assert 'id="scroll-incidents"' in html
     assert "has-more-below #scroll-incidents" in html
     assert "function updateListScrollCue" in html

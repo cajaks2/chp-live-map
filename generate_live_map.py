@@ -779,12 +779,19 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         border-bottom: 1px solid #d8ddd2;
       }}
       #incident-list-shell {{
-        flex: 0 0 132px;
-        min-height: 132px;
+        flex: 0 0 192px;
+        flex-basis: clamp(176px, 28svh, 240px);
+        min-height: 176px;
       }}
       #incident-list {{
         -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 32px), transparent 100%);
         mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 32px), transparent 100%);
+      }}
+      .incident {{
+        padding: 11px 14px;
+      }}
+      .incident strong {{
+        font-size: 13px;
       }}
       #map {{
         height: 42vh;

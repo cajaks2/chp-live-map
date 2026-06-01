@@ -39,7 +39,11 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
 
         request = Request(
             f"{base_url}/chp/",
-            headers={"X-Forwarded-For": "203.0.113.7, 10.42.0.63"},
+            headers={
+                "X-Forwarded-For": "203.0.113.7, 10.42.0.63",
+                "CF-Connecting-IP": "198.51.100.8",
+                "User-Agent": "test-browser/1.0",
+            },
         )
         with urlopen(request, timeout=5) as response:
             body = response.read().decode("utf-8")
@@ -102,6 +106,15 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert "<loc>https://chp.flowy.us/</loc>" in body
             assert "<changefreq>hourly</changefreq>" in body
 
+        with urlopen(f"{base_url}/metrics", timeout=5) as response:
+            body = response.read().decode("utf-8")
+            assert response.status == 200
+            assert response.headers["Content-Type"] == "text/plain; version=0.0.4; charset=utf-8"
+            assert response.headers["Cache-Control"] == "no-store"
+            assert "chp_live_map_up 1" in body
+            assert 'chp_live_map_incidents{status="total"} 0' in body
+            assert "chp_live_map_http_requests_total" in body
+
         head_request = Request(f"{base_url}/chp/", method="HEAD")
         with urlopen(head_request, timeout=5) as response:
             assert response.status == 200
@@ -120,9 +133,11 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert "/chp/" in logged_paths
         assert "/missing" in logged_paths
         chp_log = next(kwargs for _args, kwargs in access_logs if kwargs["url.path"] == "/chp/")
-        assert chp_log["client.address"] == "203.0.113.7"
+        assert chp_log["client.address"] == "198.51.100.8"
         assert chp_log["client.nat.ip"] == "127.0.0.1"
         assert chp_log["http.request.header.x_forwarded_for"] == "203.0.113.7, 10.42.0.63"
+        assert chp_log["http.request.header.cf_connecting_ip"] == "198.51.100.8"
+        assert chp_log["http.request.header.user_agent"] == "test-browser/1.0"
     finally:
         server.shutdown()
         server.server_close()

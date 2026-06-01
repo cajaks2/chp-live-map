@@ -179,6 +179,11 @@ Backups are written as compressed custom-format `pg_dump` files under `/opt/chp-
 
 Files for that deployment live in `deploy/digitalocean/`.
 
+The web service also exposes:
+
+- `/status.json`: lightweight status/version check used by the browser to decide whether a refresh is useful.
+- `/metrics`: Prometheus text-format metrics for process uptime, incident counts, data freshness, and HTTP request counters.
+
 ## SQL Tables
 
 - `events`: one row per CHP incident, updated with current status and latest fields.

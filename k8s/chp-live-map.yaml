@@ -153,7 +153,7 @@ spec:
                 - name: SERVICE_VERSION
                   value: "0.1.32"
                 - name: CHP_USER_AGENT
-                  value: "chp-live-map/0.1 (+https://chp.flowy.us/; contact: cajaks2@users.noreply.github.com)"
+                  value: "chp-live-map/0.1 (+https://crestmap.us/)"
               resources:
                 requests:
                   cpu: 25m
@@ -202,7 +202,7 @@ spec:
             - name: BASE_PATH
               value: /chp
             - name: PUBLIC_URL
-              value: https://chp.flowy.us/
+              value: https://crestmap.us/
           resources:
             requests:
               cpu: 25m

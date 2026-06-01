@@ -774,7 +774,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       <header>
         <h1>CHP Forest Incidents</h1>
         <div class="meta">{active_count} active · {len(incidents)} in last {hours:g}h · {mapped_count} mapped</div>
-        <div class="meta">Last updated <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></div>
+        <div class="meta">Last checked <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></div>
         <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
         <details id="about-panel" class="about-panel" open>
           <summary>About this map</summary>
@@ -850,11 +850,19 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       if (!aboutPanel) {{
         return;
       }}
+      const storedState = window.localStorage.getItem("chp-about-panel");
+      if (storedState === "open" || storedState === "closed") {{
+        aboutPanel.open = storedState === "open";
+        return;
+      }}
       aboutPanel.open = !mobileViewport.matches;
     }}
 
     syncAboutPanelForViewport();
     mobileViewport.addEventListener("change", syncAboutPanelForViewport);
+    aboutPanel?.addEventListener("toggle", () => {{
+      window.localStorage.setItem("chp-about-panel", aboutPanel.open ? "open" : "closed");
+    }});
 
     function setupDoubleTapZoom() {{
       let lastTap = null;
@@ -922,7 +930,8 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       if (!generatedAt) {{
         return;
       }}
-      const date = new Date(generatedAt.dateTime);
+      const dateTime = generatedAt.getAttribute("datetime");
+      const date = new Date(dateTime);
       if (Number.isNaN(date.getTime())) {{
         return;
       }}
@@ -932,7 +941,16 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         hour: "numeric",
         minute: "2-digit"
       }});
-      generatedAt.title = generatedAt.dateTime;
+      generatedAt.title = dateTime;
+    }}
+
+    function setCheckedAt(value) {{
+      const generatedAt = document.getElementById("generated-at");
+      if (!generatedAt || !value) {{
+        return;
+      }}
+      generatedAt.setAttribute("datetime", value);
+      formatGeneratedAt();
     }}
 
     function setupStaleRefresh() {{
@@ -944,13 +962,14 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       if (!generatedAt || !notice || !noticeText || !refreshButton || !dismissButton) {{
         return;
       }}
-      const generatedTime = new Date(generatedAt.dateTime).getTime();
+      const generatedTime = new Date(generatedAt.getAttribute("datetime")).getTime();
       if (Number.isNaN(generatedTime)) {{
         return;
       }}
       let dismissed = false;
       let checkInFlight = false;
       let lastCheckedAt = 0;
+      let lastHealthyCheckAt = generatedTime;
       const refresh = () => window.location.reload();
       refreshButton.addEventListener("click", refresh);
       dismissButton.addEventListener("click", () => {{
@@ -960,6 +979,9 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       const showNotice = (message) => {{
         noticeText.textContent = message;
         notice.classList.add("is-visible");
+      }};
+      const hideNotice = () => {{
+        notice.classList.remove("is-visible");
       }};
       const checkForUpdates = async () => {{
         if (dismissed || checkInFlight) {{
@@ -983,8 +1005,14 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
             return;
           }}
           const latest = await response.json();
+          lastHealthyCheckAt = Date.now();
+          if (latest.checked_at) {{
+            setCheckedAt(latest.checked_at);
+          }}
           if (latest.version && latest.version !== initialDataStatus.version) {{
             showNotice("New incident data is available.");
+          }} else {{
+            hideNotice();
           }}
         }} catch (_error) {{
           // Keep the UI quiet on transient network failures.
@@ -996,12 +1024,14 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         if (dismissed) {{
           return;
         }}
-        const ageMs = Date.now() - generatedTime;
-        if (ageMs > 60000 && document.visibilityState === "visible") {{
+        const now = Date.now();
+        const pageAgeMs = now - generatedTime;
+        const healthAgeMs = now - lastHealthyCheckAt;
+        if (pageAgeMs > 60000 && document.visibilityState === "visible") {{
           checkForUpdates();
         }}
-        if (ageMs > 180000 && !notice.classList.contains("is-visible")) {{
-          showNotice("Data may be stale. Checked for updates in the background.");
+        if (healthAgeMs > 180000 && !notice.classList.contains("is-visible")) {{
+          showNotice("Data may be stale. Background status checks are not confirming current data.");
         }}
       }};
       update();

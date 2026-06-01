@@ -3,6 +3,8 @@ import datetime as dt
 import json
 import os
 import sys
+import time
+from collections import defaultdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -17,6 +19,8 @@ ASSET_CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800"
 DISCOVERY_CACHE_CONTROL = "public, max-age=300, s-maxage=300, stale-while-revalidate=600"
 MIN_HISTORY_HOURS = 1.0
 MAX_HISTORY_HOURS = 720.0
+START_TIME = time.time()
+HTTP_REQUESTS_TOTAL = defaultdict(int)
 FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="12" fill="#18392b"/>
   <path d="M10 48 25 17l9 20 6-11 14 22Z" fill="#f4f7ee"/>
@@ -71,6 +75,68 @@ def sitemap_xml(base_path, public_url):
 """.encode("utf-8")
 
 
+def parse_timestamp(value):
+    if not value:
+        return 0.0
+    try:
+        return dt.datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return 0.0
+
+
+def metric_escape(value):
+    return str(value).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+
+
+def metric_line(name, value, labels=None):
+    if labels:
+        label_text = ",".join(f'{key}="{metric_escape(label)}"' for key, label in labels.items())
+        return f"{name}{{{label_text}}} {value}"
+    return f"{name} {value}"
+
+
+def prometheus_metrics(database, database_url, hours):
+    incidents = load_incidents(database, hours, database_url)
+    status = incident_status(incidents, hours)
+    active_count = status["active_count"]
+    cleared_count = status["total_count"] - active_count
+    lines = [
+        "# HELP chp_live_map_up Whether the CHP live map web process is running.",
+        "# TYPE chp_live_map_up gauge",
+        "chp_live_map_up 1",
+        "# HELP chp_live_map_process_start_time_seconds Unix timestamp when the web process started.",
+        "# TYPE chp_live_map_process_start_time_seconds gauge",
+        metric_line("chp_live_map_process_start_time_seconds", f"{START_TIME:.3f}"),
+        "# HELP chp_live_map_incidents Incidents in the selected history window.",
+        "# TYPE chp_live_map_incidents gauge",
+        metric_line("chp_live_map_incidents", status["total_count"], {"status": "total"}),
+        metric_line("chp_live_map_incidents", active_count, {"status": "active"}),
+        metric_line("chp_live_map_incidents", cleared_count, {"status": "cleared"}),
+        metric_line("chp_live_map_incidents", status["mapped_count"], {"status": "mapped"}),
+        "# HELP chp_live_map_history_window_hours History window used for map metrics.",
+        "# TYPE chp_live_map_history_window_hours gauge",
+        metric_line("chp_live_map_history_window_hours", status["hours"]),
+        "# HELP chp_live_map_data_updated_timestamp_seconds Latest observed incident data timestamp.",
+        "# TYPE chp_live_map_data_updated_timestamp_seconds gauge",
+        metric_line(
+            "chp_live_map_data_updated_timestamp_seconds",
+            f"{parse_timestamp(status['data_updated_at']):.3f}",
+        ),
+        "# HELP chp_live_map_http_requests_total HTTP requests served by method, route, and status.",
+        "# TYPE chp_live_map_http_requests_total counter",
+    ]
+    for (method, route, status_code), count in sorted(HTTP_REQUESTS_TOTAL.items()):
+        lines.append(
+            metric_line(
+                "chp_live_map_http_requests_total",
+                count,
+                {"method": method, "route": route, "status": status_code},
+            )
+        )
+    lines.append("")
+    return "\n".join(lines).encode("utf-8")
+
+
 class LiveMapHandler(BaseHTTPRequestHandler):
     database = Path("chp_traffic.sqlite")
     database_url = None
@@ -92,14 +158,40 @@ class LiveMapHandler(BaseHTTPRequestHandler):
     def client_log_fields(self):
         forwarded_for = self.headers.get("X-Forwarded-For", "")
         forwarded_ip = forwarded_for.split(",", 1)[0].strip()
+        cloudflare_ip = self.headers.get("CF-Connecting-IP", "").strip()
         real_ip = self.headers.get("X-Real-IP", "").strip()
-        client_ip = forwarded_ip or real_ip or self.client_address[0]
+        client_ip = cloudflare_ip or forwarded_ip or real_ip or self.client_address[0]
         fields = {"client.address": client_ip}
+        user_agent = self.headers.get("User-Agent", "").strip()
         if self.client_address[0] != client_ip:
             fields["client.nat.ip"] = self.client_address[0]
         if forwarded_for:
             fields["http.request.header.x_forwarded_for"] = forwarded_for
+        if cloudflare_ip:
+            fields["http.request.header.cf_connecting_ip"] = cloudflare_ip
+        if user_agent:
+            fields["http.request.header.user_agent"] = user_agent
         return fields
+
+    def route_label(self):
+        path = urlsplit(self.path).path.rstrip("/") or "/"
+        base_path = normalize_base_path(self.base_path)
+        asset_base = "" if base_path == "/" else base_path
+        if path in {"/", "/live_chp_map.html", base_path}:
+            return "map"
+        if path in {"/status.json", f"{asset_base}/status.json"}:
+            return "status"
+        if path in {"/metrics", f"{asset_base}/metrics"}:
+            return "metrics"
+        if path in {"/healthz", "/readyz"}:
+            return "health"
+        if path in {"/robots.txt", f"{asset_base}/robots.txt"}:
+            return "robots"
+        if path in {"/sitemap.xml", f"{asset_base}/sitemap.xml"}:
+            return "sitemap"
+        if path.endswith(".svg"):
+            return "asset"
+        return "other"
 
     def do_HEAD(self):
         self.serve_request(send_body=False)
@@ -115,6 +207,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         asset_base = "" if base_path == "/" else base_path
         robots_paths = {"/robots.txt", f"{asset_base}/robots.txt"}
         sitemap_paths = {"/sitemap.xml", f"{asset_base}/sitemap.xml"}
+        metrics_paths = {"/metrics", f"{asset_base}/metrics"}
         asset_paths = {
             f"{asset_base}/favicon.svg": ("image/svg+xml", FAVICON_SVG.encode("utf-8")),
             "/favicon.svg": ("image/svg+xml", FAVICON_SVG.encode("utf-8")),
@@ -156,6 +249,37 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/xml; charset=utf-8")
             self.send_header("Cache-Control", DISCOVERY_CACHE_CONTROL)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            if send_body:
+                self.wfile.write(body)
+            return
+
+        if path in metrics_paths:
+            try:
+                body = prometheus_metrics(self.database, self.database_url, self.hours)
+            except Exception as exc:
+                log_exception(
+                    "Failed to render Prometheus metrics",
+                    exc,
+                    **{
+                        "event.action": "http_request",
+                        "event.outcome": "failure",
+                        "http.request.method": self.command,
+                        "url.path": self.path,
+                        "http.response.status_code": 500,
+                        **self.client_log_fields(),
+                    },
+                )
+                self.send_response(500)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.end_headers()
+                if send_body:
+                    self.wfile.write(b"failed to render metrics\n")
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             if send_body:
@@ -250,6 +374,8 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             except (IndexError, TypeError, ValueError):
                 status_code = None
         path = urlsplit(self.path).path.rstrip("/") or "/"
+        if status_code:
+            HTTP_REQUESTS_TOTAL[(self.command, self.route_label(), str(status_code))] += 1
         if path in {"/healthz", "/readyz"} and status_code and status_code < 500:
             return
         log_event(

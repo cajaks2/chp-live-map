@@ -14,7 +14,7 @@ services:
       retries: 5
 
   web:
-    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.37}
+    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.40}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -27,12 +27,12 @@ services:
       HTTP_PORT: "8080"
       BASE_PATH: /
       PUBLIC_URL: https://crestmap.us/
-      SERVICE_VERSION: ${VERSION:-0.1.37}
+      SERVICE_VERSION: ${VERSION:-0.1.40}
     ports:
       - "127.0.0.1:8080:8080"
 
   scrape:
-    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.37}
+    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.40}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -40,8 +40,8 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      SERVICE_VERSION: ${VERSION:-0.1.37}
-      CHP_USER_AGENT: "chp-live-map/0.1 (+https://crestmap.us/; contact: cajaks2@users.noreply.github.com)"
+      SERVICE_VERSION: ${VERSION:-0.1.40}
+      CHP_USER_AGENT: "chp-live-map/0.1 (+https://crestmap.us/)"
     command:
       - /bin/sh
       - -c

@@ -147,15 +147,18 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "CHP is checked about once a minute" in html
     assert "unchanged active incident details are refreshed about every 3 minutes" in html
     assert "mobileViewport.addEventListener" in html
+    assert 'window.localStorage.getItem("chp-about-panel")' in html
+    assert 'window.localStorage.setItem("chp-about-panel"' in html
     assert "Cleared incidents stay visible inside the selected history window" in html
     assert '<nav class="range-tabs" aria-label="History range">' in html
     assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in html
     assert '<a class="range-tab" href="?hours=720">30d</a>' in html
     assert "1 active · 2 in last 72h · 1 mapped" in html
-    assert 'Last updated <time id="generated-at" datetime="2026-05-31T08:05:00-07:00">' in html
+    assert 'Last checked <time id="generated-at" datetime="2026-05-31T08:05:00-07:00">' in html
     assert "const initialDataStatus" in html
     assert 'const statusEndpoint = "/status.json"' in html
     assert "function formatGeneratedAt" in html
+    assert 'generatedAt.getAttribute("datetime")' in html
     assert "function formatIncidentWhen" in html
     assert 'new URLSearchParams(window.location.search).get("incident")' in html
     assert 'url.searchParams.set("incident", incident.event_key)' in html
@@ -174,10 +177,11 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "fetch(url" in html
     assert "latest.version !== initialDataStatus.version" in html
     assert "New incident data is available." in html
-    assert "Data may be stale. Checked for updates in the background." in html
+    assert "Background status checks are not confirming current data." in html
+    assert "function setCheckedAt" in html
     assert 'dismissButton.addEventListener("click"' in html
     assert "function setupStaleRefresh" in html
-    assert "ageMs > 180000" in html
+    assert "healthAgeMs > 180000" in html
     assert "Traffic <Hazard>" in html
     assert "function escapeHtml" in html
     assert "no map pin" in html

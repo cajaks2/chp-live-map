@@ -143,6 +143,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "Unit Information" in html
     assert "detail-subsection" in html
     assert 'id="stale-notice"' in html
+    assert 'id="dismiss-stale-notice"' in html
+    assert "let dismissed = false" in html
+    assert 'dismissButton.addEventListener("click"' in html
     assert "function setupStaleRefresh" in html
     assert "ageMs > 120000" in html
     assert "Traffic <Hazard>" in html

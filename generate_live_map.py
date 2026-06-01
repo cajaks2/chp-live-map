@@ -322,6 +322,9 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
     #stale-notice.is-visible {{
       display: flex;
     }}
+    #stale-notice span {{
+      flex: 1 1 auto;
+    }}
     #stale-notice button {{
       flex: 0 0 auto;
       min-height: 28px;
@@ -560,6 +563,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         <div id="stale-notice" role="status">
           <span>Data may be stale.</span>
           <button type="button" id="refresh-page">Refresh</button>
+          <button type="button" id="dismiss-stale-notice" aria-label="Dismiss stale data notice">Dismiss</button>
         </div>
       </header>
       <div id="incident-list"></div>
@@ -695,16 +699,25 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       const generatedAt = document.getElementById("generated-at");
       const notice = document.getElementById("stale-notice");
       const refreshButton = document.getElementById("refresh-page");
-      if (!generatedAt || !notice || !refreshButton) {{
+      const dismissButton = document.getElementById("dismiss-stale-notice");
+      if (!generatedAt || !notice || !refreshButton || !dismissButton) {{
         return;
       }}
       const generatedTime = new Date(generatedAt.dateTime).getTime();
       if (Number.isNaN(generatedTime)) {{
         return;
       }}
+      let dismissed = false;
       const refresh = () => window.location.reload();
       refreshButton.addEventListener("click", refresh);
+      dismissButton.addEventListener("click", () => {{
+        dismissed = true;
+        notice.classList.remove("is-visible");
+      }});
       const update = () => {{
+        if (dismissed) {{
+          return;
+        }}
         const ageMs = Date.now() - generatedTime;
         notice.classList.toggle("is-visible", ageMs > 90000);
         if (ageMs > 120000 && document.visibilityState === "visible") {{

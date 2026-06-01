@@ -118,7 +118,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '<link rel="canonical" href="https://chp.flowy.us/">' in html
     assert '<link rel="icon" href="https://chp.flowy.us/favicon.svg" type="image/svg+xml">' in html
     assert '<meta property="og:title" content="CHP Forest Incidents (1 active, 2 total)">' in html
-    assert '<meta property="og:image" content="https://chp.flowy.us/og-image.svg">' in html
+    assert '<meta property="og:image" content="https://chp.flowy.us/og-image.png">' in html
+    assert '<meta property="og:image:type" content="image/png">' in html
     assert '<meta name="twitter:card" content="summary_large_image">' in html
     assert '<script type="application/ld+json">' in html
     assert '"@type": "WebApplication"' in html

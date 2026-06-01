@@ -2,8 +2,10 @@ import argparse
 import datetime as dt
 import json
 import os
+import struct
 import sys
 import time
+import zlib
 from collections import defaultdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -39,6 +41,82 @@ OG_IMAGE_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630"
   <text x="78" y="218" fill="#d7e7d4" font-family="Inter, Arial, sans-serif" font-size="34">Live traffic incidents for Angeles Crest and nearby forest roads</text>
 </svg>
 """
+
+
+def png_chunk(chunk_type, data):
+    return (
+        struct.pack(">I", len(data))
+        + chunk_type
+        + data
+        + struct.pack(">I", zlib.crc32(chunk_type + data) & 0xFFFFFFFF)
+    )
+
+
+def make_og_image_png():
+    width = 1200
+    height = 630
+    pixels = bytearray([0x18, 0x39, 0x2B] * width * height)
+
+    def set_pixel(x, y, color):
+        if 0 <= x < width and 0 <= y < height:
+            offset = (y * width + x) * 3
+            pixels[offset : offset + 3] = bytes(color)
+
+    def fill_rect(x1, y1, x2, y2, color):
+        x1 = max(0, min(width, x1))
+        x2 = max(0, min(width, x2))
+        y1 = max(0, min(height, y1))
+        y2 = max(0, min(height, y2))
+        row = bytes(color) * max(0, x2 - x1)
+        for y in range(y1, y2):
+            offset = (y * width + x1) * 3
+            pixels[offset : offset + len(row)] = row
+
+    def fill_polygon(points, color):
+        min_y = max(0, min(y for _, y in points))
+        max_y = min(height - 1, max(y for _, y in points))
+        for y in range(min_y, max_y + 1):
+            intersections = []
+            for index, (x1, y1) in enumerate(points):
+                x2, y2 = points[(index + 1) % len(points)]
+                if y1 == y2:
+                    continue
+                if min(y1, y2) <= y < max(y1, y2):
+                    intersections.append(int(x1 + (y - y1) * (x2 - x1) / (y2 - y1)))
+            intersections.sort()
+            for start, end in zip(intersections[0::2], intersections[1::2]):
+                fill_rect(start, y, end + 1, y + 1, color)
+
+    def fill_circle(cx, cy, radius, color):
+        radius_squared = radius * radius
+        for y in range(cy - radius, cy + radius + 1):
+            dy = y - cy
+            span = int((radius_squared - dy * dy) ** 0.5)
+            fill_rect(cx - span, y, cx + span + 1, y + 1, color)
+
+    fill_rect(0, 0, width, height, (24, 57, 43))
+    fill_polygon([(0, 500), (155, 235), (250, 385), (320, 285), (438, 455), (565, 210), (700, 455), (805, 300), (960, 495), (1200, 155), (1200, 630), (0, 630)], (45, 95, 70))
+    fill_polygon([(0, 560), (190, 300), (280, 420), (355, 335), (460, 472), (595, 248), (730, 475), (820, 350), (975, 508), (1200, 220), (1200, 630), (0, 630)], (244, 247, 238))
+    fill_polygon([(0, 630), (0, 530), (245, 465), (485, 550), (760, 578), (990, 540), (1200, 492), (1200, 630)], (111, 191, 115))
+    fill_circle(917, 192, 87, (244, 247, 238))
+    fill_polygon([(917, 355), (850, 230), (984, 230)], (244, 247, 238))
+    fill_circle(917, 192, 52, (216, 59, 59))
+    fill_circle(917, 192, 24, (244, 247, 238))
+
+    raw = bytearray()
+    for y in range(height):
+        row_start = y * width * 3
+        raw.append(0)
+        raw.extend(pixels[row_start : row_start + width * 3])
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + png_chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+        + png_chunk(b"IDAT", zlib.compress(bytes(raw), 9))
+        + png_chunk(b"IEND", b"")
+    )
+
+
+OG_IMAGE_PNG = make_og_image_png()
 
 
 def public_canonical_url(base_path, public_url):
@@ -189,7 +267,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             return "robots"
         if path in {"/sitemap.xml", f"{asset_base}/sitemap.xml"}:
             return "sitemap"
-        if path.endswith(".svg"):
+        if path.endswith(".svg") or path.endswith(".png"):
             return "asset"
         return "other"
 
@@ -212,6 +290,8 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             f"{asset_base}/favicon.svg": ("image/svg+xml", FAVICON_SVG.encode("utf-8")),
             "/favicon.svg": ("image/svg+xml", FAVICON_SVG.encode("utf-8")),
             f"{asset_base}/og-image.svg": ("image/svg+xml", OG_IMAGE_SVG.encode("utf-8")),
+            f"{asset_base}/og-image.png": ("image/png", OG_IMAGE_PNG),
+            "/og-image.png": ("image/png", OG_IMAGE_PNG),
         }
 
         if path in {"/healthz", "/readyz"}:

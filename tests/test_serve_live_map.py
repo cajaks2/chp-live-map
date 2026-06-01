@@ -51,7 +51,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert "CHP Forest Incidents" in body
             assert "in last 72h" in body
             assert '<link rel="icon" href="https://chp.flowy.us/favicon.svg" type="image/svg+xml">' in body
-            assert '<meta property="og:image" content="https://chp.flowy.us/og-image.svg">' in body
+            assert '<meta property="og:image" content="https://chp.flowy.us/og-image.png">' in body
             assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
             assert "Pragma" not in response.headers
             assert "Expires" not in response.headers
@@ -88,6 +88,12 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert response.headers["Content-Type"] == "image/svg+xml"
             assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
             assert b"CHP Forest Incidents" in response.read()
+
+        with urlopen(f"{base_url}/chp/og-image.png", timeout=5) as response:
+            assert response.status == 200
+            assert response.headers["Content-Type"] == "image/png"
+            assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
+            assert response.read().startswith(b"\x89PNG\r\n\x1a\n")
 
         with urlopen(f"{base_url}/robots.txt", timeout=5) as response:
             body = response.read().decode("utf-8")

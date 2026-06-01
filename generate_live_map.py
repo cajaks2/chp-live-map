@@ -106,7 +106,7 @@ def metadata_urls(base_path, public_url):
     return {
         "canonical": canonical_url,
         "favicon": f"{public_asset_base}/favicon.svg",
-        "og_image": f"{public_asset_base}/og-image.svg",
+        "og_image": f"{public_asset_base}/og-image.png",
     }
 
 
@@ -248,7 +248,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
   <meta property="og:description" content="{html.escape(description)}">
   <meta property="og:url" content="{html.escape(urls["canonical"])}">
   <meta property="og:image" content="{html.escape(urls["og_image"])}">
-  <meta property="og:image:type" content="image/svg+xml">
+  <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">

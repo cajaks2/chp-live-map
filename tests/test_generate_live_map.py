@@ -121,6 +121,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '<meta name="twitter:card" content="summary_large_image">' in html
     assert "scrollbar-width: thin" in html
     assert 'id="incident-list-shell"' in html
+    assert "flex: 0 0 132px" in html
+    assert "min-height: 132px" in html
     assert "has-more-below::after" in html
     assert "function updateListScrollCue" in html
     assert 'list.addEventListener("scroll", updateListScrollCue' in html

@@ -585,13 +585,14 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
       }}
       #sidebar {{
         display: flex;
-        max-height: 34vh;
+        max-height: none;
         overflow: hidden;
         border-right: 0;
         border-bottom: 1px solid #d8ddd2;
       }}
       #incident-list-shell {{
-        min-height: 92px;
+        flex: 0 0 132px;
+        min-height: 132px;
       }}
       #incident-list {{
         -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 32px), transparent 100%);

@@ -124,7 +124,7 @@ docker run --rm -p 8080:8080 -v "$PWD:/data" chp-live-map:latest \
   python3 /app/serve_live_map.py --database /data/chp_traffic.sqlite
 ```
 
-The default container command serves the dynamic web app on port `8080`. In Kubernetes, scraping is handled by a separate CronJob.
+The default container command serves the dynamic web app on port `8080`. In Kubernetes, scraping is handled by a separate long-lived scraper Deployment that polls every minute and exposes metrics on port `8081`.
 
 For the pushed Kubernetes image workflow, use the Makefile:
 
@@ -159,7 +159,7 @@ The manifest creates:
 - secret `chp-live-map-db`
 - PVC `chp-live-map-postgres-data`
 - Postgres StatefulSet and service
-- scraper CronJob that runs every minute
+- scraper Deployment that runs continuously, polls every minute, and exposes metrics
 - web Deployment and service
 
 Edit `POSTGRES_PASSWORD` and `DATABASE_URL` in the manifest before using it outside a local/private cluster.

@@ -116,51 +116,82 @@ spec:
       port: 5432
       targetPort: postgres
 ---
-apiVersion: batch/v1
-kind: CronJob
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: chp-live-map-scrape
   namespace: chp-live-map
 spec:
-  schedule: "* * * * *"
-  concurrencyPolicy: Forbid
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 3
-  jobTemplate:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chp-live-map-scrape
+  template:
+    metadata:
+      labels:
+        app: chp-live-map-scrape
     spec:
-      backoffLimit: 1
-      template:
-        metadata:
-          labels:
-            app: chp-live-map-scrape
-        spec:
-          restartPolicy: Never
-          containers:
-            - name: scrape
-              image: cajaks2/chp-live-map:0.1.32
-              imagePullPolicy: IfNotPresent
-              command:
-                - python3
-                - /app/scrape_chp_traffic.py
-                - --detail-refresh-minutes
-                - "3"
-              env:
-                - name: DATABASE_URL
-                  valueFrom:
-                    secretKeyRef:
-                      name: chp-live-map-db
-                      key: DATABASE_URL
-                - name: SERVICE_VERSION
-                  value: "0.1.32"
-                - name: CHP_USER_AGENT
-                  value: "chp-live-map/0.1 (+https://crestmap.us/)"
-              resources:
-                requests:
-                  cpu: 25m
-                  memory: 64Mi
-                limits:
-                  cpu: 250m
-                  memory: 256Mi
+      containers:
+        - name: scrape
+          image: cajaks2/chp-live-map:0.1.52
+          imagePullPolicy: IfNotPresent
+          command:
+            - python3
+            - /app/scrape_chp_traffic.py
+            - --interval
+            - "60"
+            - --detail-refresh-minutes
+            - "3"
+          ports:
+            - name: metrics
+              containerPort: 8081
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: chp-live-map-db
+                  key: DATABASE_URL
+            - name: SERVICE_VERSION
+              value: "0.1.52"
+            - name: CHP_USER_AGENT
+              value: "chp-live-map/0.1 (+https://crestmap.us/)"
+            - name: SCRAPER_METRICS_HOST
+              value: 0.0.0.0
+            - name: SCRAPER_METRICS_PORT
+              value: "8081"
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chp-live-map-scrape
+  namespace: chp-live-map
+spec:
+  type: ClusterIP
+  selector:
+    app: chp-live-map-scrape
+  ports:
+    - name: metrics
+      port: 8081
+      targetPort: metrics
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -179,7 +210,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: cajaks2/chp-live-map:0.1.32
+          image: cajaks2/chp-live-map:0.1.52
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -198,7 +229,7 @@ spec:
             - name: HTTP_PORT
               value: "8080"
             - name: SERVICE_VERSION
-              value: "0.1.32"
+              value: "0.1.52"
             - name: BASE_PATH
               value: /chp
             - name: PUBLIC_URL

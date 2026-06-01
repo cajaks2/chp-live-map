@@ -1,9 +1,14 @@
 import datetime as dt
 import json
 import sqlite3
+import threading
+from http.server import ThreadingHTTPServer
+from urllib.request import urlopen
 
+import scrape_chp_traffic
 from scrape_chp_traffic import (
     DEFAULT_ROAD_KEYWORDS,
+    ScraperMetricsHandler,
     build_user_agent,
     connect_database,
     event_key,
@@ -29,6 +34,31 @@ def test_build_user_agent_optionally_includes_contact_email():
         build_user_agent("ops@example.com")
         == "chp-live-map/0.1 (+https://crestmap.us/; contact: ops@example.com)"
     )
+
+
+def test_scraper_metrics_handler_serves_health_without_ecs_access_logs(monkeypatch):
+    events = []
+    monkeypatch.setattr(scrape_chp_traffic, "log_event", lambda *args, **kwargs: events.append((args, kwargs)))
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), ScraperMetricsHandler)
+    thread = threading.Thread(target=server.serve_forever)
+    thread.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        with urlopen(f"{base_url}/healthz", timeout=5) as response:
+            assert response.status == 200
+            assert response.read() == b"ok\n"
+
+        with urlopen(f"{base_url}/metrics", timeout=5) as response:
+            body = response.read().decode("utf-8")
+            assert response.status == 200
+            assert "chp_live_map_scraper_up 1" in body
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()
+
+    assert events == []
 
 
 def test_parse_incidents_from_cad_table():

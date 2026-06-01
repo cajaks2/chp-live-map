@@ -179,6 +179,53 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
         status_endpoint = f"{public_path}/status.json" if public_path else "/status.json"
     else:
         status_endpoint = f"{asset_base}/status.json"
+    structured_data = {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "WebSite",
+                "@id": f"{urls['canonical']}#website",
+                "name": "CHP Forest Incidents",
+                "url": urls["canonical"],
+                "description": description,
+                "inLanguage": "en-US",
+            },
+            {
+                "@type": "WebApplication",
+                "@id": f"{urls['canonical']}#app",
+                "name": "CHP Forest Incidents",
+                "url": urls["canonical"],
+                "description": description,
+                "applicationCategory": "MapApplication",
+                "operatingSystem": "Any",
+                "isAccessibleForFree": True,
+                "areaServed": {
+                    "@type": "Place",
+                    "name": "Angeles National Forest and nearby Southern California mountain roads",
+                },
+                "about": [
+                    "CHP CAD traffic incidents",
+                    "Angeles Crest Highway",
+                    "Angeles Forest Highway",
+                    "Big Tujunga Canyon Road",
+                    "Glendora Mountain Road",
+                ],
+            },
+            {
+                "@type": "Dataset",
+                "@id": f"{urls['canonical']}#incident-history",
+                "name": "CHP forest road incident history",
+                "url": urls["canonical"],
+                "description": (
+                    "Rolling incident history collected from public CHP CAD pages for selected "
+                    "Angeles National Forest roads. The scraper checks CHP about once a minute."
+                ),
+                "temporalCoverage": f"last {hours:g} hours",
+                "isAccessibleForFree": True,
+                "license": "https://cad.chp.ca.gov/",
+            },
+        ],
+    }
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -186,6 +233,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{html.escape(title)}</title>
   <meta name="description" content="{html.escape(description)}">
+  <meta name="robots" content="index,follow,max-image-preview:large">
   <link rel="canonical" href="{html.escape(urls["canonical"])}">
   <link rel="icon" href="{html.escape(urls["favicon"])}" type="image/svg+xml">
   <meta property="og:type" content="website">
@@ -200,6 +248,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None):
   <meta name="twitter:title" content="{html.escape(title)}">
   <meta name="twitter:description" content="{html.escape(description)}">
   <meta name="twitter:image" content="{html.escape(urls["og_image"])}">
+  <script type="application/ld+json">{html.escape(json.dumps(structured_data, ensure_ascii=False))}</script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIINfQ9um5Lj053hphD7uW9P4U5F9VAt5x0=" crossorigin="">
   <style>

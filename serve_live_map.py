@@ -36,6 +36,40 @@ OG_IMAGE_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630"
 """
 
 
+def public_canonical_url(base_path, public_url):
+    if public_url:
+        return public_url.rstrip("/") + "/"
+    base = normalize_base_path(base_path)
+    return base if base == "/" else f"{base}/"
+
+
+def robots_txt(base_path, public_url):
+    canonical = public_canonical_url(base_path, public_url)
+    return "\n".join(
+        [
+            "User-agent: *",
+            "Allow: /",
+            f"Sitemap: {canonical}sitemap.xml",
+            "",
+        ]
+    ).encode("utf-8")
+
+
+def sitemap_xml(base_path, public_url):
+    canonical = public_canonical_url(base_path, public_url)
+    now = dt.datetime.now(dt.timezone.utc).date().isoformat()
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>{canonical}</loc>
+    <lastmod>{now}</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.8</priority>
+  </url>
+</urlset>
+""".encode("utf-8")
+
+
 class LiveMapHandler(BaseHTTPRequestHandler):
     database = Path("chp_traffic.sqlite")
     database_url = None
@@ -78,6 +112,8 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         map_paths = {"/", "/live_chp_map.html", base_path}
         status_paths = {"/status.json", f"{'' if base_path == '/' else base_path}/status.json"}
         asset_base = "" if base_path == "/" else base_path
+        robots_paths = {"/robots.txt", f"{asset_base}/robots.txt"}
+        sitemap_paths = {"/sitemap.xml", f"{asset_base}/sitemap.xml"}
         asset_paths = {
             f"{asset_base}/favicon.svg": ("image/svg+xml", FAVICON_SVG.encode("utf-8")),
             "/favicon.svg": ("image/svg+xml", FAVICON_SVG.encode("utf-8")),
@@ -96,6 +132,28 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             content_type, body = asset_paths[path]
             self.send_response(200)
             self.send_header("Content-Type", content_type)
+            self.send_header("Cache-Control", ASSET_CACHE_CONTROL)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            if send_body:
+                self.wfile.write(body)
+            return
+
+        if path in robots_paths:
+            body = robots_txt(self.base_path, self.public_url)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Cache-Control", ASSET_CACHE_CONTROL)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            if send_body:
+                self.wfile.write(body)
+            return
+
+        if path in sitemap_paths:
+            body = sitemap_xml(self.base_path, self.public_url)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/xml; charset=utf-8")
             self.send_header("Cache-Control", ASSET_CACHE_CONTROL)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()

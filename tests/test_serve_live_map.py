@@ -79,6 +79,21 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
             assert b"CHP Forest Incidents" in response.read()
 
+        with urlopen(f"{base_url}/robots.txt", timeout=5) as response:
+            body = response.read().decode("utf-8")
+            assert response.status == 200
+            assert response.headers["Content-Type"] == "text/plain; charset=utf-8"
+            assert "User-agent: *" in body
+            assert "Allow: /" in body
+            assert "Sitemap: https://chp.flowy.us/sitemap.xml" in body
+
+        with urlopen(f"{base_url}/sitemap.xml", timeout=5) as response:
+            body = response.read().decode("utf-8")
+            assert response.status == 200
+            assert response.headers["Content-Type"] == "application/xml; charset=utf-8"
+            assert "<loc>https://chp.flowy.us/</loc>" in body
+            assert "<changefreq>hourly</changefreq>" in body
+
         head_request = Request(f"{base_url}/chp/", method="HEAD")
         with urlopen(head_request, timeout=5) as response:
             assert response.status == 200

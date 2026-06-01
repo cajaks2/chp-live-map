@@ -123,6 +123,8 @@ metadata:
   namespace: chp-live-map
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: chp-live-map-scrape

@@ -3,7 +3,13 @@ from urllib.request import HTTPError, urlopen
 from urllib.request import Request
 
 import serve_live_map
-from serve_live_map import ASSET_CACHE_CONTROL, EcsHTTPServer, LiveMapHandler, MAP_CACHE_CONTROL
+from serve_live_map import (
+    ASSET_CACHE_CONTROL,
+    DISCOVERY_CACHE_CONTROL,
+    EcsHTTPServer,
+    LiveMapHandler,
+    MAP_CACHE_CONTROL,
+)
 from scrape_chp_traffic import connect_database
 
 
@@ -83,6 +89,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert response.headers["Content-Type"] == "text/plain; charset=utf-8"
+            assert response.headers["Cache-Control"] == DISCOVERY_CACHE_CONTROL
             assert "User-agent: *" in body
             assert "Allow: /" in body
             assert "Sitemap: https://chp.flowy.us/sitemap.xml" in body
@@ -91,6 +98,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert response.headers["Content-Type"] == "application/xml; charset=utf-8"
+            assert response.headers["Cache-Control"] == DISCOVERY_CACHE_CONTROL
             assert "<loc>https://chp.flowy.us/</loc>" in body
             assert "<changefreq>hourly</changefreq>" in body
 

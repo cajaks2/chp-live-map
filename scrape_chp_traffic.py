@@ -20,7 +20,7 @@ from ecs_logging import log_event, run_main
 
 CHP_TRAFFIC_URL = "https://cad.chp.ca.gov/Traffic.aspx"
 CHP_ROBOTS_URL = "https://cad.chp.ca.gov/robots.txt"
-DEFAULT_USER_AGENT = "chp-live-map/0.1 (+https://chp.flowy.us/; contact: cajaks2@users.noreply.github.com)"
+DEFAULT_USER_AGENT = "chp-live-map/0.1 (+https://crestmap.us/; contact: cajaks2@users.noreply.github.com)"
 DEFAULT_CENTERS = ["LACC"]
 DEFAULT_ROAD_KEYWORDS = [
     "angeles crest",

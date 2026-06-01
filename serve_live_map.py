@@ -14,6 +14,7 @@ from scrape_chp_traffic import connect_database
 
 MAP_CACHE_CONTROL = "public, max-age=30, s-maxage=60, stale-while-revalidate=120, stale-if-error=600"
 ASSET_CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800"
+DISCOVERY_CACHE_CONTROL = "public, max-age=300, s-maxage=300, stale-while-revalidate=600"
 MIN_HISTORY_HOURS = 1.0
 MAX_HISTORY_HOURS = 720.0
 FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
@@ -143,7 +144,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             body = robots_txt(self.base_path, self.public_url)
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
-            self.send_header("Cache-Control", ASSET_CACHE_CONTROL)
+            self.send_header("Cache-Control", DISCOVERY_CACHE_CONTROL)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             if send_body:
@@ -154,7 +155,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             body = sitemap_xml(self.base_path, self.public_url)
             self.send_response(200)
             self.send_header("Content-Type", "application/xml; charset=utf-8")
-            self.send_header("Cache-Control", ASSET_CACHE_CONTROL)
+            self.send_header("Cache-Control", DISCOVERY_CACHE_CONTROL)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             if send_body:

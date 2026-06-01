@@ -165,7 +165,7 @@ Edit `POSTGRES_PASSWORD` and `DATABASE_URL` in the manifest before using it outs
 
 ## DigitalOcean Docker Compose
 
-The public `chp.flowy.us` deployment can run directly on a single VM behind nginx:
+The public `crestmap.us` deployment can run directly on a single VM behind nginx, with `chp.flowy.us` retained as an alias:
 
 ```sh
 cd /opt/chp-live-map
@@ -173,7 +173,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, and a scraper loop that polls every minute. nginx should remain the TLS front door and proxy `chp.flowy.us` to `http://127.0.0.1:8080`.
+The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, and a scraper loop that polls every minute. nginx should remain the TLS front door and proxy `crestmap.us` and `chp.flowy.us` to `http://127.0.0.1:8080`.
 
 Files for that deployment live in `deploy/digitalocean/`.
 

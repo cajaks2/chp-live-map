@@ -701,14 +701,46 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
       border-left: 1px solid #d8ddd2;
       background: #ffffff;
     }}
+    #details-cue {{
+      display: none;
+    }}
     .detail-panel {{
       padding: 18px;
+    }}
+    .detail-header {{
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 6px;
+    }}
+    .detail-title {{
+      min-width: 0;
     }}
     .detail-panel h2 {{
       margin: 0 0 6px;
       font-size: 18px;
       line-height: 1.25;
       letter-spacing: 0;
+    }}
+    .share-incident {{
+      flex: 0 0 auto;
+      min-height: 30px;
+      padding: 5px 9px;
+      border: 1px solid #cbd6cc;
+      border-radius: 6px;
+      color: #1f6840;
+      background: #f8faf6;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }}
+    .share-incident:focus,
+    .share-incident:hover {{
+      border-color: #94b69a;
+      background: #edf5ed;
+      outline: none;
     }}
     .detail-section {{
       margin-top: 14px;
@@ -825,6 +857,39 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
         height: 42vh;
         min-height: 280px;
       }}
+      #details-cue {{
+        display: flex;
+        position: absolute;
+        left: 50%;
+        bottom: 12px;
+        z-index: 600;
+        align-items: center;
+        gap: 8px;
+        min-height: 36px;
+        padding: 7px 12px;
+        border: 1px solid rgba(39, 116, 71, 0.36);
+        border-radius: 999px;
+        color: #1f6840;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 2px 10px rgba(24, 32, 38, 0.18);
+        font: inherit;
+        font-size: 12px;
+        font-weight: 800;
+        transform: translateX(-50%);
+      }}
+      #details-cue::after {{
+        content: "";
+        width: 8px;
+        height: 8px;
+        margin-top: -4px;
+        border-right: 2px solid currentColor;
+        border-bottom: 2px solid currentColor;
+        transform: rotate(45deg);
+      }}
+      #details-cue:focus {{
+        outline: 2px solid rgba(39, 116, 71, 0.45);
+        outline-offset: 2px;
+      }}
       #details {{
         border-left: 0;
         border-top: 1px solid #d8ddd2;
@@ -861,7 +926,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
         <button type="button" id="scroll-incidents" aria-label="Scroll incident list down"></button>
       </div>
     </aside>
-    <main id="map"></main>
+    <main id="map"><button type="button" id="details-cue">Incident details below</button></main>
     <aside id="details"></aside>
   </div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -911,6 +976,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
     const list = document.getElementById("incident-list");
     const scrollIncidentsButton = document.getElementById("scroll-incidents");
     const detailsPanel = document.getElementById("details");
+    const detailsCue = document.getElementById("details-cue");
     const aboutPanel = document.getElementById("about-panel");
     window.chpLiveMap = {{ map, markers, incidents }};
 
@@ -1141,9 +1207,30 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
       if (!incident || !window.history?.replaceState) {{
         return;
       }}
+      const url = incidentUrl(incident);
+      window.history.replaceState({{ incident: incident.event_key }}, "", url);
+    }}
+
+    function incidentUrl(incident) {{
       const url = new URL(window.location.href);
       url.searchParams.set("incident", incident.event_key);
-      window.history.replaceState({{ incident: incident.event_key }}, "", url);
+      ["nocache", "verify", "align", "details", "tapcheck", "markertouch", "statusapi"].forEach((key) => {{
+        url.searchParams.delete(key);
+      }});
+      return url;
+    }}
+
+    async function copyIncidentLink(incident, button) {{
+      const link = incidentUrl(incident).toString();
+      try {{
+        await navigator.clipboard.writeText(link);
+        button.textContent = "Copied";
+        window.setTimeout(() => {{
+          button.textContent = "Copy link";
+        }}, 1800);
+      }} catch (_error) {{
+        window.prompt("Copy incident link", link);
+      }}
     }}
 
     function updateListScrollCue() {{
@@ -1247,9 +1334,14 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
         : `${{escapeHtml(incident.latitude)}}, ${{escapeHtml(incident.longitude)}}`;
       return `
         <div class="detail-panel">
-          <div class="status-pill ${{statusClass}}">${{statusText}}</div>
-          <h2>${{escapeHtml(incident.type || "CHP Incident")}}</h2>
-          <div class="meta">${{escapeHtml(incident.location || "")}}</div>
+          <div class="detail-header">
+            <div class="detail-title">
+              <div class="status-pill ${{statusClass}}">${{statusText}}</div>
+              <h2>${{escapeHtml(incident.type || "CHP Incident")}}</h2>
+              <div class="meta">${{escapeHtml(incident.location || "")}}</div>
+            </div>
+            <button type="button" class="share-incident" data-share-incident="${{escapeHtml(incident.event_key)}}">Copy link</button>
+          </div>
           <section class="detail-section">
             <dl class="detail-grid">
               <dt>Incident</dt><dd>${{escapeHtml(incident.incident_no)}}</dd>
@@ -1300,6 +1392,21 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
         updateIncidentUrl(incident);
       }}
     }}
+
+    detailsCue?.addEventListener("click", () => {{
+      detailsPanel.scrollIntoView({{ behavior: "smooth", block: "start" }});
+    }});
+
+    detailsPanel.addEventListener("click", (event) => {{
+      const button = event.target.closest("[data-share-incident]");
+      if (!button) {{
+        return;
+      }}
+      const incident = incidents.find((item) => item.event_key === button.dataset.shareIncident);
+      if (incident) {{
+        copyIncidentLink(incident, button);
+      }}
+    }});
 
     function render() {{
       if (!incidents.length) {{

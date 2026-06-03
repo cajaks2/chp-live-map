@@ -136,6 +136,12 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "has-more-below #scroll-incidents" in html
     assert "function updateListScrollCue" in html
     assert "function scrollIncidentListDown" in html
+    assert 'id="details-cue"' in html
+    assert "Incident details below" in html
+    assert "data-share-incident" in html
+    assert "Copy link" in html
+    assert "navigator.clipboard.writeText" in html
+    assert "function incidentUrl" in html
     assert 'scrollIncidentsButton?.addEventListener("click", scrollIncidentListDown)' in html
     assert 'list.addEventListener("scroll", updateListScrollCue' in html
     assert "mask-image: linear-gradient(to bottom" in html

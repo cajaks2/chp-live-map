@@ -550,7 +550,8 @@ def init_database_sqlite(conn):
             latitude REAL,
             longitude REAL,
             matched_keywords TEXT,
-            details_hash TEXT
+            details_hash TEXT,
+            details_fetched_at TEXT
         );
 
         CREATE TABLE IF NOT EXISTS observations (
@@ -608,6 +609,7 @@ def init_database_sqlite(conn):
     ensure_column_sqlite(conn, "scrape_runs", "details_skipped", "INTEGER NOT NULL DEFAULT 0")
     ensure_column_sqlite(conn, "scrape_runs", "duration_seconds", "REAL NOT NULL DEFAULT 0")
     ensure_column_sqlite(conn, "scrape_runs", "http_status_counts", "TEXT NOT NULL DEFAULT '{}'")
+    ensure_column_sqlite(conn, "events", "details_fetched_at", "TEXT")
 
 
 def init_database_postgres(conn):
@@ -632,7 +634,8 @@ def init_database_postgres(conn):
             latitude DOUBLE PRECISION,
             longitude DOUBLE PRECISION,
             matched_keywords TEXT,
-            details_hash TEXT
+            details_hash TEXT,
+            details_fetched_at TEXT
         )
         """,
         """
@@ -692,6 +695,7 @@ def init_database_postgres(conn):
     ensure_column_postgres(conn, "scrape_runs", "details_skipped", "INTEGER NOT NULL DEFAULT 0")
     ensure_column_postgres(conn, "scrape_runs", "duration_seconds", "DOUBLE PRECISION NOT NULL DEFAULT 0")
     ensure_column_postgres(conn, "scrape_runs", "http_status_counts", "TEXT NOT NULL DEFAULT '{}'")
+    ensure_column_postgres(conn, "events", "details_fetched_at", "TEXT")
     conn.commit()
 
 
@@ -727,7 +731,7 @@ def list_fields_match(event, incident):
 
 
 def observed_at_age_minutes(event, now):
-    latest = event["latest_observed_at"] if event else None
+    latest = event["details_fetched_at"] if event and "details_fetched_at" in event.keys() else None
     if not latest:
         return None
     try:
@@ -786,13 +790,13 @@ def upsert_active_event(conn, row):
                 event_key, center, incident_date, incident_no, first_seen, last_seen,
                 cleared_at, status, latest_observed_at, updated_as_of, incident_time,
                 type, location, location_desc, area, latitude, longitude,
-                matched_keywords, details_hash
+                matched_keywords, details_hash, details_fetched_at
             ) VALUES (
                 %(event_key)s, %(center)s, %(incident_date)s, %(incident_no)s,
                 %(first_seen)s, %(last_seen)s, NULL, 'active', %(observed_at)s,
                 %(updated_as_of)s, %(incident_time)s, %(type)s, %(location)s,
                 %(location_desc)s, %(area)s, %(latitude)s, %(longitude)s,
-                %(matched_keywords)s, %(details_hash)s
+                %(matched_keywords)s, %(details_hash)s, %(observed_at)s
             )
             ON CONFLICT(event_key) DO UPDATE SET
                 last_seen = excluded.last_seen,
@@ -808,7 +812,8 @@ def upsert_active_event(conn, row):
                 latitude = excluded.latitude,
                 longitude = excluded.longitude,
                 matched_keywords = excluded.matched_keywords,
-                details_hash = excluded.details_hash
+                details_hash = excluded.details_hash,
+                details_fetched_at = excluded.details_fetched_at
             """,
             params,
         )
@@ -820,12 +825,12 @@ def upsert_active_event(conn, row):
             event_key, center, incident_date, incident_no, first_seen, last_seen,
             cleared_at, status, latest_observed_at, updated_as_of, incident_time,
             type, location, location_desc, area, latitude, longitude,
-            matched_keywords, details_hash
+            matched_keywords, details_hash, details_fetched_at
         ) VALUES (
             :event_key, :center, :incident_date, :incident_no, :first_seen,
             :last_seen, NULL, 'active', :observed_at, :updated_as_of,
             :incident_time, :type, :location, :location_desc, :area, :latitude,
-            :longitude, :matched_keywords, :details_hash
+            :longitude, :matched_keywords, :details_hash, :observed_at
         )
         ON CONFLICT(event_key) DO UPDATE SET
             last_seen = excluded.last_seen,
@@ -841,7 +846,8 @@ def upsert_active_event(conn, row):
             latitude = excluded.latitude,
             longitude = excluded.longitude,
             matched_keywords = excluded.matched_keywords,
-            details_hash = excluded.details_hash
+            details_hash = excluded.details_hash,
+            details_fetched_at = excluded.details_fetched_at
         """,
         params,
     )

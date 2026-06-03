@@ -279,6 +279,13 @@ def test_unchanged_active_event_can_skip_detail_refetch_and_still_touch_last_see
     observations = conn.execute("SELECT COUNT(*) AS count FROM observations").fetchone()
     assert touched["last_seen"] == "2026-05-31T08:05:00-07:00"
     assert touched["latest_observed_at"] == "2026-05-31T08:05:00-07:00"
+    assert touched["details_fetched_at"] == observed_at
+    assert should_fetch_details(
+        touched,
+        incident,
+        dt.datetime.fromisoformat("2026-05-31T08:05:00-07:00"),
+        refresh_minutes=3,
+    )
     assert observations["count"] == 0
     conn.close()
 

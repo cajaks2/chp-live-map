@@ -578,6 +578,7 @@ def init_database_sqlite(conn):
             event_key TEXT NOT NULL,
             observed_at TEXT NOT NULL,
             entry_index INTEGER NOT NULL,
+            section TEXT,
             entry_time TEXT,
             entry_no TEXT,
             text TEXT,
@@ -610,6 +611,8 @@ def init_database_sqlite(conn):
     ensure_column_sqlite(conn, "scrape_runs", "duration_seconds", "REAL NOT NULL DEFAULT 0")
     ensure_column_sqlite(conn, "scrape_runs", "http_status_counts", "TEXT NOT NULL DEFAULT '{}'")
     ensure_column_sqlite(conn, "events", "details_fetched_at", "TEXT")
+    ensure_column_sqlite(conn, "detail_entries", "section", "TEXT")
+    backfill_detail_entry_sections(conn)
 
 
 def init_database_postgres(conn):
@@ -663,6 +666,7 @@ def init_database_postgres(conn):
             event_key TEXT NOT NULL REFERENCES events(event_key),
             observed_at TEXT NOT NULL,
             entry_index INTEGER NOT NULL,
+            section TEXT,
             entry_time TEXT,
             entry_no TEXT,
             text TEXT
@@ -696,6 +700,8 @@ def init_database_postgres(conn):
     ensure_column_postgres(conn, "scrape_runs", "duration_seconds", "DOUBLE PRECISION NOT NULL DEFAULT 0")
     ensure_column_postgres(conn, "scrape_runs", "http_status_counts", "TEXT NOT NULL DEFAULT '{}'")
     ensure_column_postgres(conn, "events", "details_fetched_at", "TEXT")
+    ensure_column_postgres(conn, "detail_entries", "section", "TEXT")
+    backfill_detail_entry_sections(conn)
     conn.commit()
 
 
@@ -707,6 +713,67 @@ def ensure_column_sqlite(conn, table, column, definition):
 
 def ensure_column_postgres(conn, table, column, definition):
     conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {definition}")
+
+
+def detail_entry_section(entry):
+    return entry.get("section") or (
+        "Unit Information" if str(entry.get("text") or "").startswith("Unit ") else "Detail Information"
+    )
+
+
+def backfill_detail_entry_sections(conn):
+    if is_postgres(conn):
+        observations = conn.execute(
+            """
+            SELECT event_key, observed_at, details_json
+            FROM observations
+            WHERE details_json IS NOT NULL
+              AND details_json <> '[]'
+            """
+        ).fetchall()
+        update_sql = """
+            UPDATE detail_entries
+            SET section = %s
+            WHERE event_key = %s
+              AND observed_at = %s
+              AND entry_index = %s
+              AND (section IS NULL OR section = '')
+        """
+    else:
+        observations = conn.execute(
+            """
+            SELECT event_key, observed_at, details_json
+            FROM observations
+            WHERE details_json IS NOT NULL
+              AND details_json <> '[]'
+            """
+        ).fetchall()
+        update_sql = """
+            UPDATE detail_entries
+            SET section = ?
+            WHERE event_key = ?
+              AND observed_at = ?
+              AND entry_index = ?
+              AND (section IS NULL OR section = '')
+        """
+
+    for observation in observations:
+        try:
+            entries = json.loads(observation["details_json"] or "[]")
+        except json.JSONDecodeError:
+            continue
+        for entry_index, entry in enumerate(entries, start=1):
+            if not isinstance(entry, dict):
+                continue
+            conn.execute(
+                update_sql,
+                (
+                    detail_entry_section(entry),
+                    observation["event_key"],
+                    observation["observed_at"],
+                    entry_index,
+                ),
+            )
 
 
 def is_postgres(conn):
@@ -890,13 +957,14 @@ def insert_observation(conn, row, status):
     for entry_index, entry in enumerate(row["detail_entries"], start=1):
         query = """
         INSERT INTO detail_entries (
-            event_key, observed_at, entry_index, entry_time, entry_no, text
+            event_key, observed_at, entry_index, section, entry_time, entry_no, text
         ) VALUES ({})
-        """.format("%s, %s, %s, %s, %s, %s" if is_postgres(conn) else "?, ?, ?, ?, ?, ?")
+        """.format("%s, %s, %s, %s, %s, %s, %s" if is_postgres(conn) else "?, ?, ?, ?, ?, ?, ?")
         conn.execute(
             query,
             (
                 row["event_key"], row["observed_at"], entry_index,
+                detail_entry_section(entry),
                 entry.get("time"), entry.get("entry_no"), entry.get("text"),
             ),
         )

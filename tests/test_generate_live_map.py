@@ -138,6 +138,10 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "function scrollIncidentListDown" in html
     assert 'id="details-cue"' in html
     assert "Incident details below" in html
+    assert "bottom: 34px" in html
+    assert "selected-pill" in html
+    assert "Selected" in html
+    assert "background: #d4e6d5" in html
     assert "data-share-incident" in html
     assert "Copy link" in html
     assert "navigator.clipboard.writeText" in html

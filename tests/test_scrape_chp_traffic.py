@@ -226,10 +226,15 @@ def test_sqlite_event_lifecycle_records_active_and_cleared_observations(tmp_path
         "SELECT status, details_json FROM observations WHERE event_key = ? ORDER BY id",
         (row["event_key"],),
     ).fetchall()
+    details = conn.execute(
+        "SELECT section, entry_time, entry_no, text FROM detail_entries WHERE event_key = ? ORDER BY id",
+        (row["event_key"],),
+    ).fetchall()
     assert event["status"] == "cleared"
     assert event["cleared_at"] == "2026-05-31T08:05:00-07:00"
     assert [observation["status"] for observation in observations] == ["active", "cleared"]
     assert json.loads(observations[0]["details_json"]) == row["detail_entries"]
+    assert details[0]["section"] == "Detail Information"
     conn.close()
 
 
@@ -374,4 +379,78 @@ def test_sqlite_scrape_runs_store_total_seen_and_migrate_existing_table(tmp_path
     assert run["details_skipped"] == 3
     assert run["duration_seconds"] == 1.25
     assert json.loads(run["http_status_counts"]) == {"GET:list:200": 1, "POST:detail:200": 2}
+    conn.close()
+
+
+def test_detail_entry_sections_are_backfilled_from_observation_json(tmp_path):
+    conn = connect_database(tmp_path / "chp.sqlite")
+    observed_at = "2026-05-31T08:00:00-07:00"
+    row = {
+        "event_key": event_key("LACC", "2026-05-31", "0805"),
+        "center": "LACC",
+        "incident_date": "2026-05-31",
+        "incident_no": "0805",
+        "observed_at": observed_at,
+        "updated_as_of": "5/31/2026 8:00 AM",
+        "incident_time": "7:36 AM",
+        "type": "Traffic Hazard",
+        "location": "Angeles Crest Hwy",
+        "location_desc": "",
+        "area": "Altadena",
+        "latitude": None,
+        "longitude": None,
+        "matched_keywords": "angeles crest",
+        "details_hash": "abc123",
+        "detail_entries": [
+            {
+                "section": "Detail Information",
+                "time": "7:38 AM",
+                "entry_no": "2",
+                "text": "Incident opened",
+            },
+            {
+                "section": "Unit Information",
+                "time": "7:39 AM",
+                "entry_no": "1",
+                "text": "Unit Assigned",
+            },
+        ],
+    }
+    upsert_active_event(conn, row)
+    insert_observation(conn, row, "active")
+    conn.execute("UPDATE detail_entries SET section = NULL")
+    conn.commit()
+    conn.close()
+
+    conn = connect_database(tmp_path / "chp.sqlite")
+    details = conn.execute(
+        "SELECT section FROM detail_entries WHERE event_key = ? ORDER BY entry_index",
+        (row["event_key"],),
+    ).fetchall()
+    assert [detail["section"] for detail in details] == ["Detail Information", "Unit Information"]
+    conn.close()
+
+
+def test_existing_detail_entries_table_adds_section_column(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    old_conn = sqlite3.connect(database)
+    old_conn.execute(
+        """
+        CREATE TABLE detail_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_key TEXT NOT NULL,
+            observed_at TEXT NOT NULL,
+            entry_index INTEGER NOT NULL,
+            entry_time TEXT,
+            entry_no TEXT,
+            text TEXT
+        )
+        """
+    )
+    old_conn.commit()
+    old_conn.close()
+
+    conn = connect_database(database)
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(detail_entries)")}
+    assert "section" in columns
     conn.close()

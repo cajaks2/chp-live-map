@@ -795,8 +795,24 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
       letter-spacing: 0;
     }}
     .incident[aria-current="true"] {{
-      background: #e4efe4;
-      box-shadow: inset 3px 0 0 #277447;
+      background: #d4e6d5;
+      box-shadow: inset 4px 0 0 #1f6840;
+    }}
+    .selected-pill {{
+      display: none;
+      margin: 0 0 6px 7px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      color: #ffffff;
+      background: #1f6840;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.35;
+      text-transform: uppercase;
+      vertical-align: top;
+    }}
+    .incident[aria-current="true"] .selected-pill {{
+      display: inline-block;
     }}
     .status-pill {{
       display: inline-block;
@@ -861,7 +877,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
         display: flex;
         position: absolute;
         left: 50%;
-        bottom: 12px;
+        bottom: 34px;
         z-index: 600;
         align-items: center;
         gap: 8px;
@@ -1434,6 +1450,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
         button.dataset.eventKey = incident.event_key;
         button.innerHTML = `
           <span class="status-pill ${{isActive ? "status-active" : "status-cleared"}}">${{isActive ? "Active" : "Cleared"}}</span>
+          <span class="selected-pill">Selected</span>
           <strong>${{escapeHtml(incident.type || "CHP Incident")}}</strong>
           <span>${{escapeHtml(incident.location)}}</span>
           <span>${{escapeHtml(formatIncidentWhen(incident))}} · ${{escapeHtml(incident.area)}} · #${{escapeHtml(incident.incident_no)}}${{hasCoords ? "" : " · no map pin"}}</span>

@@ -631,6 +631,12 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
       font-size: 12px;
       line-height: 1.35;
     }}
+    .incident .incident-heading {{
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }}
     .incident-marker {{
       box-sizing: border-box;
       width: 22px;
@@ -798,18 +804,22 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
       background: #d4e6d5;
       box-shadow: inset 4px 0 0 #1f6840;
     }}
-    .selected-pill {{
+    .incident .selected-pill {{
       display: none;
-      margin: 0 0 6px 7px;
-      padding: 2px 7px;
+      flex: 0 0 auto;
+      margin: 2px 0 0;
+      padding: 0;
       border-radius: 999px;
-      color: #ffffff;
-      background: #1f6840;
+      color: #1f6840;
+      background: transparent;
       font-size: 11px;
       font-weight: 800;
       line-height: 1.35;
-      text-transform: uppercase;
       vertical-align: top;
+    }}
+    .incident .status-pill {{
+      display: inline-block;
+      flex: 0 1 auto;
     }}
     .incident[aria-current="true"] .selected-pill {{
       display: inline-block;
@@ -877,7 +887,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
         display: flex;
         position: absolute;
         left: 50%;
-        bottom: 34px;
+        bottom: 28px;
         z-index: 600;
         align-items: center;
         gap: 8px;
@@ -1449,8 +1459,10 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
         button.type = "button";
         button.dataset.eventKey = incident.event_key;
         button.innerHTML = `
-          <span class="status-pill ${{isActive ? "status-active" : "status-cleared"}}">${{isActive ? "Active" : "Cleared"}}</span>
-          <span class="selected-pill">Selected</span>
+          <span class="incident-heading">
+            <span class="status-pill ${{isActive ? "status-active" : "status-cleared"}}">${{isActive ? "Active" : "Cleared"}}</span>
+            <span class="selected-pill">Open</span>
+          </span>
           <strong>${{escapeHtml(incident.type || "CHP Incident")}}</strong>
           <span>${{escapeHtml(incident.location)}}</span>
           <span>${{escapeHtml(formatIncidentWhen(incident))}} · ${{escapeHtml(incident.area)}} · #${{escapeHtml(incident.incident_no)}}${{hasCoords ? "" : " · no map pin"}}</span>

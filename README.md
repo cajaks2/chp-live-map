@@ -199,6 +199,17 @@ Optional GA4 analytics can be enabled by setting `GOOGLE_ANALYTICS_ID` in `.env`
 
 Files for that deployment live in `deploy/digitalocean/`.
 
+For app-only updates after changing `VERSION` in `.env`, avoid restarting dependencies:
+
+```sh
+cd /opt/chp-live-map
+docker compose pull web scrape
+docker compose up -d --no-deps web scrape
+docker compose up -d --no-deps postgres-backup
+```
+
+The checked-in helper `deploy/digitalocean/deploy-compose.sh` runs those same commands. This keeps Postgres running during normal web/scraper deploys and reduces the visible site interruption window.
+
 The web service also exposes:
 
 - `/status.json?hours=72`: lightweight status/version check used by the browser to decide whether a refresh is useful.

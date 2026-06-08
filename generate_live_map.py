@@ -825,27 +825,36 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
       display: block;
       width: 22px;
       height: 22px;
-      border: 3px solid #7a1a1d;
-      border-radius: 999px;
-      background: #d94a38;
-      box-shadow: 0 1px 6px rgba(24, 32, 38, 0.32);
+      background: transparent;
+      border: 0;
       cursor: pointer;
       pointer-events: auto;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
     }}
-    .incident-marker.is-cleared {{
+    .incident-marker-dot {{
+      box-sizing: border-box;
+      position: absolute;
+      inset: 0;
+      display: block;
+      border: 3px solid #7a1a1d;
+      border-radius: 999px;
+      background: #d94a38;
+      box-shadow: 0 1px 6px rgba(24, 32, 38, 0.32);
+      pointer-events: none;
+    }}
+    .incident-marker.is-cleared .incident-marker-dot {{
       border-color: #5f6862;
       background: #b8bfba;
     }}
-    .incident-marker.is-selected {{
+    .incident-marker.is-selected .incident-marker-dot {{
       background: #f05a40;
       box-shadow: 0 2px 9px rgba(24, 32, 38, 0.42);
     }}
-    .incident-marker.is-selected.is-cleared {{
+    .incident-marker.is-selected.is-cleared .incident-marker-dot {{
       background: #9da5a0;
     }}
-    .incident-marker.is-selected::before {{
+    .incident-marker.is-selected .incident-marker-dot::before {{
       content: "";
       position: absolute;
       inset: -9px;
@@ -854,10 +863,10 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
       box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.88), 0 2px 12px rgba(24, 32, 38, 0.3);
       pointer-events: none;
     }}
-    .incident-marker.is-selected.is-cleared::before {{
+    .incident-marker.is-selected.is-cleared .incident-marker-dot::before {{
       border-color: rgba(31, 104, 64, 0.78);
     }}
-    .incident-marker.is-pulsing::after {{
+    .incident-marker.is-pulsing .incident-marker-dot::after {{
       content: "";
       position: absolute;
       inset: -10px;
@@ -866,7 +875,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
       pointer-events: none;
       animation: selected-marker-pulse 900ms ease-out 1;
     }}
-    .incident-marker.is-pulsing.is-cleared::after {{
+    .incident-marker.is-pulsing.is-cleared .incident-marker-dot::after {{
       border-color: rgba(31, 104, 64, 0.62);
     }}
     @keyframes selected-marker-pulse {{
@@ -1493,7 +1502,8 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
           pulsing ? "is-pulsing" : ""
         ].join(" "),
         iconSize: [size, size],
-        iconAnchor: [size / 2, size / 2]
+        iconAnchor: [size / 2, size / 2],
+        html: '<span class="incident-marker-dot" aria-hidden="true"></span>'
       }});
     }}
 

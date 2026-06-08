@@ -839,9 +839,6 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
       background: #b8bfba;
     }}
     .incident-marker.is-selected {{
-      width: 28px;
-      height: 28px;
-      border-width: 4px;
       background: #f05a40;
       box-shadow: 0 2px 9px rgba(24, 32, 38, 0.42);
     }}
@@ -1487,7 +1484,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
 
     function markerIcon(incident, selected = false, pulsing = false) {{
       const isActive = incident.status === "active";
-      const size = selected ? 28 : 22;
+      const size = 22;
       return L.divIcon({{
         className: [
           "incident-marker",

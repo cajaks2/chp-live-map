@@ -244,6 +244,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "markerZoomAnimation: true" in html
     assert "updateWhenZooming: true" in html
     assert "function markerIcon" in html
+    assert "const size = 22;" in html
+    assert "const size = selected ? 28 : 22" not in html
     assert ".incident-marker.is-selected::before" in html
     assert ".incident-marker.is-pulsing::after" in html
     assert "@keyframes selected-marker-pulse" in html

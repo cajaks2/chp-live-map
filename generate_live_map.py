@@ -880,14 +880,14 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
         font-size: 13px;
       }}
       #map {{
-        height: 42vh;
+        height: 42svh;
         min-height: 280px;
       }}
       #details-cue {{
         display: flex;
         position: absolute;
         left: 50%;
-        bottom: 28px;
+        bottom: max(48px, calc(env(safe-area-inset-bottom) + 24px));
         z-index: 600;
         align-items: center;
         gap: 8px;

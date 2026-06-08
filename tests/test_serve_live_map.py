@@ -5,6 +5,7 @@ from urllib.request import Request
 import serve_live_map
 from serve_live_map import (
     ASSET_CACHE_CONTROL,
+    CONTENT_SECURITY_POLICY,
     DISCOVERY_CACHE_CONTROL,
     EcsHTTPServer,
     LiveMapHandler,
@@ -69,6 +70,10 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert '<link rel="icon" href="https://chp.flowy.us/favicon.svg" type="image/svg+xml">' in body
             assert '<meta property="og:image" content="https://chp.flowy.us/og-image.png">' in body
             assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
+            assert response.headers["Content-Security-Policy"] == CONTENT_SECURITY_POLICY
+            assert response.headers["X-Content-Type-Options"] == "nosniff"
+            assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+            assert response.headers["Permissions-Policy"] == "camera=(), geolocation=(), microphone=(), payment=(), usb=()"
             assert "Pragma" not in response.headers
             assert "Expires" not in response.headers
 
@@ -106,6 +111,24 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert b"CHP Forest Incidents" in response.read()
 
         with urlopen(f"{base_url}/chp/og-image.png", timeout=5) as response:
+            assert response.status == 200
+            assert response.headers["Content-Type"] == "image/png"
+            assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
+            assert response.read().startswith(b"\x89PNG\r\n\x1a\n")
+
+        with urlopen(f"{base_url}/favicon.ico", timeout=5) as response:
+            assert response.status == 200
+            assert response.headers["Content-Type"] == "image/png"
+            assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
+            assert response.read().startswith(b"\x89PNG\r\n\x1a\n")
+
+        with urlopen(f"{base_url}/apple-touch-icon.png", timeout=5) as response:
+            assert response.status == 200
+            assert response.headers["Content-Type"] == "image/png"
+            assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
+            assert response.read().startswith(b"\x89PNG\r\n\x1a\n")
+
+        with urlopen(f"{base_url}/chp/apple-touch-icon-precomposed.png", timeout=5) as response:
             assert response.status == 200
             assert response.headers["Content-Type"] == "image/png"
             assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
@@ -159,6 +182,11 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert "/metrics" not in logged_paths
         assert "/chp/" in logged_paths
         assert "/missing" in logged_paths
+        missing_logs = [kwargs for _args, kwargs in access_logs if kwargs["url.path"] == "/missing"]
+        assert len(missing_logs) == 1
+        missing_log = missing_logs[0]
+        assert missing_log["http.response.status_code"] == 404
+        assert missing_log["event.outcome"] == "failure"
         chp_log = next(kwargs for _args, kwargs in access_logs if kwargs["url.path"] == "/chp/")
         assert chp_log["client.address"] == "198.51.100.8"
         assert chp_log["client.nat.ip"] == "127.0.0.1"

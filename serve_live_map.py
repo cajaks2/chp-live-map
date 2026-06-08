@@ -19,6 +19,17 @@ from scrape_chp_traffic import connect_database
 MAP_CACHE_CONTROL = "public, max-age=30, s-maxage=60, stale-while-revalidate=120, stale-if-error=600"
 ASSET_CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800"
 DISCOVERY_CACHE_CONTROL = "public, max-age=300, s-maxage=300, stale-while-revalidate=600"
+CONTENT_SECURITY_POLICY = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline' https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com; "
+    "style-src 'self' 'unsafe-inline' https://unpkg.com; "
+    "img-src 'self' data: https://unpkg.com https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://www.google-analytics.com; "
+    "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com; "
+    "font-src 'self' data:; "
+    "frame-ancestors 'none'; "
+    "base-uri 'self'; "
+    "form-action 'none'"
+)
 MIN_HISTORY_HOURS = 1.0
 MAX_HISTORY_HOURS = 720.0
 START_TIME = time.time()
@@ -117,6 +128,67 @@ def make_og_image_png():
 
 
 OG_IMAGE_PNG = make_og_image_png()
+
+
+def make_touch_icon_png():
+    width = 180
+    height = 180
+    pixels = bytearray([0x18, 0x39, 0x2B] * width * height)
+
+    def fill_rect(x1, y1, x2, y2, color):
+        x1 = max(0, min(width, x1))
+        x2 = max(0, min(width, x2))
+        y1 = max(0, min(height, y1))
+        y2 = max(0, min(height, y2))
+        row = bytes(color) * max(0, x2 - x1)
+        for y in range(y1, y2):
+            offset = (y * width + x1) * 3
+            pixels[offset : offset + len(row)] = row
+
+    def fill_polygon(points, color):
+        min_y = max(0, min(y for _, y in points))
+        max_y = min(height - 1, max(y for _, y in points))
+        for y in range(min_y, max_y + 1):
+            intersections = []
+            for index, (x1, y1) in enumerate(points):
+                x2, y2 = points[(index + 1) % len(points)]
+                if y1 == y2:
+                    continue
+                if min(y1, y2) <= y < max(y1, y2):
+                    intersections.append(int(x1 + (y - y1) * (x2 - x1) / (y2 - y1)))
+            intersections.sort()
+            for start, end in zip(intersections[0::2], intersections[1::2]):
+                fill_rect(start, y, end + 1, y + 1, color)
+
+    def fill_circle(cx, cy, radius, color):
+        radius_squared = radius * radius
+        for y in range(cy - radius, cy + radius + 1):
+            dy = y - cy
+            span = int((radius_squared - dy * dy) ** 0.5)
+            fill_rect(cx - span, y, cx + span + 1, y + 1, color)
+
+    fill_rect(0, 0, width, height, (24, 57, 43))
+    fill_polygon([(0, 122), (32, 72), (57, 118), (84, 56), (118, 126), (150, 88), (180, 126), (180, 180), (0, 180)], (244, 247, 238))
+    fill_polygon([(0, 180), (0, 142), (48, 130), (78, 144), (112, 148), (152, 138), (180, 132), (180, 180)], (111, 191, 115))
+    fill_circle(135, 58, 24, (244, 247, 238))
+    fill_polygon([(135, 105), (116, 68), (154, 68)], (244, 247, 238))
+    fill_circle(135, 58, 15, (216, 59, 59))
+    fill_circle(135, 58, 7, (244, 247, 238))
+
+    raw = bytearray()
+    for y in range(height):
+        row_start = y * width * 3
+        raw.append(0)
+        raw.extend(pixels[row_start : row_start + width * 3])
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + png_chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+        + png_chunk(b"IDAT", zlib.compress(bytes(raw), 9))
+        + png_chunk(b"IEND", b"")
+    )
+
+
+APPLE_TOUCH_ICON_PNG = make_touch_icon_png()
 
 
 def public_canonical_url(base_path, public_url):
@@ -292,6 +364,17 @@ class LiveMapHandler(BaseHTTPRequestHandler):
     public_url = None
     google_analytics_id = None
 
+    def send_response(self, code, message=None):
+        self._last_status_code = int(code)
+        super().send_response(code, message)
+
+    def end_headers(self):
+        self.send_header("Content-Security-Policy", CONTENT_SECURITY_POLICY)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+        self.send_header("Permissions-Policy", "camera=(), geolocation=(), microphone=(), payment=(), usb=()")
+        super().end_headers()
+
     def requested_hours(self):
         params = parse_qs(urlsplit(self.path).query)
         raw_hours = (params.get("hours") or [None])[0]
@@ -337,7 +420,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             return "robots"
         if path in {"/sitemap.xml", f"{asset_base}/sitemap.xml"}:
             return "sitemap"
-        if path.endswith(".svg") or path.endswith(".png"):
+        if path.endswith(".svg") or path.endswith(".png") or path.endswith(".ico"):
             return "asset"
         return "other"
 
@@ -356,12 +439,28 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         robots_paths = {"/robots.txt", f"{asset_base}/robots.txt"}
         sitemap_paths = {"/sitemap.xml", f"{asset_base}/sitemap.xml"}
         metrics_paths = {"/metrics", f"{asset_base}/metrics"}
+        apple_touch_icon_paths = {
+            "/apple-touch-icon.png",
+            "/apple-touch-icon-precomposed.png",
+            "/apple-touch-icon-120x120.png",
+            "/apple-touch-icon-120x120-precomposed.png",
+            "/apple-touch-icon-152x152.png",
+            "/apple-touch-icon-152x152-precomposed.png",
+            "/apple-touch-icon-167x167.png",
+            "/apple-touch-icon-167x167-precomposed.png",
+            "/apple-touch-icon-180x180.png",
+            "/apple-touch-icon-180x180-precomposed.png",
+        }
         asset_paths = {
             f"{asset_base}/favicon.svg": ("image/svg+xml", FAVICON_SVG.encode("utf-8")),
             "/favicon.svg": ("image/svg+xml", FAVICON_SVG.encode("utf-8")),
+            f"{asset_base}/favicon.ico": ("image/png", APPLE_TOUCH_ICON_PNG),
+            "/favicon.ico": ("image/png", APPLE_TOUCH_ICON_PNG),
             f"{asset_base}/og-image.svg": ("image/svg+xml", OG_IMAGE_SVG.encode("utf-8")),
             f"{asset_base}/og-image.png": ("image/png", OG_IMAGE_PNG),
             "/og-image.png": ("image/png", OG_IMAGE_PNG),
+            **{path: ("image/png", APPLE_TOUCH_ICON_PNG) for path in apple_touch_icon_paths},
+            **{f"{asset_base}{path}": ("image/png", APPLE_TOUCH_ICON_PNG) for path in apple_touch_icon_paths if asset_base},
         }
 
         if path in {"/healthz", "/readyz"}:
@@ -523,7 +622,12 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             try:
                 status_code = int(args[1])
             except (IndexError, TypeError, ValueError):
-                status_code = None
+                try:
+                    status_code = int(args[0])
+                except (IndexError, TypeError, ValueError):
+                    status_code = None
+        if status_code is None:
+            status_code = getattr(self, "_last_status_code", None)
         path = urlsplit(self.path).path.rstrip("/") or "/"
         if status_code:
             HTTP_REQUESTS_TOTAL[(self.command, self.route_label(), str(status_code))] += 1
@@ -534,13 +638,17 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             "HTTP request completed",
             **{
                 "event.action": "http_request",
-                "event.outcome": "success" if status_code and status_code < 500 else "failure",
+                "event.outcome": "success" if status_code and status_code < 400 else "failure",
                 "http.request.method": self.command,
                 "http.response.status_code": status_code,
                 "url.path": self.path,
                 **self.client_log_fields(),
             },
         )
+
+    def log_error(self, fmt, *args):
+        # send_error() calls this before the final access log; keep one ECS event per request.
+        return
 
 
 class EcsHTTPServer(ThreadingHTTPServer):

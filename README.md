@@ -1,6 +1,6 @@
 # CHP Live Forest Map
 
-Collect CHP CAD traffic incidents for Angeles National Forest roads and render a static live map with click-in details. The map defaults to a rolling 72-hour window: active incidents render red and cleared/non-active incidents render grey.
+Collect CHP CAD traffic incidents for Angeles National Forest roads and render a live map with click-in details, summary reports, searchable history, and source/cadence notes. The map defaults to a rolling 72-hour window: active incidents render red and cleared/non-active incidents render grey.
 
 The CHP CAD site does not expose a documented public API for the detail logs this project needs, so `scrape_chp_traffic.py` follows the same public WebForms flow as the website:
 
@@ -8,7 +8,7 @@ The CHP CAD site does not expose a documented public API for the detail logs thi
 2. Select one or more CHP communications centers.
 3. Filter the active incident table to road keywords.
 4. Open each matching incident's Details view.
-5. Store current status and history in SQLite locally or Postgres in Kubernetes.
+5. Store current status and history in SQLite locally or Postgres in production deployments.
 
 The scraper is intentionally conservative:
 
@@ -93,6 +93,23 @@ Serve dynamically from SQL instead of a prebuilt HTML file:
 python3 serve_live_map.py --port 8080
 ```
 
+## Web App Views
+
+The dynamic server exposes four human-facing views. Each accepts `?hours=` and preserves the selected window while moving between views:
+
+- `/`: live incident map with selectable incidents and copyable incident links.
+- `/summary`: counts, busiest roads, incident types, and recent changes for the selected window.
+- `/history`: searchable/filterable incident history with links back to the map. Use `?hours=720` for the 30-day window.
+- `/about`: source, scrape cadence, coverage, and caveat notes.
+
+Direct incident links use the `incident` query parameter:
+
+```text
+https://crestmap.us/?hours=720&incident=LACC%7C2026-06-02%7C2780
+```
+
+If the linked incident is older than the default 72-hour map window, keep the wider `hours` value in the URL so the map loads that incident into its dataset.
+
 ## Tests
 
 Install development dependencies and run the unit suite:
@@ -129,7 +146,7 @@ The default container command serves the dynamic web app on port `8080`. In Kube
 For the pushed Kubernetes image workflow, use the Makefile:
 
 ```sh
-make deploy VERSION=0.1.5
+make deploy VERSION=0.1.66
 ```
 
 That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/amd64`, updates the Kubernetes manifest image tags and `SERVICE_VERSION`, applies the manifest, waits for the web rollout, and verifies the public `/chp/` page.
@@ -137,8 +154,8 @@ That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/a
 Useful individual targets:
 
 ```sh
-make build VERSION=0.1.5
-make update-manifest VERSION=0.1.5
+make build VERSION=0.1.66
+make update-manifest VERSION=0.1.66
 make apply
 make rollout
 make verify
@@ -184,9 +201,12 @@ Files for that deployment live in `deploy/digitalocean/`.
 
 The web service also exposes:
 
-- `/status.json`: lightweight status/version check used by the browser to decide whether a refresh is useful.
+- `/status.json?hours=72`: lightweight status/version check used by the browser to decide whether a refresh is useful.
+- `/incidents.json?hours=72`: JSON payload for the selected incident window. This is the current compatibility endpoint and exposes the internal incident row shape.
 - Web `/metrics`: Prometheus text-format metrics for web process uptime, incident counts, data freshness, HTTP request counters, and DB-backed latest scrape data.
 - Scraper `:8081/metrics`: Prometheus text-format metrics emitted by the long-lived scraper service, including scrape attempt counters and outbound CHP response-code counters.
+
+A formal `/api/v1/...` API with stable envelopes, per-incident endpoints, pagination, and schema documentation is planned but not implemented yet.
 
 Prometheus metrics:
 

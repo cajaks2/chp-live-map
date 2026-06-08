@@ -821,6 +821,8 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
     }}
     .incident-marker {{
       box-sizing: border-box;
+      position: relative;
+      display: block;
       width: 22px;
       height: 22px;
       border: 3px solid #7a1a1d;
@@ -845,6 +847,40 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
     }}
     .incident-marker.is-selected.is-cleared {{
       background: #9da5a0;
+    }}
+    .incident-marker.is-selected::before {{
+      content: "";
+      position: absolute;
+      inset: -9px;
+      border: 3px solid rgba(216, 59, 59, 0.76);
+      border-radius: 999px;
+      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.88), 0 2px 12px rgba(24, 32, 38, 0.3);
+      pointer-events: none;
+    }}
+    .incident-marker.is-selected.is-cleared::before {{
+      border-color: rgba(31, 104, 64, 0.78);
+    }}
+    .incident-marker.is-pulsing::after {{
+      content: "";
+      position: absolute;
+      inset: -10px;
+      border: 3px solid rgba(216, 59, 59, 0.65);
+      border-radius: 999px;
+      pointer-events: none;
+      animation: selected-marker-pulse 900ms ease-out 1;
+    }}
+    .incident-marker.is-pulsing.is-cleared::after {{
+      border-color: rgba(31, 104, 64, 0.62);
+    }}
+    @keyframes selected-marker-pulse {{
+      from {{
+        opacity: 0.82;
+        transform: scale(0.82);
+      }}
+      to {{
+        opacity: 0;
+        transform: scale(1.75);
+      }}
     }}
     #map {{
       position: relative;
@@ -1449,11 +1485,16 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
       window.setTimeout(updateListScrollCue, 250);
     }}
 
-    function markerIcon(incident, selected = false) {{
+    function markerIcon(incident, selected = false, pulsing = false) {{
       const isActive = incident.status === "active";
       const size = selected ? 28 : 22;
       return L.divIcon({{
-        className: ["incident-marker", isActive ? "is-active" : "is-cleared", selected ? "is-selected" : ""].join(" "),
+        className: [
+          "incident-marker",
+          isActive ? "is-active" : "is-cleared",
+          selected ? "is-selected" : "",
+          pulsing ? "is-pulsing" : ""
+        ].join(" "),
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2]
       }});
@@ -1470,7 +1511,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
           return;
         }}
         lastSelect = now;
-        selectIncident(incident, {{ pan: false, revealDetails: true }});
+        selectIncident(incident, {{ pan: false, revealDetails: true, pulse: true }});
       }};
 
       const bindElement = () => {{
@@ -1570,7 +1611,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
         if (!markerIncident) {{
           return;
         }}
-        marker.setIcon(markerIcon(markerIncident, selected));
+        marker.setIcon(markerIcon(markerIncident, selected, selected && options.pulse));
         marker.setZIndexOffset(selected ? 1000 : 0);
         if (selected && marker.bringToFront) {{
           marker.bringToFront();
@@ -1659,7 +1700,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
           <span>${{escapeHtml(incident.location)}}</span>
           <span>${{escapeHtml(formatIncidentWhen(incident))}} · ${{escapeHtml(incident.area)}} · #${{escapeHtml(incident.incident_no)}}${{hasCoords ? "" : " · no map pin"}}</span>
         `;
-        button.addEventListener("click", () => selectIncident(incident));
+        button.addEventListener("click", () => selectIncident(incident, {{ pulse: true }}));
         list.appendChild(button);
       }});
 

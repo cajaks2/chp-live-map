@@ -244,9 +244,16 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "markerZoomAnimation: true" in html
     assert "updateWhenZooming: true" in html
     assert "function markerIcon" in html
+    assert ".incident-marker.is-selected::before" in html
+    assert ".incident-marker.is-pulsing::after" in html
+    assert "@keyframes selected-marker-pulse" in html
+    assert "selected ? \"is-selected\" : \"\"" in html
+    assert "pulsing ? \"is-pulsing\" : \"\"" in html
+    assert "selected && options.pulse" in html
     assert "function bindMarkerInteraction" in html
     assert 'L.DomEvent.on(element, "touchend", selectFromMarker)' in html
     assert 'L.DomEvent.on(element, "pointerup", selectFromMarker)' in html
+    assert 'selectIncident(incident, { pan: false, revealDetails: true, pulse: true });' in html
     assert "L.marker([incident.latitude, incident.longitude]" in html
     assert "L.circleMarker" not in html
     assert "function setupDoubleTapZoom" in html

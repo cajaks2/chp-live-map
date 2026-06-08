@@ -175,6 +175,13 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'Last checked <time id="generated-at" datetime="2026-05-31T08:05:00-07:00">' in html
     assert "const initialDataStatus" in html
     assert 'const statusEndpoint = "/status.json"' in html
+    assert 'const incidentsEndpoint = "/incidents.json"' in html
+    assert "let incidents = []" in html
+    assert "fetchIncidentData()" in html
+    assert 'url.searchParams.set("v", version)' in html
+    assert "window.location.reload" not in html
+    assert "Traffic <Hazard>" not in html
+    assert "Traffic \\u003cHazard" not in html
     assert "function formatGeneratedAt" in html
     assert 'generatedAt.getAttribute("datetime")' in html
     assert "function formatIncidentWhen" in html
@@ -210,14 +217,14 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "let dismissed = false" in html
     assert "async () =>" in html
     assert "fetch(url" in html
-    assert "latest.version !== initialDataStatus.version" in html
+    assert "latest.version !== currentDataStatus.version" in html
+    assert "await fetchIncidentData" in html
     assert "New incident data is available." in html
     assert "Background status checks are not confirming current data." in html
     assert "function setCheckedAt" in html
     assert 'dismissButton.addEventListener("click"' in html
     assert "function setupStaleRefresh" in html
     assert "healthAgeMs > 180000" in html
-    assert "Traffic <Hazard>" in html
     assert "function escapeHtml" in html
     assert "no map pin" in html
     assert "window.chpLiveMap" in html
@@ -242,7 +249,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "basemaps.cartocdn.com/light_all" not in html
     assert ".setView([34.32, -118.12], 10)" in html
     assert "map.fitBounds" not in html
-    assert json.dumps(incidents, ensure_ascii=False) in html
+    assert json.dumps(incidents, ensure_ascii=False) not in html
 
 
 def test_incident_status_ignores_observation_timestamp_for_version():

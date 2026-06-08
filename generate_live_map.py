@@ -185,7 +185,6 @@ def analytics_script(google_analytics_id=None):
 
 
 def build_html(incidents, generated_at, hours, base_path="/", public_url=None, google_analytics_id=None):
-    data = json.dumps(incidents, ensure_ascii=False)
     status = incident_status(incidents, hours)
     active_count = status["active_count"]
     mapped_count = status["mapped_count"]
@@ -200,8 +199,10 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
     if public_url:
         public_path = urlsplit(public_url).path.rstrip("/")
         status_endpoint = f"{public_path}/status.json" if public_path else "/status.json"
+        incidents_endpoint = f"{public_path}/incidents.json" if public_path else "/incidents.json"
     else:
         status_endpoint = f"{asset_base}/status.json"
+        incidents_endpoint = f"{asset_base}/incidents.json"
     structured_data = {
         "@context": "https://schema.org",
         "@graph": [
@@ -958,9 +959,12 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
-    const incidents = {data};
     const initialDataStatus = {json.dumps(status, ensure_ascii=False)};
     const statusEndpoint = "{html.escape(status_endpoint)}";
+    const incidentsEndpoint = "{html.escape(incidents_endpoint)}";
+    let incidents = [];
+    let currentDataStatus = initialDataStatus;
+    let selectedIncidentKey = new URLSearchParams(window.location.search).get("incident");
 
     const mapEl = document.getElementById("map");
     mapEl.classList.add("is-loading");
@@ -1004,7 +1008,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
     const detailsPanel = document.getElementById("details");
     const detailsCue = document.getElementById("details-cue");
     const aboutPanel = document.getElementById("about-panel");
-    window.chpLiveMap = {{ map, markers, incidents }};
+    window.chpLiveMap = {{ map, markers, incidents, status: currentDataStatus }};
 
     const mobileViewport = window.matchMedia("(max-width: 760px)");
 
@@ -1134,7 +1138,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
       let lastCheckedAt = 0;
       let lastHealthyCheckAt = generatedTime;
       autoRefreshToggle.checked = window.localStorage.getItem("chp-auto-refresh") === "enabled";
-      const refresh = () => window.location.reload();
+      const refresh = () => fetchIncidentData({{ force: true, preserveViewport: true }});
       refreshButton.addEventListener("click", refresh);
       autoRefreshToggle.addEventListener("change", () => {{
         window.localStorage.setItem("chp-auto-refresh", autoRefreshToggle.checked ? "enabled" : "disabled");
@@ -1162,7 +1166,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
         lastCheckedAt = now;
         try {{
           const url = new URL(statusEndpoint, window.location.origin);
-          url.searchParams.set("hours", new URLSearchParams(window.location.search).get("hours") || String(initialDataStatus.hours || 72));
+          url.searchParams.set("hours", new URLSearchParams(window.location.search).get("hours") || String(currentDataStatus.hours || 72));
           url.searchParams.set("check", String(now));
           const response = await fetch(url, {{
             cache: "no-store",
@@ -1176,9 +1180,9 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
           if (latest.checked_at) {{
             setCheckedAt(latest.checked_at);
           }}
-          if (latest.version && latest.version !== initialDataStatus.version) {{
+          if (latest.version && latest.version !== currentDataStatus.version) {{
             if (autoRefreshToggle.checked) {{
-              refresh();
+              await fetchIncidentData({{ force: true, preserveViewport: true, status: latest }});
               return;
             }}
             showNotice("New incident data is available.");
@@ -1388,6 +1392,10 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
     }}
 
     function selectIncident(incident, options = {{}}) {{
+      if (!incident) {{
+        return;
+      }}
+      selectedIncidentKey = incident.event_key;
       detailsPanel.innerHTML = detailHtml(incident);
       document.querySelectorAll(".incident").forEach((button) => {{
         button.setAttribute("aria-current", button.dataset.eventKey === incident.event_key ? "true" : "false");
@@ -1434,10 +1442,33 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
       }}
     }});
 
-    function render() {{
+    function updateSummary(status) {{
+      if (!status) {{
+        return;
+      }}
+      const hours = Number(status.hours);
+      const hoursLabel = Number.isInteger(hours) ? String(hours) : String(status.hours);
+      const meta = document.querySelector("header .meta");
+      if (meta) {{
+        meta.textContent = `${{status.active_count}} active · ${{status.total_count}} in last ${{hoursLabel}}h · ${{status.mapped_count}} mapped`;
+      }}
+      currentDataStatus = status;
+      window.chpLiveMap.status = status;
+    }}
+
+    function clearRenderedIncidents() {{
+      markers.forEach((marker) => marker.remove());
+      markers.clear();
+      list.innerHTML = "";
+    }}
+
+    function render(options = {{}}) {{
+      clearRenderedIncidents();
+      window.chpLiveMap.incidents = incidents;
       if (!incidents.length) {{
         list.innerHTML = '<div class="empty">No active matching CHP incidents are currently stored.</div>';
         detailsPanel.innerHTML = '<div class="empty">No active matching CHP incidents are currently stored.</div>';
+        updateListScrollCue();
         return;
       }}
 
@@ -1474,14 +1505,55 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
       setTimeout(() => map.invalidateSize(), 50);
       window.requestAnimationFrame(updateListScrollCue);
       const linkedIncident = incidentFromUrl();
-      selectIncident(linkedIncident || incidents[0], {{
-        pan: Boolean(linkedIncident),
+      const preservedIncident = selectedIncidentKey
+        ? incidents.find((incident) => incident.event_key === selectedIncidentKey)
+        : null;
+      const selectedIncident = linkedIncident || preservedIncident || incidents[0];
+      selectIncident(selectedIncident, {{
+        pan: Boolean(linkedIncident) && !options.preserveViewport,
         revealList: Boolean(linkedIncident),
-        updateUrl: Boolean(linkedIncident)
+        updateUrl: Boolean(linkedIncident || preservedIncident)
       }});
     }}
 
-    render();
+    async function fetchIncidentData(options = {{}}) {{
+      const hours = new URLSearchParams(window.location.search).get("hours") || String(currentDataStatus.hours || 72);
+      const url = new URL(incidentsEndpoint, window.location.origin);
+      url.searchParams.set("hours", hours);
+      const version = options.status?.version || currentDataStatus.version;
+      if (version) {{
+        url.searchParams.set("v", version);
+      }}
+      if (options.force) {{
+        url.searchParams.set("check", String(Date.now()));
+      }}
+      const response = await fetch(url, {{
+        cache: options.force ? "no-store" : "default",
+        headers: {{ "Accept": "application/json" }}
+      }});
+      if (!response.ok) {{
+        throw new Error(`incident API returned ${{response.status}}`);
+      }}
+      const payload = await response.json();
+      incidents = payload.incidents || [];
+      updateSummary(payload.status || options.status || currentDataStatus);
+      if (payload.checked_at) {{
+        setCheckedAt(payload.checked_at);
+      }}
+      render({{ preserveViewport: Boolean(options.preserveViewport) }});
+      document.getElementById("stale-notice")?.classList.remove("is-visible");
+      return payload;
+    }}
+
+    fetchIncidentData().catch(() => {{
+      render();
+      const noticeText = document.getElementById("stale-notice-text");
+      const notice = document.getElementById("stale-notice");
+      if (noticeText && notice) {{
+        noticeText.textContent = "Incident data could not be loaded.";
+        notice.classList.add("is-visible");
+      }}
+    }});
     formatGeneratedAt();
     setupStaleRefresh();
     setupDoubleTapZoom();

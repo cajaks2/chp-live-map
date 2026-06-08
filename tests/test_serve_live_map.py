@@ -1,3 +1,4 @@
+import json
 import threading
 from urllib.request import HTTPError, urlopen
 from urllib.request import Request
@@ -8,6 +9,7 @@ from serve_live_map import (
     CONTENT_SECURITY_POLICY,
     DISCOVERY_CACHE_CONTROL,
     EcsHTTPServer,
+    INCIDENTS_CACHE_CONTROL,
     LiveMapHandler,
     MAP_CACHE_CONTROL,
 )
@@ -91,6 +93,17 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert '"active_count": 0' in body
             assert '"total_count": 0' in body
             assert '"version":' in body
+
+        with urlopen(f"{base_url}/chp/incidents.json?hours=24", timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            assert response.status == 200
+            assert response.headers["Content-Type"] == "application/json; charset=utf-8"
+            assert response.headers["Cache-Control"] == INCIDENTS_CACHE_CONTROL
+            assert payload["incidents"] == []
+            assert payload["status"]["active_count"] == 0
+            assert payload["status"]["total_count"] == 0
+            assert payload["status"]["hours"] == 24.0
+            assert "checked_at" in payload
 
         with urlopen(f"{base_url}/chp/?hours=9999", timeout=5) as response:
             body = response.read().decode("utf-8")

@@ -17,6 +17,7 @@ from scrape_chp_traffic import connect_database
 
 
 MAP_CACHE_CONTROL = "public, max-age=30, s-maxage=60, stale-while-revalidate=120, stale-if-error=600"
+INCIDENTS_CACHE_CONTROL = "public, max-age=15, s-maxage=30, stale-while-revalidate=60, stale-if-error=300"
 ASSET_CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800"
 DISCOVERY_CACHE_CONTROL = "public, max-age=300, s-maxage=300, stale-while-revalidate=600"
 CONTENT_SECURITY_POLICY = (
@@ -412,6 +413,8 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             return "map"
         if path in {"/status.json", f"{asset_base}/status.json"}:
             return "status"
+        if path in {"/incidents.json", f"{asset_base}/incidents.json"}:
+            return "incidents"
         if path in {"/metrics", f"{asset_base}/metrics"}:
             return "metrics"
         if path in {"/healthz", "/readyz"}:
@@ -435,6 +438,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         base_path = normalize_base_path(self.base_path)
         map_paths = {"/", "/live_chp_map.html", base_path}
         status_paths = {"/status.json", f"{'' if base_path == '/' else base_path}/status.json"}
+        incidents_paths = {"/incidents.json", f"{'' if base_path == '/' else base_path}/incidents.json"}
         asset_base = "" if base_path == "/" else base_path
         robots_paths = {"/robots.txt", f"{asset_base}/robots.txt"}
         sitemap_paths = {"/sitemap.xml", f"{asset_base}/sitemap.xml"}
@@ -567,6 +571,45 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Cache-Control", "private, max-age=15, stale-while-revalidate=30")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            if send_body:
+                self.wfile.write(body)
+            return
+
+        if path in incidents_paths:
+            try:
+                hours = self.requested_hours()
+                incidents = load_incidents(self.database, hours, self.database_url)
+                payload = {
+                    "incidents": incidents,
+                    "status": incident_status(incidents, hours),
+                    "checked_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+                }
+                body = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+            except Exception as exc:
+                log_exception(
+                    "Failed to render CHP incidents API",
+                    exc,
+                    **{
+                        "event.action": "http_request",
+                        "event.outcome": "failure",
+                        "http.request.method": self.command,
+                        "url.path": self.path,
+                        "http.response.status_code": 500,
+                        **self.client_log_fields(),
+                    },
+                )
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                if send_body:
+                    self.wfile.write(b'{"error":"failed to render incidents"}\n')
+                return
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", INCIDENTS_CACHE_CONTROL)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             if send_body:

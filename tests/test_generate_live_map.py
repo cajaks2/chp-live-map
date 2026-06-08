@@ -114,8 +114,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
         incidents,
         "2026-05-31T08:05:00-07:00",
         72,
-        base_path="/chp",
-        public_url="https://chp.flowy.us/",
+        base_path="/",
+        public_url="https://crestmap.us/",
     )
 
     assert "CHP Forest Incidents (1 active, 2 total)" in html
@@ -123,10 +123,10 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '<meta name="description" content="Live and historical CHP CAD traffic incidents' in html
     assert '<meta property="og:description" content="Live and historical CHP CAD traffic incidents' in html
     assert '<meta name="robots" content="index,follow,max-image-preview:large">' in html
-    assert '<link rel="canonical" href="https://chp.flowy.us/">' in html
-    assert '<link rel="icon" href="https://chp.flowy.us/favicon.svg?active=1&amp;v=' in html
+    assert '<link rel="canonical" href="https://crestmap.us/">' in html
+    assert '<link rel="icon" href="https://crestmap.us/favicon.svg?active=1&amp;v=' in html
     assert '<meta property="og:title" content="CHP Forest Incidents (1 active, 2 total)">' in html
-    assert '<meta property="og:image" content="https://chp.flowy.us/og-image.png">' in html
+    assert '<meta property="og:image" content="https://crestmap.us/og-image.png">' in html
     assert '<meta property="og:image:type" content="image/png">' in html
     assert '<meta name="twitter:card" content="summary_large_image">' in html
     assert '<script type="application/ld+json">' in html
@@ -137,8 +137,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "CHP forest road incident history" in html
     assert "scrollbar-width: thin" in html
     assert "view-menu" in html
-    assert 'href="/chp/summary?hours=72"' in html
-    assert 'href="/chp/history?hours=72"' in html
+    assert 'href="/summary?hours=72"' in html
+    assert 'href="/history?hours=72"' in html
     assert 'id="incident-list-shell"' in html
     assert "flex-basis: clamp(176px, 28svh, 240px)" in html
     assert "min-height: 176px" in html
@@ -171,10 +171,10 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'window.localStorage.setItem("chp-about-panel"' not in html
     assert '<nav class="range-tabs" aria-label="History range">' in html
     assert '<nav class="view-tabs" aria-label="View navigation">' in html
-    assert '<a class="view-tab is-active" href="/chp/?hours=72" aria-current="page">Map</a>' in html
-    assert '<a class="view-tab" href="/chp/summary?hours=72">Summary</a>' in html
-    assert '<a class="view-tab" href="/chp/history?hours=72">History</a>' in html
-    assert '<a class="view-tab" href="/chp/about?hours=72">About</a>' in html
+    assert '<a class="view-tab is-active" href="/?hours=72" aria-current="page">Map</a>' in html
+    assert '<a class="view-tab" href="/summary?hours=72">Summary</a>' in html
+    assert '<a class="view-tab" href="/history?hours=72">History</a>' in html
+    assert '<a class="view-tab" href="/about?hours=72">About</a>' in html
     assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in html
     assert '<a class="range-tab" href="?hours=720">30d</a>' in html
     assert "1 active · 2 in last 72h · 1 mapped" in html

@@ -149,7 +149,7 @@ For the pushed Kubernetes image workflow, use the Makefile:
 make deploy VERSION=0.1.69
 ```
 
-That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/amd64`, updates the Kubernetes manifest image tags and `SERVICE_VERSION`, applies the manifest, waits for the web rollout, and verifies the public `/chp/` page.
+That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/amd64`, updates the Kubernetes manifest image tags and `SERVICE_VERSION`, applies the manifest, waits for the web rollout, and verifies the public `crestmap.us` page.
 
 Useful individual targets:
 
@@ -183,7 +183,7 @@ Edit `POSTGRES_PASSWORD` and `DATABASE_URL` in the manifest before using it outs
 
 ## DigitalOcean Docker Compose
 
-The public `crestmap.us` deployment can run directly on a single VM behind nginx, with `chp.flowy.us` retained as an alias:
+The public `crestmap.us` deployment can run directly on a single VM behind nginx:
 
 ```sh
 cd /opt/chp-live-map
@@ -193,7 +193,7 @@ docker compose up -d
 
 The VM needs Docker Compose and `make` installed for the checked-in deployment helpers.
 
-The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, a long-lived scraper service that polls every minute and exposes scraper metrics on `127.0.0.1:8081`, and a Postgres backup sidecar. nginx should remain the TLS front door and proxy `crestmap.us` and `chp.flowy.us` to `http://127.0.0.1:8080`.
+The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, a long-lived scraper service that polls every minute and exposes scraper metrics on `127.0.0.1:8081`, and a Postgres backup sidecar. nginx should remain the TLS front door and proxy `crestmap.us` to `http://127.0.0.1:8080`.
 
 Backups are written as compressed custom-format `pg_dump` files under `/opt/chp-live-map/backups/postgres` every six hours by default. Tune `BACKUP_INTERVAL_SECONDS` and `BACKUP_RETENTION_DAYS` in `.env`.
 

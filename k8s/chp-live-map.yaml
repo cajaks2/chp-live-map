@@ -233,7 +233,7 @@ spec:
             - name: SERVICE_VERSION
               value: "0.1.69"
             - name: BASE_PATH
-              value: /chp
+              value: /
             - name: PUBLIC_URL
               value: https://crestmap.us/
             - name: GOOGLE_ANALYTICS_ID
@@ -284,10 +284,10 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - host: home.flowy.us
+    - host: crestmap.us
       http:
         paths:
-          - path: /chp
+          - path: /
             pathType: Prefix
             backend:
               service:
@@ -296,5 +296,5 @@ spec:
                   number: 80
   tls:
     - hosts:
-        - home.flowy.us
-      secretName: home-flowy-us-tls
+        - crestmap.us
+      secretName: crestmap-us-tls

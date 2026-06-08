@@ -33,7 +33,7 @@
 ## Deployment Notes
 - Current Docker image repository is `cajaks2/chp-live-map`.
 - Keep `deploy/digitalocean/docker-compose.yml` and `k8s/chp-live-map.yaml` image tags and `SERVICE_VERSION` values in sync when bumping versions.
-- The DigitalOcean Compose deployment serves `crestmap.us` behind nginx and keeps `chp.flowy.us` as an alias.
+- The DigitalOcean Compose deployment serves only `crestmap.us` behind nginx.
 - Compose runs Postgres, the web service, the long-lived scraper service, and a backup sidecar.
 - For normal DigitalOcean app deploys, use `make -C deploy/digitalocean deploy VERSION=<version>` or `deploy/digitalocean/deploy-compose.sh`. These use `docker compose up -d --no-deps web scrape` so Postgres is not recreated and the public site has less downtime.
 - Kubernetes uses a scraper Deployment with one replica, not a CronJob, so scraper metrics are scrapeable and duplicate scraper loops are avoided.

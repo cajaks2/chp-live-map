@@ -46,8 +46,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
     TestHandler.database = database
     TestHandler.database_url = None
     TestHandler.hours = 72.0
-    TestHandler.base_path = "/chp"
-    TestHandler.public_url = "https://chp.flowy.us/"
+    TestHandler.base_path = "/"
+    TestHandler.public_url = "https://crestmap.us/"
 
     server = EcsHTTPServer(("127.0.0.1", 0), TestHandler)
     thread = threading.Thread(target=server.serve_forever)
@@ -59,7 +59,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert response.read() == b"ok\n"
 
         request = Request(
-            f"{base_url}/chp/",
+            f"{base_url}/",
             headers={
                 "X-Forwarded-For": "203.0.113.7, 10.42.0.63",
                 "CF-Connecting-IP": "198.51.100.8",
@@ -81,8 +81,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert response.status == 200
             assert "CHP Forest Incidents" in body
             assert "in last 72h" in body
-            assert '<link rel="icon" href="https://chp.flowy.us/favicon.svg?active=0&amp;v=' in body
-            assert '<meta property="og:image" content="https://chp.flowy.us/og-image.png">' in body
+            assert '<link rel="icon" href="https://crestmap.us/favicon.svg?active=0&amp;v=' in body
+            assert '<meta property="og:image" content="https://crestmap.us/og-image.png">' in body
             assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
             assert response.headers["Content-Security-Policy"] == CONTENT_SECURITY_POLICY
             assert response.headers["X-Content-Type-Options"] == "nosniff"
@@ -91,49 +91,49 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert "Pragma" not in response.headers
             assert "Expires" not in response.headers
 
-        with urlopen(f"{base_url}/chp/?hours=24", timeout=5) as response:
+        with urlopen(f"{base_url}/?hours=24", timeout=5) as response:
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert "in last 24h" in body
             assert '<a class="range-tab is-active" href="?hours=24" aria-current="page">24h</a>' in body
-            assert 'href="/chp/summary?hours=24"' in body
-            assert 'href="/chp/history?hours=24"' in body
+            assert 'href="/summary?hours=24"' in body
+            assert 'href="/history?hours=24"' in body
 
-        with urlopen(f"{base_url}/chp/summary?hours=24", timeout=5) as response:
+        with urlopen(f"{base_url}/summary?hours=24", timeout=5) as response:
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
             assert "Summary - CHP Forest Incidents" in body
             assert "Busiest Roads" in body
             assert '<a class="range-tab is-active" href="?hours=24" aria-current="page">24h</a>' in body
-            assert '<a class="view-tab is-active" href="/chp/summary?hours=24" aria-current="page">Summary</a>' in body
+            assert '<a class="view-tab is-active" href="/summary?hours=24" aria-current="page">Summary</a>' in body
 
-        with urlopen(f"{base_url}/chp/history?hours=24", timeout=5) as response:
+        with urlopen(f"{base_url}/history?hours=24", timeout=5) as response:
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
             assert "History - CHP Forest Incidents" in body
             assert "Search road, type, incident number" in body
             assert '<a class="range-tab is-active" href="?hours=24" aria-current="page">24h</a>' in body
-            assert '<a class="view-tab is-active" href="/chp/history?hours=24" aria-current="page">History</a>' in body
+            assert '<a class="view-tab is-active" href="/history?hours=24" aria-current="page">History</a>' in body
             assert '<select class="filter" name="status" aria-label="Status filter">' in body
 
-        with urlopen(f"{base_url}/chp/history?hours=24&status=active&mapped=mapped", timeout=5) as response:
+        with urlopen(f"{base_url}/history?hours=24&status=active&mapped=mapped", timeout=5) as response:
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert '<option value="active" selected>Active</option>' in body
             assert '<option value="mapped" selected>Mapped only</option>' in body
 
-        with urlopen(f"{base_url}/chp/about?hours=24", timeout=5) as response:
+        with urlopen(f"{base_url}/about?hours=24", timeout=5) as response:
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
             assert "About - CHP Forest Incidents" in body
             assert "Update Cadence" in body
             assert '<a class="range-tab is-active" href="?hours=24" aria-current="page">24h</a>' in body
-            assert '<a class="view-tab is-active" href="/chp/about?hours=24" aria-current="page">About</a>' in body
+            assert '<a class="view-tab is-active" href="/about?hours=24" aria-current="page">About</a>' in body
 
-        with urlopen(f"{base_url}/chp/status.json?hours=24", timeout=5) as response:
+        with urlopen(f"{base_url}/status.json?hours=24", timeout=5) as response:
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert response.headers["Content-Type"] == "application/json; charset=utf-8"
@@ -142,7 +142,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert '"total_count": 0' in body
             assert '"version":' in body
 
-        with urlopen(f"{base_url}/chp/incidents.json?hours=24", timeout=5) as response:
+        with urlopen(f"{base_url}/incidents.json?hours=24", timeout=5) as response:
             payload = json.loads(response.read().decode("utf-8"))
             assert response.status == 200
             assert response.headers["Content-Type"] == "application/json; charset=utf-8"
@@ -153,13 +153,13 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert payload["status"]["hours"] == 24.0
             assert "checked_at" in payload
 
-        with urlopen(f"{base_url}/chp/?hours=9999", timeout=5) as response:
+        with urlopen(f"{base_url}/?hours=9999", timeout=5) as response:
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert "in last 720h" in body
             assert '<a class="range-tab is-active" href="?hours=720" aria-current="page">30d</a>' in body
 
-        with urlopen(f"{base_url}/chp/favicon.svg", timeout=5) as response:
+        with urlopen(f"{base_url}/favicon.svg", timeout=5) as response:
             assert response.status == 200
             assert response.headers["Content-Type"] == "image/svg+xml"
             assert response.headers["Cache-Control"] == FAVICON_CACHE_CONTROL
@@ -167,13 +167,13 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert b"<svg" in body
             assert b"#2f8a4e" in body
 
-        with urlopen(f"{base_url}/chp/og-image.svg", timeout=5) as response:
+        with urlopen(f"{base_url}/og-image.svg", timeout=5) as response:
             assert response.status == 200
             assert response.headers["Content-Type"] == "image/svg+xml"
             assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
             assert b"CHP Forest Incidents" in response.read()
 
-        with urlopen(f"{base_url}/chp/og-image.png", timeout=5) as response:
+        with urlopen(f"{base_url}/og-image.png", timeout=5) as response:
             assert response.status == 200
             assert response.headers["Content-Type"] == "image/png"
             assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
@@ -191,7 +191,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
             assert response.read().startswith(b"\x89PNG\r\n\x1a\n")
 
-        with urlopen(f"{base_url}/chp/apple-touch-icon-precomposed.png", timeout=5) as response:
+        with urlopen(f"{base_url}/apple-touch-icon-precomposed.png", timeout=5) as response:
             assert response.status == 200
             assert response.headers["Content-Type"] == "image/png"
             assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
@@ -204,14 +204,14 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert response.headers["Cache-Control"] == DISCOVERY_CACHE_CONTROL
             assert "User-agent: *" in body
             assert "Allow: /" in body
-            assert "Sitemap: https://chp.flowy.us/sitemap.xml" in body
+            assert "Sitemap: https://crestmap.us/sitemap.xml" in body
 
         with urlopen(f"{base_url}/sitemap.xml", timeout=5) as response:
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert response.headers["Content-Type"] == "application/xml; charset=utf-8"
             assert response.headers["Cache-Control"] == DISCOVERY_CACHE_CONTROL
-            assert "<loc>https://chp.flowy.us/</loc>" in body
+            assert "<loc>https://crestmap.us/</loc>" in body
             assert "<changefreq>hourly</changefreq>" in body
 
         with urlopen(f"{base_url}/metrics", timeout=5) as response:
@@ -227,7 +227,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert 'chp_live_map_scrape_chp_http_requests_total{method="POST",route="detail",status="200"} 2' in body
             assert "chp_live_map_http_requests_total" in body
 
-        head_request = Request(f"{base_url}/chp/", method="HEAD")
+        head_request = Request(f"{base_url}/", method="HEAD")
         with urlopen(head_request, timeout=5) as response:
             assert response.status == 200
             assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
@@ -243,14 +243,14 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         logged_paths = [kwargs["url.path"] for _args, kwargs in access_logs]
         assert "/healthz" not in logged_paths
         assert "/metrics" not in logged_paths
-        assert "/chp/" in logged_paths
+        assert "/" in logged_paths
         assert "/missing" in logged_paths
         missing_logs = [kwargs for _args, kwargs in access_logs if kwargs["url.path"] == "/missing"]
         assert len(missing_logs) == 1
         missing_log = missing_logs[0]
         assert missing_log["http.response.status_code"] == 404
         assert missing_log["event.outcome"] == "failure"
-        chp_log = next(kwargs for _args, kwargs in access_logs if kwargs["url.path"] == "/chp/")
+        chp_log = next(kwargs for _args, kwargs in access_logs if kwargs["url.path"] == "/")
         assert chp_log["client.address"] == "198.51.100.8"
         assert chp_log["client.nat.ip"] == "127.0.0.1"
         assert chp_log["http.request.header.x_forwarded_for"] == "203.0.113.7, 10.42.0.63"

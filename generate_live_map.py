@@ -1860,6 +1860,9 @@ def report_shell(title, subtitle, body, hours, base_path="/", public_url=None, c
       justify-content: space-between;
       gap: 12px;
     }}
+    .report-nav {{
+      margin-top: 13px;
+    }}
     h1 {{
       margin: 0 0 5px;
       font-size: 24px;
@@ -1964,7 +1967,7 @@ def report_shell(title, subtitle, body, hours, base_path="/", public_url=None, c
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 3px;
-      margin-top: 13px;
+      margin-top: 0;
       padding: 3px;
       border: 1px solid #d8ddd2;
       border-radius: 8px;
@@ -2157,21 +2160,81 @@ def report_shell(title, subtitle, body, hours, base_path="/", public_url=None, c
         grid-template-columns: repeat(4, minmax(0, 1fr));
       }}
     }}
+    @media (min-width: 980px) {{
+      body {{
+        display: block;
+      }}
+      #report-app {{
+        width: min(calc(100% - 48px), 1180px);
+        margin: 24px auto;
+      }}
+      header {{
+        padding: 22px 24px;
+      }}
+      .report-header-layout {{
+        display: grid;
+        grid-template-columns: minmax(280px, 1fr) minmax(430px, 520px);
+        gap: 24px;
+        align-items: start;
+      }}
+      .title-row {{
+        min-height: 86px;
+      }}
+      h1 {{
+        font-size: 30px;
+      }}
+      .meta {{
+        font-size: 15px;
+      }}
+      .report-nav {{
+        margin-top: 0;
+      }}
+      .view-tabs {{
+        margin-top: 8px;
+      }}
+      main {{
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+        padding: 22px 24px 28px;
+      }}
+      main > form,
+      main > .kpi-grid {{
+        grid-column: 1 / -1;
+      }}
+      .report-history main > .section {{
+        grid-column: 1 / -1;
+      }}
+      .section {{
+        margin-top: 0;
+        padding: 16px;
+        border: 1px solid #d8ddd2;
+        border-radius: 8px;
+        background: #ffffff;
+      }}
+      .result:last-child {{
+        border-bottom: 0;
+      }}
+    }}
   </style>
 </head>
 <body>
-  <div id="report-app">
+  <div id="report-app" class="report-{html.escape(current)}">
     <header>
-      <div class="title-row">
-        <div>
-          <h1>{html.escape(title)}</h1>
-          <div class="meta">{html.escape(subtitle)}</div>
-          <div class="meta">Window: last {hours:g}h</div>
+      <div class="report-header-layout">
+        <div class="title-row">
+          <div>
+            <h1>{html.escape(title)}</h1>
+            <div class="meta">{html.escape(subtitle)}</div>
+            <div class="meta">Window: last {hours:g}h</div>
+          </div>
+          {view_menu(base_path, current, hours)}
         </div>
-        {view_menu(base_path, current, hours)}
+        <div class="report-nav">
+          <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
+          <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, current, hours)}</nav>
+        </div>
       </div>
-      <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
-      <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, current, hours)}</nav>
     </header>
     <main>{body}</main>
   </div>

@@ -421,6 +421,55 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             fields["http.request.header.cf_connecting_ip"] = cloudflare_ip
         if user_agent:
             fields["http.request.header.user_agent"] = user_agent
+        cloudflare_geo_headers = {
+            "CF-IPCountry": (
+                "http.request.header.cf_ipcountry",
+                "client.geo.country_iso_code",
+            ),
+            "CF-IPContinent": (
+                "http.request.header.cf_ipcontinent",
+                "client.geo.continent_code",
+            ),
+            "CF-IPCity": (
+                "http.request.header.cf_ipcity",
+                "client.geo.city_name",
+            ),
+            "CF-Region": (
+                "http.request.header.cf_region",
+                "client.geo.region_name",
+            ),
+            "CF-Region-Code": (
+                "http.request.header.cf_region_code",
+                "client.geo.region_iso_code",
+            ),
+            "CF-Postal-Code": (
+                "http.request.header.cf_postal_code",
+                "client.geo.postal_code",
+            ),
+            "CF-Timezone": (
+                "http.request.header.cf_timezone",
+                "client.geo.timezone",
+            ),
+            "CF-IPLatitude": (
+                "http.request.header.cf_iplatitude",
+                "client.geo.location.lat",
+            ),
+            "CF-IPLongitude": (
+                "http.request.header.cf_iplongitude",
+                "client.geo.location.lon",
+            ),
+            "CF-Ray": (
+                "http.request.header.cf_ray",
+                None,
+            ),
+        }
+        for header, (raw_field, ecs_field) in cloudflare_geo_headers.items():
+            value = self.headers.get(header, "").strip()
+            if not value:
+                continue
+            fields[raw_field] = value
+            if ecs_field:
+                fields[ecs_field] = value
         return fields
 
     def route_label(self):

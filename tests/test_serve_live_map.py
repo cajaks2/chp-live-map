@@ -61,6 +61,16 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             headers={
                 "X-Forwarded-For": "203.0.113.7, 10.42.0.63",
                 "CF-Connecting-IP": "198.51.100.8",
+                "CF-IPCountry": "US",
+                "CF-IPContinent": "NA",
+                "CF-IPCity": "Los Angeles",
+                "CF-Region": "California",
+                "CF-Region-Code": "CA",
+                "CF-Postal-Code": "90012",
+                "CF-Timezone": "America/Los_Angeles",
+                "CF-IPLatitude": "34.0522",
+                "CF-IPLongitude": "-118.2437",
+                "CF-Ray": "8abc123def-LAX",
                 "User-Agent": "test-browser/1.0",
             },
         )
@@ -241,6 +251,25 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert chp_log["client.nat.ip"] == "127.0.0.1"
         assert chp_log["http.request.header.x_forwarded_for"] == "203.0.113.7, 10.42.0.63"
         assert chp_log["http.request.header.cf_connecting_ip"] == "198.51.100.8"
+        assert chp_log["http.request.header.cf_ipcountry"] == "US"
+        assert chp_log["http.request.header.cf_ipcontinent"] == "NA"
+        assert chp_log["http.request.header.cf_ipcity"] == "Los Angeles"
+        assert chp_log["http.request.header.cf_region"] == "California"
+        assert chp_log["http.request.header.cf_region_code"] == "CA"
+        assert chp_log["http.request.header.cf_postal_code"] == "90012"
+        assert chp_log["http.request.header.cf_timezone"] == "America/Los_Angeles"
+        assert chp_log["http.request.header.cf_iplatitude"] == "34.0522"
+        assert chp_log["http.request.header.cf_iplongitude"] == "-118.2437"
+        assert chp_log["http.request.header.cf_ray"] == "8abc123def-LAX"
+        assert chp_log["client.geo.country_iso_code"] == "US"
+        assert chp_log["client.geo.continent_code"] == "NA"
+        assert chp_log["client.geo.city_name"] == "Los Angeles"
+        assert chp_log["client.geo.region_name"] == "California"
+        assert chp_log["client.geo.region_iso_code"] == "CA"
+        assert chp_log["client.geo.postal_code"] == "90012"
+        assert chp_log["client.geo.timezone"] == "America/Los_Angeles"
+        assert chp_log["client.geo.location.lat"] == "34.0522"
+        assert chp_log["client.geo.location.lon"] == "-118.2437"
         assert chp_log["http.request.header.user_agent"] == "test-browser/1.0"
     finally:
         server.shutdown()

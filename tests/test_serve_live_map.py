@@ -84,6 +84,42 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert response.status == 200
             assert "in last 24h" in body
             assert '<a class="range-tab is-active" href="?hours=24" aria-current="page">24h</a>' in body
+            assert 'href="/chp/summary"' in body
+            assert 'href="/chp/history"' in body
+
+        with urlopen(f"{base_url}/chp/summary?hours=24", timeout=5) as response:
+            body = response.read().decode("utf-8")
+            assert response.status == 200
+            assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
+            assert "Summary - CHP Forest Incidents" in body
+            assert "Busiest Roads" in body
+            assert '<a class="range-tab is-active" href="?hours=24" aria-current="page">24h</a>' in body
+            assert '<a class="view-tab is-active" href="/chp/summary" aria-current="page">Summary</a>' in body
+
+        with urlopen(f"{base_url}/chp/history?hours=24", timeout=5) as response:
+            body = response.read().decode("utf-8")
+            assert response.status == 200
+            assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
+            assert "History - CHP Forest Incidents" in body
+            assert "Search road, type, incident number" in body
+            assert '<a class="range-tab is-active" href="?hours=24" aria-current="page">24h</a>' in body
+            assert '<a class="view-tab is-active" href="/chp/history" aria-current="page">History</a>' in body
+            assert '<select class="filter" name="status" aria-label="Status filter">' in body
+
+        with urlopen(f"{base_url}/chp/history?hours=24&status=active&mapped=mapped", timeout=5) as response:
+            body = response.read().decode("utf-8")
+            assert response.status == 200
+            assert '<option value="active" selected>Active</option>' in body
+            assert '<option value="mapped" selected>Mapped only</option>' in body
+
+        with urlopen(f"{base_url}/chp/about?hours=24", timeout=5) as response:
+            body = response.read().decode("utf-8")
+            assert response.status == 200
+            assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
+            assert "About - CHP Forest Incidents" in body
+            assert "Update Cadence" in body
+            assert '<a class="range-tab is-active" href="?hours=24" aria-current="page">24h</a>' in body
+            assert '<a class="view-tab is-active" href="/chp/about" aria-current="page">About</a>' in body
 
         with urlopen(f"{base_url}/chp/status.json?hours=24", timeout=5) as response:
             body = response.read().decode("utf-8")

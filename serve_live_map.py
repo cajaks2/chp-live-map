@@ -12,7 +12,15 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from ecs_logging import log_event, log_exception, run_main
-from generate_live_map import build_html, incident_status, load_incidents, normalize_base_path
+from generate_live_map import (
+    build_about_html,
+    build_history_html,
+    build_html,
+    build_summary_html,
+    incident_status,
+    load_incidents,
+    normalize_base_path,
+)
 from scrape_chp_traffic import connect_database
 
 
@@ -387,6 +395,16 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             return self.hours
         return min(max(hours, MIN_HISTORY_HOURS), MAX_HISTORY_HOURS)
 
+    def history_filters(self):
+        params = parse_qs(urlsplit(self.path).query)
+        return {
+            "q": (params.get("q") or [""])[0],
+            "road": (params.get("road") or ["all"])[0],
+            "type": (params.get("type") or ["all"])[0],
+            "status": (params.get("status") or ["all"])[0],
+            "mapped": (params.get("mapped") or ["all"])[0],
+        }
+
     def client_log_fields(self):
         forwarded_for = self.headers.get("X-Forwarded-For", "")
         forwarded_ip = forwarded_for.split(",", 1)[0].strip()
@@ -411,6 +429,12 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         asset_base = "" if base_path == "/" else base_path
         if path in {"/", "/live_chp_map.html", base_path}:
             return "map"
+        if path in {"/summary", f"{asset_base}/summary"}:
+            return "summary"
+        if path in {"/history", f"{asset_base}/history"}:
+            return "history"
+        if path in {"/about", f"{asset_base}/about"}:
+            return "about"
         if path in {"/status.json", f"{asset_base}/status.json"}:
             return "status"
         if path in {"/incidents.json", f"{asset_base}/incidents.json"}:
@@ -437,6 +461,9 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path.rstrip("/") or "/"
         base_path = normalize_base_path(self.base_path)
         map_paths = {"/", "/live_chp_map.html", base_path}
+        summary_paths = {"/summary", f"{'' if base_path == '/' else base_path}/summary"}
+        history_paths = {"/history", f"{'' if base_path == '/' else base_path}/history"}
+        about_paths = {"/about", f"{'' if base_path == '/' else base_path}/about"}
         status_paths = {"/status.json", f"{'' if base_path == '/' else base_path}/status.json"}
         incidents_paths = {"/incidents.json", f"{'' if base_path == '/' else base_path}/incidents.json"}
         asset_base = "" if base_path == "/" else base_path
@@ -616,7 +643,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             return
 
-        if path not in map_paths:
+        if path not in map_paths and path not in summary_paths and path not in history_paths and path not in about_paths:
             self.send_error(404)
             return
 
@@ -624,14 +651,40 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             generated_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
             hours = self.requested_hours()
             incidents = load_incidents(self.database, hours, self.database_url)
-            body = build_html(
-                incidents,
-                generated_at,
-                hours,
-                base_path=self.base_path,
-                public_url=self.public_url,
-                google_analytics_id=self.google_analytics_id,
-            ).encode("utf-8")
+            if path in summary_paths:
+                body = build_summary_html(
+                    incidents,
+                    generated_at,
+                    hours,
+                    base_path=self.base_path,
+                    public_url=self.public_url,
+                ).encode("utf-8")
+            elif path in history_paths:
+                body = build_history_html(
+                    incidents,
+                    generated_at,
+                    hours,
+                    base_path=self.base_path,
+                    public_url=self.public_url,
+                    filters=self.history_filters(),
+                ).encode("utf-8")
+            elif path in about_paths:
+                body = build_about_html(
+                    incidents,
+                    generated_at,
+                    hours,
+                    base_path=self.base_path,
+                    public_url=self.public_url,
+                ).encode("utf-8")
+            else:
+                body = build_html(
+                    incidents,
+                    generated_at,
+                    hours,
+                    base_path=self.base_path,
+                    public_url=self.public_url,
+                    google_analytics_id=self.google_analytics_id,
+                ).encode("utf-8")
         except Exception as exc:
             log_exception(
                 "Failed to render CHP live map",

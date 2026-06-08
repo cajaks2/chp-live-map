@@ -1,7 +1,14 @@
 import datetime as dt
 import json
 
-from generate_live_map import build_html, incident_status, load_incidents
+from generate_live_map import (
+    build_about_html,
+    build_history_html,
+    build_html,
+    build_summary_html,
+    incident_status,
+    load_incidents,
+)
 from scrape_chp_traffic import connect_database, insert_observation, upsert_active_event
 
 
@@ -129,6 +136,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '"@type": "Dataset"' in html
     assert "CHP forest road incident history" in html
     assert "scrollbar-width: thin" in html
+    assert "view-menu" in html
+    assert 'href="/chp/summary"' in html
+    assert 'href="/chp/history"' in html
     assert 'id="incident-list-shell"' in html
     assert "flex-basis: clamp(176px, 28svh, 240px)" in html
     assert "min-height: 176px" in html
@@ -155,20 +165,16 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "border-bottom: 1px solid #e2e6de" in html
     assert "align-items: center" in html
     assert "justify-content: center" in html
-    assert '<details id="about-panel" class="about-panel" open>' in html
-    assert "<summary>About this map</summary>" in html
-    assert '<p class="about-blurb"><strong>What this is:</strong>' in html
-    assert 'href="https://cad.chp.ca.gov/Traffic.aspx"' in html
-    assert "CHP CAD traffic incidents</a>" in html
-    assert 'href="https://github.com/cajaks2/chp-live-map#readme"' in html
-    assert "Project README" in html
-    assert "CHP is checked about once a minute" in html
-    assert "unchanged active incident details are refreshed about every 3 minutes" in html
-    assert "mobileViewport.addEventListener" in html
-    assert 'window.localStorage.getItem("chp-about-panel")' in html
-    assert 'window.localStorage.setItem("chp-about-panel"' in html
-    assert "Cleared incidents stay visible inside the selected history window" in html
+    assert '<details id="about-panel" class="about-panel" open>' not in html
+    assert "<summary>About this map</summary>" not in html
+    assert 'window.localStorage.getItem("chp-about-panel")' not in html
+    assert 'window.localStorage.setItem("chp-about-panel"' not in html
     assert '<nav class="range-tabs" aria-label="History range">' in html
+    assert '<nav class="view-tabs" aria-label="View navigation">' in html
+    assert '<a class="view-tab is-active" href="/chp/" aria-current="page">Map</a>' in html
+    assert '<a class="view-tab" href="/chp/summary">Summary</a>' in html
+    assert '<a class="view-tab" href="/chp/history">History</a>' in html
+    assert '<a class="view-tab" href="/chp/about">About</a>' in html
     assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in html
     assert '<a class="range-tab" href="?hours=720">30d</a>' in html
     assert "1 active · 2 in last 72h · 1 mapped" in html
@@ -245,6 +251,49 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "L.circleMarker" not in html
     assert "function setupDoubleTapZoom" in html
     assert "setupDoubleTapZoom();" in html
+
+    summary_html = build_summary_html(incidents, "2026-05-31T08:05:00-07:00", 72)
+    assert "Summary - CHP Forest Incidents" in summary_html
+    assert "Busiest Roads" in summary_html
+    assert "Incident Types" in summary_html
+    assert "2</strong><span>Incidents in window" in summary_html
+    assert '<nav class="range-tabs" aria-label="History range">' in summary_html
+    assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in summary_html
+    assert 'class="view-tab is-active" href="/summary" aria-current="page">Summary</a>' in summary_html
+
+    history_html = build_history_html(incidents, "2026-05-31T08:05:00-07:00", 72)
+    assert "History - CHP Forest Incidents" in history_html
+    assert "Search road, type, incident number" in history_html
+    assert "2 of 2 results" in history_html
+    assert '<select class="filter" name="road" aria-label="Road filter">' in history_html
+    assert '<select class="filter" name="type" aria-label="Incident type filter">' in history_html
+    assert '<select class="filter" name="status" aria-label="Status filter">' in history_html
+    assert '<select class="filter" name="mapped" aria-label="Map pin filter">' in history_html
+    assert "Apply filters" in history_html
+    assert "Show on map" in history_html
+    assert '<nav class="range-tabs" aria-label="History range">' in history_html
+    assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in history_html
+    assert 'class="view-tab is-active" href="/history" aria-current="page">History</a>' in history_html
+
+    filtered_history_html = build_history_html(
+        incidents,
+        "2026-05-31T08:05:00-07:00",
+        72,
+        filters={"status": "active", "mapped": "mapped"},
+    )
+    assert "1 of 2 results" in filtered_history_html
+    assert "Traffic &lt;Hazard&gt;" in filtered_history_html
+    assert "<strong>Disabled Vehicle</strong>" not in filtered_history_html
+    assert '<option value="active" selected>Active</option>' in filtered_history_html
+    assert '<option value="mapped" selected>Mapped only</option>' in filtered_history_html
+
+    about_html = build_about_html(incidents, "2026-05-31T08:05:00-07:00", 72)
+    assert "About - CHP Forest Incidents" in about_html
+    assert "What This Is" in about_html
+    assert "Update Cadence" in about_html
+    assert "CHP CAD source" in about_html
+    assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in about_html
+    assert 'class="view-tab is-active" href="/about" aria-current="page">About</a>' in about_html
     assert "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" in html
     assert "basemaps.cartocdn.com/light_all" not in html
     assert ".setView([34.32, -118.12], 10)" in html

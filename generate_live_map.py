@@ -6,7 +6,7 @@ import json
 import os
 import sqlite3
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlencode
 
 from ecs_logging import log_event, run_main
 
@@ -124,6 +124,57 @@ def history_controls(hours):
             )
         )
     return "".join(links)
+
+
+def app_path(base_path, suffix="/"):
+    base = normalize_base_path(base_path)
+    if suffix == "/":
+        return "/" if base == "/" else f"{base}/"
+    return suffix if base == "/" else f"{base}{suffix}"
+
+
+def view_menu(base_path, current):
+    items = [
+        ("map", "Map", "Current incidents", app_path(base_path, "/")),
+        ("summary", "Summary", "Counts + trends", app_path(base_path, "/summary")),
+        ("history", "History", "Search incidents", app_path(base_path, "/history")),
+        ("about", "About", "Source + cadence", app_path(base_path, "/about")),
+    ]
+    rows = []
+    for key, label, description, href in items:
+        rows.append(
+            '<a class="view-menu-row{}" href="{}">{} <span>{}</span></a>'.format(
+                " is-active" if key == current else "",
+                html.escape(href),
+                html.escape(label),
+                html.escape(description),
+            )
+        )
+    return (
+        '<details class="view-menu">'
+        '<summary aria-label="Open navigation menu">...</summary>'
+        '<div class="view-menu-popover">'
+        + "".join(rows)
+        + "</div></details>"
+    )
+
+
+def view_tabs(base_path, current):
+    items = [
+        ("map", "Map", app_path(base_path, "/")),
+        ("summary", "Summary", app_path(base_path, "/summary")),
+        ("history", "History", app_path(base_path, "/history")),
+        ("about", "About", app_path(base_path, "/about")),
+    ]
+    return "".join(
+        '<a class="view-tab{}" href="{}"{}>{}</a>'.format(
+            " is-active" if key == current else "",
+            html.escape(href),
+            ' aria-current="page"' if key == current else "",
+            html.escape(label),
+        )
+        for key, label, href in items
+    )
 
 
 def incident_status(incidents, hours):
@@ -386,6 +437,80 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
       line-height: 1.2;
       letter-spacing: 0;
     }}
+    .title-row {{
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }}
+    .title-row h1 {{
+      min-width: 0;
+    }}
+    .view-menu {{
+      position: relative;
+      flex: 0 0 auto;
+    }}
+    .view-menu summary {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border: 1px solid #d8ddd2;
+      border-radius: 7px;
+      color: #182026;
+      background: #ffffff;
+      font-size: 16px;
+      font-weight: 900;
+      line-height: 1;
+      cursor: pointer;
+      list-style: none;
+    }}
+    .view-menu summary::-webkit-details-marker {{
+      display: none;
+    }}
+    .view-menu-popover {{
+      position: absolute;
+      top: 40px;
+      right: 0;
+      z-index: 20;
+      width: min(290px, calc(100vw - 36px));
+      padding: 6px;
+      border: 1px solid #d8ddd2;
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 10px 28px rgba(24, 32, 38, 0.18);
+    }}
+    .view-menu-row {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      min-height: 36px;
+      padding: 0 8px;
+      border-radius: 6px;
+      color: #182026;
+      font-size: 13px;
+      font-weight: 800;
+      text-decoration: none;
+    }}
+    .view-menu-row span {{
+      color: #46534b;
+      font-size: 12px;
+      font-weight: 700;
+    }}
+    .view-menu-row.is-active,
+    .view-menu-row:hover,
+    .view-menu-row:focus {{
+      color: #1f6840;
+      background: #eef7ee;
+      outline: none;
+    }}
+    .view-menu-row.is-active span,
+    .view-menu-row:hover span,
+    .view-menu-row:focus span {{
+      color: #1f6840;
+    }}
     .meta {{
       color: #58645d;
       font-size: 13px;
@@ -431,6 +556,39 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
       outline: none;
     }}
     .range-tab.is-active {{
+      color: #ffffff;
+      background: #277447;
+    }}
+    .view-tabs {{
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 3px;
+      margin-top: 10px;
+      padding: 3px;
+      border: 1px solid #d8ddd2;
+      border-radius: 8px;
+      background: #eef1ea;
+    }}
+    .view-tab {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 28px;
+      padding: 0 7px;
+      border-radius: 5px;
+      color: #3f4a44;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      text-align: center;
+      text-decoration: none;
+    }}
+    .view-tab:hover,
+    .view-tab:focus {{
+      background: #ffffff;
+      outline: none;
+    }}
+    .view-tab.is-active {{
       color: #ffffff;
       background: #277447;
     }}
@@ -928,7 +1086,10 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
   <div id="app">
     <aside id="sidebar">
       <header>
-        <h1>CHP Forest Incidents</h1>
+        <div class="title-row">
+          <h1>CHP Forest Incidents</h1>
+          {view_menu(base_path, "map")}
+        </div>
         <div class="meta">{active_count} active · {len(incidents)} in last {hours:g}h · {mapped_count} mapped</div>
         <div class="meta checked-meta"><span>Last checked <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span><span aria-hidden="true">·</span>
           <label class="auto-refresh-control" title="Automatically reload when new incident data is available">
@@ -937,11 +1098,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
           </label>
         </div>
         <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
-        <details id="about-panel" class="about-panel" open>
-          <summary>About this map</summary>
-          <p class="about-blurb"><strong>What this is:</strong> a live mirror of public <a href="https://cad.chp.ca.gov/Traffic.aspx" rel="noopener">CHP CAD traffic incidents</a> for Angeles Crest, Angeles Forest, Big Tujunga, Glendora Mountain, and nearby forest roads. CHP is checked about once a minute; unchanged active incident details are refreshed about every 3 minutes. Cleared incidents stay visible inside the selected history window.</p>
-          <a class="about-link" href="https://github.com/cajaks2/chp-live-map#readme" rel="noopener">Project README</a>
-        </details>
+        <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, "map")}</nav>
         <div id="stale-notice" role="status">
           <span id="stale-notice-text">Data may be stale.</span>
           <button type="button" id="refresh-page">Refresh</button>
@@ -1007,28 +1164,9 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
     const scrollIncidentsButton = document.getElementById("scroll-incidents");
     const detailsPanel = document.getElementById("details");
     const detailsCue = document.getElementById("details-cue");
-    const aboutPanel = document.getElementById("about-panel");
     window.chpLiveMap = {{ map, markers, incidents, status: currentDataStatus }};
 
     const mobileViewport = window.matchMedia("(max-width: 760px)");
-
-    function syncAboutPanelForViewport() {{
-      if (!aboutPanel) {{
-        return;
-      }}
-      const storedState = window.localStorage.getItem("chp-about-panel");
-      if (storedState === "open" || storedState === "closed") {{
-        aboutPanel.open = storedState === "open";
-        return;
-      }}
-      aboutPanel.open = !mobileViewport.matches;
-    }}
-
-    syncAboutPanelForViewport();
-    mobileViewport.addEventListener("change", syncAboutPanelForViewport);
-    aboutPanel?.addEventListener("toggle", () => {{
-      window.localStorage.setItem("chp-about-panel", aboutPanel.open ? "open" : "closed");
-    }});
 
     function setupDoubleTapZoom() {{
       let lastTap = null;
@@ -1564,6 +1702,597 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
 </body>
 </html>
 """
+
+
+def incident_road(incident):
+    text = f"{incident.get('location') or ''} {incident.get('location_desc') or ''}".lower()
+    if "angeles crest" in text or "red box" in text:
+        return "Angeles Crest"
+    if "angeles forest" in text:
+        return "Angeles Forest"
+    if "big tujunga" in text:
+        return "Big Tujunga"
+    if "glendora" in text:
+        return "Glendora Mountain"
+    if "mt wilson" in text or "mount wilson" in text:
+        return "Mt Wilson"
+    return "Other forest roads"
+
+
+def format_when_short(incident):
+    date_text = incident.get("incident_date") or (incident.get("first_seen") or "")[:10]
+    time_text = incident.get("incident_time") or ""
+    if not date_text:
+        return time_text
+    try:
+        parsed = dt.datetime.fromisoformat(f"{date_text}T12:00:00")
+        return f"{parsed.strftime('%b')} {parsed.day}, {time_text}".strip().rstrip(",")
+    except ValueError:
+        return f"{date_text} {time_text}".strip()
+
+
+def count_by(items, key_fn):
+    counts = {}
+    for item in items:
+        key = key_fn(item) or "Unknown"
+        counts[key] = counts.get(key, 0) + 1
+    return sorted(counts.items(), key=lambda pair: (-pair[1], pair[0]))
+
+
+def slugify_filter(value):
+    return str(value or "").strip().lower().replace("&", "and").replace("/", "-").replace(" ", "-")
+
+
+def option_tags(options, selected):
+    return "".join(
+        '<option value="{}"{}>{}</option>'.format(
+            html.escape(value),
+            ' selected' if value == selected else "",
+            html.escape(label),
+        )
+        for value, label in options
+    )
+
+
+def filtered_history_incidents(incidents, filters):
+    query = (filters.get("q") or "").strip().lower()
+    road = filters.get("road") or "all"
+    incident_type = filters.get("type") or "all"
+    status = filters.get("status") or "all"
+    mapped = filters.get("mapped") or "all"
+    filtered = []
+    for incident in incidents:
+        haystack = " ".join(
+            str(incident.get(field) or "")
+            for field in ("incident_no", "type", "location", "location_desc", "area", "incident_time")
+        ).lower()
+        has_coords = incident.get("latitude") is not None and incident.get("longitude") is not None
+        if query and query not in haystack:
+            continue
+        if road != "all" and slugify_filter(incident_road(incident)) != road:
+            continue
+        if incident_type != "all" and slugify_filter(incident.get("type") or "Unknown") != incident_type:
+            continue
+        if status != "all" and (incident.get("status") or "") != status:
+            continue
+        if mapped == "mapped" and not has_coords:
+            continue
+        if mapped == "unpinned" and has_coords:
+            continue
+        filtered.append(incident)
+    return filtered
+
+
+def report_rows(counts, limit=5):
+    if not counts:
+        return '<div class="empty-report">No incidents in this window.</div>'
+    max_count = max(count for _label, count in counts) or 1
+    rows = []
+    for label, count in counts[:limit]:
+        rows.append(
+            '<div class="bar-row"><span>{}</span><div class="bar"><i style="width: {}%;"></i></div><span>{}</span></div>'.format(
+                html.escape(label),
+                max(8, round((count / max_count) * 100)),
+                count,
+            )
+        )
+    return "".join(rows)
+
+
+def report_shell(title, subtitle, body, hours, base_path="/", public_url=None, current="summary"):
+    urls = metadata_urls(base_path, public_url)
+    description = "Summary and history views for CHP forest road incidents."
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{html.escape(title)} - CHP Forest Incidents</title>
+  <meta name="description" content="{html.escape(description)}">
+  <meta name="robots" content="index,follow,max-image-preview:large">
+  <link rel="canonical" href="{html.escape(urls["canonical"])}">
+  <link rel="icon" href="{html.escape(urls["favicon"])}" type="image/svg+xml">
+  <style>
+    html, body {{
+      min-height: 100%;
+      margin: 0;
+      color: #182026;
+      background: #f6f7f4;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }}
+    body {{
+      display: flex;
+      justify-content: center;
+    }}
+    #report-app {{
+      width: min(100%, 860px);
+      min-height: 100vh;
+      background: #fbfcf8;
+    }}
+    header {{
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      padding: 18px;
+      border-bottom: 1px solid #d8ddd2;
+      background: rgba(251, 252, 248, 0.98);
+    }}
+    .title-row {{
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }}
+    h1 {{
+      margin: 0 0 5px;
+      font-size: 24px;
+      line-height: 1.1;
+    }}
+    .meta {{
+      color: #58645d;
+      font-size: 14px;
+      line-height: 1.35;
+    }}
+    .view-menu {{
+      position: relative;
+      flex: 0 0 auto;
+    }}
+    .view-menu summary {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border: 1px solid #d8ddd2;
+      border-radius: 8px;
+      background: #fff;
+      font-size: 16px;
+      font-weight: 900;
+      cursor: pointer;
+      list-style: none;
+    }}
+    .view-menu summary::-webkit-details-marker {{
+      display: none;
+    }}
+    .view-menu-popover {{
+      position: absolute;
+      top: 42px;
+      right: 0;
+      z-index: 10;
+      width: min(290px, calc(100vw - 36px));
+      padding: 6px;
+      border: 1px solid #d8ddd2;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 10px 28px rgba(24, 32, 38, 0.18);
+    }}
+    .view-menu-row {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 36px;
+      padding: 0 8px;
+      border-radius: 6px;
+      color: #182026;
+      font-size: 13px;
+      font-weight: 800;
+      text-decoration: none;
+    }}
+    .view-menu-row span {{
+      color: #46534b;
+      font-size: 12px;
+      font-weight: 700;
+    }}
+    .view-menu-row.is-active,
+    .view-menu-row:hover,
+    .view-menu-row:focus {{
+      color: #1f6840;
+      background: #eef7ee;
+      outline: none;
+    }}
+    .view-tabs {{
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 3px;
+      margin-top: 10px;
+      padding: 3px;
+      border: 1px solid #d8ddd2;
+      border-radius: 8px;
+      background: #eef1ea;
+    }}
+    .view-tab {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 0 7px;
+      border-radius: 5px;
+      color: #3f4a44;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1;
+      text-align: center;
+      text-decoration: none;
+    }}
+    .view-tab:hover,
+    .view-tab:focus {{
+      background: #ffffff;
+      outline: none;
+    }}
+    .view-tab.is-active {{
+      color: #ffffff;
+      background: #277447;
+    }}
+    .range-tabs {{
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 3px;
+      margin-top: 13px;
+      padding: 3px;
+      border: 1px solid #d8ddd2;
+      border-radius: 8px;
+      background: #eef1ea;
+    }}
+    .range-tab {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 0 7px;
+      border-radius: 5px;
+      color: #3f4a44;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1;
+      text-align: center;
+      text-decoration: none;
+    }}
+    .range-tab:hover,
+    .range-tab:focus {{
+      background: #ffffff;
+      outline: none;
+    }}
+    .range-tab.is-active {{
+      color: #ffffff;
+      background: #277447;
+    }}
+    main {{
+      padding: 14px 16px 30px;
+    }}
+    .kpi-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 9px;
+    }}
+    .kpi, .filter, .search-box {{
+      border: 1px solid #d8ddd2;
+      border-radius: 8px;
+      background: #fff;
+    }}
+    .kpi {{
+      min-height: 72px;
+      padding: 12px;
+    }}
+    .kpi strong {{
+      display: block;
+      margin-bottom: 3px;
+      font-size: 26px;
+      line-height: 1;
+    }}
+    .kpi span, .empty-report {{
+      color: #58645d;
+      font-size: 13px;
+      line-height: 1.35;
+    }}
+    .section {{
+      margin-top: 15px;
+      padding-top: 15px;
+      border-top: 1px solid #d8ddd2;
+    }}
+    h2 {{
+      margin: 0 0 9px;
+      font-size: 20px;
+      line-height: 1.2;
+    }}
+    .bar-row {{
+      display: grid;
+      grid-template-columns: minmax(96px, 150px) 1fr 32px;
+      gap: 8px;
+      align-items: center;
+      min-height: 31px;
+      color: #405047;
+      font-size: 13px;
+    }}
+    .bar {{
+      height: 9px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e5eae3;
+    }}
+    .bar i {{
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: #277447;
+    }}
+    .search-box {{
+      display: flex;
+      align-items: center;
+      min-height: 42px;
+      margin-top: 13px;
+      padding: 0 12px;
+      font-size: 14px;
+      color: #182026;
+      font: inherit;
+      width: 100%;
+    }}
+    .search-box::placeholder {{
+      color: #58645d;
+    }}
+    .filter-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 9px;
+      margin-top: 10px;
+    }}
+    .filter {{
+      min-height: 40px;
+      padding: 9px 10px;
+      color: #405047;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 800;
+    }}
+    .filter-actions {{
+      display: flex;
+      gap: 9px;
+      margin-top: 10px;
+    }}
+    .filter-actions button,
+    .filter-actions a {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 0 12px;
+      border: 1px solid #cbd6cc;
+      border-radius: 8px;
+      color: #1f6840;
+      background: #f8faf6;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 850;
+      text-decoration: none;
+      cursor: pointer;
+    }}
+    .filter-actions button {{
+      color: #ffffff;
+      border-color: #277447;
+      background: #277447;
+    }}
+    .result {{
+      padding: 13px 0;
+      border-bottom: 1px solid #d8ddd2;
+    }}
+    .result strong {{
+      display: block;
+      margin-bottom: 4px;
+      font-size: 16px;
+      line-height: 1.2;
+    }}
+    .result span {{
+      display: block;
+      color: #58645d;
+      font-size: 13px;
+      line-height: 1.35;
+    }}
+    .status-pill {{
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      margin-bottom: 7px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }}
+    .status-active {{
+      color: #8f1d21;
+      background: #fde7df;
+    }}
+    .status-cleared {{
+      color: #59615c;
+      background: #ecefed;
+    }}
+    @media (min-width: 760px) {{
+      #report-app {{
+        margin: 18px;
+        border: 1px solid #d8ddd2;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 8px 30px rgba(24, 32, 38, 0.08);
+      }}
+      main {{
+        padding: 18px;
+      }}
+      .kpi-grid {{
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }}
+    }}
+  </style>
+</head>
+<body>
+  <div id="report-app">
+    <header>
+      <div class="title-row">
+        <div>
+          <h1>{html.escape(title)}</h1>
+          <div class="meta">{html.escape(subtitle)}</div>
+          <div class="meta">Window: last {hours:g}h</div>
+        </div>
+        {view_menu(base_path, current)}
+      </div>
+      <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
+      <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, current)}</nav>
+    </header>
+    <main>{body}</main>
+  </div>
+</body>
+</html>
+"""
+
+
+def build_summary_html(incidents, generated_at, hours, base_path="/", public_url=None):
+    status = incident_status(incidents, hours)
+    active_count = status["active_count"]
+    mapped_count = status["mapped_count"]
+    cleared_count = status["total_count"] - active_count
+    road_rows = report_rows(count_by(incidents, incident_road))
+    type_rows = report_rows(count_by(incidents, lambda incident: incident.get("type") or "Unknown"))
+    recent = sorted(
+        incidents,
+        key=lambda incident: incident.get("latest_observed_at") or incident.get("last_seen") or "",
+        reverse=True,
+    )[:5]
+    recent_html = "".join(
+        '<div class="result"><span class="status-pill {}">{}</span><strong>{}</strong><span>{}</span><span>{} · #{}</span></div>'.format(
+            "status-active" if incident.get("status") == "active" else "status-cleared",
+            "Active" if incident.get("status") == "active" else "Cleared",
+            html.escape(incident.get("type") or "CHP Incident"),
+            html.escape(incident.get("location") or ""),
+            html.escape(format_when_short(incident)),
+            html.escape(str(incident.get("incident_no") or "")),
+        )
+        for incident in recent
+    ) or '<div class="empty-report">No recent incidents in this window.</div>'
+    body = f"""
+      <section class="kpi-grid" aria-label="Incident summary">
+        <div class="kpi"><strong>{status["total_count"]}</strong><span>Incidents in window</span></div>
+        <div class="kpi"><strong>{active_count}</strong><span>Currently active</span></div>
+        <div class="kpi"><strong>{mapped_count}</strong><span>Mapped incidents</span></div>
+        <div class="kpi"><strong>{cleared_count}</strong><span>Cleared incidents</span></div>
+      </section>
+      <section class="section">
+        <h2>Busiest Roads</h2>
+        {road_rows}
+      </section>
+      <section class="section">
+        <h2>Incident Types</h2>
+        {type_rows}
+      </section>
+      <section class="section">
+        <h2>Recent Changes</h2>
+        {recent_html}
+      </section>
+    """
+    subtitle = f"Forest CHP activity · updated {generated_at}"
+    return report_shell("Summary", subtitle, body, hours, base_path, public_url, current="summary")
+
+
+def build_history_html(incidents, generated_at, hours, base_path="/", public_url=None, filters=None):
+    filters = filters or {}
+    selected_road = filters.get("road") or "all"
+    selected_type = filters.get("type") or "all"
+    selected_status = filters.get("status") or "all"
+    selected_mapped = filters.get("mapped") or "all"
+    query = filters.get("q") or ""
+    filtered_incidents = filtered_history_incidents(incidents, filters)
+    road_options = [("all", "All roads")] + [
+        (slugify_filter(label), label) for label, _count in count_by(incidents, incident_road)
+    ]
+    type_options = [("all", "All types")] + [
+        (slugify_filter(label), label) for label, _count in count_by(incidents, lambda incident: incident.get("type") or "Unknown")
+    ]
+    status_options = [("all", "All statuses"), ("active", "Active"), ("cleared", "Cleared")]
+    mapped_options = [("all", "Mapped + unpinned"), ("mapped", "Mapped only"), ("unpinned", "Unpinned only")]
+    reset_href = app_path(base_path, "/history") + f"?hours={hours:g}"
+    result_rows = "".join(
+        '<div class="result"><span class="status-pill {}">{}</span><strong>{}</strong><span>{}</span><span>{} · {} · #{} · <a href="{}?incident={}">Show on map</a></span></div>'.format(
+            "status-active" if incident.get("status") == "active" else "status-cleared",
+            "Active" if incident.get("status") == "active" else "Cleared",
+            html.escape(incident.get("type") or "CHP Incident"),
+            html.escape(incident.get("location") or ""),
+            html.escape(format_when_short(incident)),
+            html.escape(incident.get("area") or ""),
+            html.escape(str(incident.get("incident_no") or "")),
+            html.escape(app_path(base_path, "/")),
+            html.escape(incident.get("event_key") or ""),
+        )
+        for incident in filtered_incidents
+    ) or '<div class="empty-report">No incidents in this window.</div>'
+    body = f"""
+      <form method="get" action="{html.escape(app_path(base_path, "/history"))}" aria-label="History filters">
+        <input type="hidden" name="hours" value="{hours:g}">
+        <input class="search-box" type="search" name="q" value="{html.escape(query)}" placeholder="Search road, type, incident number...">
+        <div class="filter-grid">
+          <select class="filter" name="road" aria-label="Road filter">{option_tags(road_options, selected_road)}</select>
+          <select class="filter" name="type" aria-label="Incident type filter">{option_tags(type_options, selected_type)}</select>
+          <select class="filter" name="status" aria-label="Status filter">{option_tags(status_options, selected_status)}</select>
+          <select class="filter" name="mapped" aria-label="Map pin filter">{option_tags(mapped_options, selected_mapped)}</select>
+        </div>
+        <div class="filter-actions">
+          <button type="submit">Apply filters</button>
+          <a href="{html.escape(reset_href)}">Reset</a>
+        </div>
+      </form>
+      <section class="section">
+        <div class="meta">{len(filtered_incidents)} of {len(incidents)} results · sorted newest first</div>
+        {result_rows}
+      </section>
+    """
+    subtitle = f"Search stored CHP forest incidents · updated {generated_at}"
+    return report_shell("History", subtitle, body, hours, base_path, public_url, current="history")
+
+
+def build_about_html(incidents, generated_at, hours, base_path="/", public_url=None):
+    status = incident_status(incidents, hours)
+    body = f"""
+      <section class="section" style="margin-top: 0; padding-top: 0; border-top: 0;">
+        <h2>What This Is</h2>
+        <p class="empty-report">Crestmap is a live mirror of public <a href="https://cad.chp.ca.gov/Traffic.aspx" rel="noopener">CHP CAD traffic incidents</a> for Angeles Crest, Angeles Forest, Big Tujunga, Glendora Mountain, and nearby forest roads.</p>
+      </section>
+      <section class="kpi-grid" aria-label="Current data status" style="margin-top: 14px;">
+        <div class="kpi"><strong>{status["total_count"]}</strong><span>Incidents in this window</span></div>
+        <div class="kpi"><strong>{status["active_count"]}</strong><span>Currently active</span></div>
+        <div class="kpi"><strong>{status["mapped_count"]}</strong><span>Mapped incidents</span></div>
+        <div class="kpi"><strong>1m</strong><span>Approximate CHP check cadence</span></div>
+      </section>
+      <section class="section">
+        <h2>Update Cadence</h2>
+        <div class="result"><strong>Incident list</strong><span>Checked against CHP about once per minute.</span></div>
+        <div class="result"><strong>Active incident details</strong><span>Unchanged active incidents are refreshed about every 3 minutes.</span></div>
+        <div class="result"><strong>History</strong><span>Cleared incidents stay in the database and are shown when they fall inside the selected time window.</span></div>
+      </section>
+      <section class="section">
+        <h2>Project Links</h2>
+        <div class="result"><strong>CHP CAD source</strong><span><a href="https://cad.chp.ca.gov/Traffic.aspx" rel="noopener">cad.chp.ca.gov/Traffic.aspx</a></span></div>
+        <div class="result"><strong>Project README</strong><span><a href="https://github.com/cajaks2/chp-live-map#readme" rel="noopener">github.com/cajaks2/chp-live-map</a></span></div>
+      </section>
+    """
+    subtitle = f"Source, update cadence, and project context · updated {generated_at}"
+    return report_shell("About", subtitle, body, hours, base_path, public_url, current="about")
 
 
 def parse_args():

@@ -156,6 +156,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
 
         logged_paths = [kwargs["url.path"] for _args, kwargs in access_logs]
         assert "/healthz" not in logged_paths
+        assert "/metrics" not in logged_paths
         assert "/chp/" in logged_paths
         assert "/missing" in logged_paths
         chp_log = next(kwargs for _args, kwargs in access_logs if kwargs["url.path"] == "/chp/")

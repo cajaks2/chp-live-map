@@ -527,7 +527,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path.rstrip("/") or "/"
         if status_code:
             HTTP_REQUESTS_TOTAL[(self.command, self.route_label(), str(status_code))] += 1
-        if path in {"/healthz", "/readyz"} and status_code and status_code < 500:
+        if path in {"/healthz", "/readyz", "/metrics"} and status_code and status_code < 500:
             return
         log_event(
             "info",

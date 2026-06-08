@@ -887,7 +887,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
         display: flex;
         position: absolute;
         left: 50%;
-        bottom: max(48px, calc(env(safe-area-inset-bottom) + 24px));
+        bottom: max(26px, calc(env(safe-area-inset-bottom) + 10px));
         z-index: 600;
         align-items: center;
         gap: 8px;

@@ -139,7 +139,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'id="details-cue"' in html
     assert "Incident details below" in html
     assert "height: 42svh" in html
-    assert "bottom: max(48px, calc(env(safe-area-inset-bottom) + 24px))" in html
+    assert "bottom: max(26px, calc(env(safe-area-inset-bottom) + 10px))" in html
     assert "selected-pill" in html
     assert '<span class="selected-pill">Open</span>' in html
     assert "background: #d4e6d5" in html

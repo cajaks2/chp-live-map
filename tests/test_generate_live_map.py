@@ -137,8 +137,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "CHP forest road incident history" in html
     assert "scrollbar-width: thin" in html
     assert "view-menu" in html
-    assert 'href="/chp/summary"' in html
-    assert 'href="/chp/history"' in html
+    assert 'href="/chp/summary?hours=72"' in html
+    assert 'href="/chp/history?hours=72"' in html
     assert 'id="incident-list-shell"' in html
     assert "flex-basis: clamp(176px, 28svh, 240px)" in html
     assert "min-height: 176px" in html
@@ -171,10 +171,10 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'window.localStorage.setItem("chp-about-panel"' not in html
     assert '<nav class="range-tabs" aria-label="History range">' in html
     assert '<nav class="view-tabs" aria-label="View navigation">' in html
-    assert '<a class="view-tab is-active" href="/chp/" aria-current="page">Map</a>' in html
-    assert '<a class="view-tab" href="/chp/summary">Summary</a>' in html
-    assert '<a class="view-tab" href="/chp/history">History</a>' in html
-    assert '<a class="view-tab" href="/chp/about">About</a>' in html
+    assert '<a class="view-tab is-active" href="/chp/?hours=72" aria-current="page">Map</a>' in html
+    assert '<a class="view-tab" href="/chp/summary?hours=72">Summary</a>' in html
+    assert '<a class="view-tab" href="/chp/history?hours=72">History</a>' in html
+    assert '<a class="view-tab" href="/chp/about?hours=72">About</a>' in html
     assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in html
     assert '<a class="range-tab" href="?hours=720">30d</a>' in html
     assert "1 active · 2 in last 72h · 1 mapped" in html
@@ -259,7 +259,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "2</strong><span>Incidents in window" in summary_html
     assert '<nav class="range-tabs" aria-label="History range">' in summary_html
     assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in summary_html
-    assert 'class="view-tab is-active" href="/summary" aria-current="page">Summary</a>' in summary_html
+    assert 'class="view-tab is-active" href="/summary?hours=72" aria-current="page">Summary</a>' in summary_html
 
     history_html = build_history_html(incidents, "2026-05-31T08:05:00-07:00", 72)
     assert "History - CHP Forest Incidents" in history_html
@@ -271,9 +271,10 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '<select class="filter" name="mapped" aria-label="Map pin filter">' in history_html
     assert "Apply filters" in history_html
     assert "Show on map" in history_html
+    assert 'href="/?hours=72&amp;incident=LACC%7C2026-05-31%7C0805">Show on map</a>' in history_html
     assert '<nav class="range-tabs" aria-label="History range">' in history_html
     assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in history_html
-    assert 'class="view-tab is-active" href="/history" aria-current="page">History</a>' in history_html
+    assert 'class="view-tab is-active" href="/history?hours=72" aria-current="page">History</a>' in history_html
 
     filtered_history_html = build_history_html(
         incidents,
@@ -293,7 +294,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "Update Cadence" in about_html
     assert "CHP CAD source" in about_html
     assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in about_html
-    assert 'class="view-tab is-active" href="/about" aria-current="page">About</a>' in about_html
+    assert 'class="view-tab is-active" href="/about?hours=72" aria-current="page">About</a>' in about_html
     assert "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" in html
     assert "basemaps.cartocdn.com/light_all" not in html
     assert ".setView([34.32, -118.12], 10)" in html

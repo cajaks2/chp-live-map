@@ -133,12 +133,28 @@ def app_path(base_path, suffix="/"):
     return suffix if base == "/" else f"{base}{suffix}"
 
 
-def view_menu(base_path, current):
+def href_with_query(href, **params):
+    clean_params = {
+        key: value
+        for key, value in params.items()
+        if value is not None and value != ""
+    }
+    if not clean_params:
+        return href
+    separator = "&" if "?" in href else "?"
+    return f"{href}{separator}{urlencode(clean_params)}"
+
+
+def view_href(base_path, suffix, hours):
+    return href_with_query(app_path(base_path, suffix), hours=f"{hours:g}")
+
+
+def view_menu(base_path, current, hours):
     items = [
-        ("map", "Map", "Current incidents", app_path(base_path, "/")),
-        ("summary", "Summary", "Counts + trends", app_path(base_path, "/summary")),
-        ("history", "History", "Search incidents", app_path(base_path, "/history")),
-        ("about", "About", "Source + cadence", app_path(base_path, "/about")),
+        ("map", "Map", "Current incidents", view_href(base_path, "/", hours)),
+        ("summary", "Summary", "Counts + trends", view_href(base_path, "/summary", hours)),
+        ("history", "History", "Search incidents", view_href(base_path, "/history", hours)),
+        ("about", "About", "Source + cadence", view_href(base_path, "/about", hours)),
     ]
     rows = []
     for key, label, description, href in items:
@@ -159,12 +175,12 @@ def view_menu(base_path, current):
     )
 
 
-def view_tabs(base_path, current):
+def view_tabs(base_path, current, hours):
     items = [
-        ("map", "Map", app_path(base_path, "/")),
-        ("summary", "Summary", app_path(base_path, "/summary")),
-        ("history", "History", app_path(base_path, "/history")),
-        ("about", "About", app_path(base_path, "/about")),
+        ("map", "Map", view_href(base_path, "/", hours)),
+        ("summary", "Summary", view_href(base_path, "/summary", hours)),
+        ("history", "History", view_href(base_path, "/history", hours)),
+        ("about", "About", view_href(base_path, "/about", hours)),
     ]
     return "".join(
         '<a class="view-tab{}" href="{}"{}>{}</a>'.format(
@@ -1088,7 +1104,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
       <header>
         <div class="title-row">
           <h1>CHP Forest Incidents</h1>
-          {view_menu(base_path, "map")}
+          {view_menu(base_path, "map", hours)}
         </div>
         <div class="meta">{active_count} active · {len(incidents)} in last {hours:g}h · {mapped_count} mapped</div>
         <div class="meta checked-meta"><span>Last checked <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span><span aria-hidden="true">·</span>
@@ -1098,7 +1114,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
           </label>
         </div>
         <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
-        <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, "map")}</nav>
+        <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, "map", hours)}</nav>
         <div id="stale-notice" role="status">
           <span id="stale-notice-text">Data may be stale.</span>
           <button type="button" id="refresh-page">Refresh</button>
@@ -2152,10 +2168,10 @@ def report_shell(title, subtitle, body, hours, base_path="/", public_url=None, c
           <div class="meta">{html.escape(subtitle)}</div>
           <div class="meta">Window: last {hours:g}h</div>
         </div>
-        {view_menu(base_path, current)}
+        {view_menu(base_path, current, hours)}
       </div>
       <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
-      <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, current)}</nav>
+      <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, current, hours)}</nav>
     </header>
     <main>{body}</main>
   </div>
@@ -2229,7 +2245,7 @@ def build_history_html(incidents, generated_at, hours, base_path="/", public_url
     mapped_options = [("all", "Mapped + unpinned"), ("mapped", "Mapped only"), ("unpinned", "Unpinned only")]
     reset_href = app_path(base_path, "/history") + f"?hours={hours:g}"
     result_rows = "".join(
-        '<div class="result"><span class="status-pill {}">{}</span><strong>{}</strong><span>{}</span><span>{} · {} · #{} · <a href="{}?incident={}">Show on map</a></span></div>'.format(
+        '<div class="result"><span class="status-pill {}">{}</span><strong>{}</strong><span>{}</span><span>{} · {} · #{} · <a href="{}">Show on map</a></span></div>'.format(
             "status-active" if incident.get("status") == "active" else "status-cleared",
             "Active" if incident.get("status") == "active" else "Cleared",
             html.escape(incident.get("type") or "CHP Incident"),
@@ -2237,8 +2253,13 @@ def build_history_html(incidents, generated_at, hours, base_path="/", public_url
             html.escape(format_when_short(incident)),
             html.escape(incident.get("area") or ""),
             html.escape(str(incident.get("incident_no") or "")),
-            html.escape(app_path(base_path, "/")),
-            html.escape(incident.get("event_key") or ""),
+            html.escape(
+                href_with_query(
+                    app_path(base_path, "/"),
+                    hours=f"{hours:g}",
+                    incident=incident.get("event_key") or "",
+                )
+            ),
         )
         for incident in filtered_incidents
     ) or '<div class="empty-report">No incidents in this window.</div>'

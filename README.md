@@ -191,6 +191,8 @@ cp .env.example .env
 docker compose up -d
 ```
 
+The VM needs Docker Compose and `make` installed for the checked-in deployment helpers.
+
 The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, a long-lived scraper service that polls every minute and exposes scraper metrics on `127.0.0.1:8081`, and a Postgres backup sidecar. nginx should remain the TLS front door and proxy `crestmap.us` and `chp.flowy.us` to `http://127.0.0.1:8080`.
 
 Backups are written as compressed custom-format `pg_dump` files under `/opt/chp-live-map/backups/postgres` every six hours by default. Tune `BACKUP_INTERVAL_SECONDS` and `BACKUP_RETENTION_DAYS` in `.env`.
@@ -203,12 +205,19 @@ For app-only updates after changing `VERSION` in `.env`, avoid restarting depend
 
 ```sh
 cd /opt/chp-live-map
-docker compose pull web scrape
-docker compose up -d --no-deps web scrape
-docker compose up -d --no-deps postgres-backup
+make deploy VERSION=0.1.69
 ```
 
-The checked-in helper `deploy/digitalocean/deploy-compose.sh` runs those same commands. This keeps Postgres running during normal web/scraper deploys and reduces the visible site interruption window.
+The `deploy/digitalocean/Makefile` wraps common VM operations:
+
+```sh
+make ps
+make health
+make logs-web
+make backup
+```
+
+The checked-in helper `deploy/digitalocean/deploy-compose.sh` runs `make deploy`. The deploy target uses `docker compose up -d --no-deps web scrape` so Postgres stays running during normal web/scraper deploys and the visible site interruption window is smaller.
 
 The web service also exposes:
 

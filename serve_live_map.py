@@ -27,6 +27,7 @@ from scrape_chp_traffic import connect_database
 MAP_CACHE_CONTROL = "public, max-age=30, s-maxage=60, stale-while-revalidate=120, stale-if-error=600"
 INCIDENTS_CACHE_CONTROL = "public, max-age=15, s-maxage=30, stale-while-revalidate=60, stale-if-error=300"
 ASSET_CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800"
+FAVICON_CACHE_CONTROL = "public, max-age=30, s-maxage=30, stale-while-revalidate=60, stale-if-error=300"
 DISCOVERY_CACHE_CONTROL = "public, max-age=300, s-maxage=300, stale-while-revalidate=600"
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; "
@@ -43,13 +44,25 @@ MIN_HISTORY_HOURS = 1.0
 MAX_HISTORY_HOURS = 720.0
 START_TIME = time.time()
 HTTP_REQUESTS_TOTAL = defaultdict(int)
-FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+ACTIVE_MARKER_COLOR = "#d83b3b"
+CLEAR_MARKER_COLOR = "#2f8a4e"
+ACTIVE_MARKER_RGB = (216, 59, 59)
+CLEAR_MARKER_RGB = (47, 138, 78)
+
+
+def favicon_svg(active):
+    marker_color = ACTIVE_MARKER_COLOR if active else CLEAR_MARKER_COLOR
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="12" fill="#18392b"/>
   <path d="M10 48 25 17l9 20 6-11 14 22Z" fill="#f4f7ee"/>
   <path d="M20 48 30 30l7 18Z" fill="#6fbf73"/>
-  <circle cx="47" cy="17" r="7" fill="#d83b3b"/>
+  <circle cx="47" cy="17" r="7" fill="{marker_color}"/>
 </svg>
 """
+
+
+def favicon_active(incidents):
+    return any(incident.get("status") == "active" for incident in incidents)
 OG_IMAGE_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
   <rect width="1200" height="630" fill="#18392b"/>
   <path d="M0 492 160 235l93 151 70-104 116 171 128-243 135 243 103-151 157 190 238-334v472H0Z" fill="#2d5f46"/>
@@ -139,7 +152,7 @@ def make_og_image_png():
 OG_IMAGE_PNG = make_og_image_png()
 
 
-def make_touch_icon_png():
+def make_touch_icon_png(marker_color=ACTIVE_MARKER_RGB):
     width = 180
     height = 180
     pixels = bytearray([0x18, 0x39, 0x2B] * width * height)
@@ -181,7 +194,7 @@ def make_touch_icon_png():
     fill_polygon([(0, 180), (0, 142), (48, 130), (78, 144), (112, 148), (152, 138), (180, 132), (180, 180)], (111, 191, 115))
     fill_circle(135, 58, 24, (244, 247, 238))
     fill_polygon([(135, 105), (116, 68), (154, 68)], (244, 247, 238))
-    fill_circle(135, 58, 15, (216, 59, 59))
+    fill_circle(135, 58, 15, marker_color)
     fill_circle(135, 58, 7, (244, 247, 238))
 
     raw = bytearray()
@@ -519,6 +532,8 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         robots_paths = {"/robots.txt", f"{asset_base}/robots.txt"}
         sitemap_paths = {"/sitemap.xml", f"{asset_base}/sitemap.xml"}
         metrics_paths = {"/metrics", f"{asset_base}/metrics"}
+        favicon_svg_paths = {"/favicon.svg", f"{asset_base}/favicon.svg"}
+        favicon_ico_paths = {"/favicon.ico", f"{asset_base}/favicon.ico"}
         apple_touch_icon_paths = {
             "/apple-touch-icon.png",
             "/apple-touch-icon-precomposed.png",
@@ -532,10 +547,6 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             "/apple-touch-icon-180x180-precomposed.png",
         }
         asset_paths = {
-            f"{asset_base}/favicon.svg": ("image/svg+xml", FAVICON_SVG.encode("utf-8")),
-            "/favicon.svg": ("image/svg+xml", FAVICON_SVG.encode("utf-8")),
-            f"{asset_base}/favicon.ico": ("image/png", APPLE_TOUCH_ICON_PNG),
-            "/favicon.ico": ("image/png", APPLE_TOUCH_ICON_PNG),
             f"{asset_base}/og-image.svg": ("image/svg+xml", OG_IMAGE_SVG.encode("utf-8")),
             f"{asset_base}/og-image.png": ("image/png", OG_IMAGE_PNG),
             "/og-image.png": ("image/png", OG_IMAGE_PNG),
@@ -549,6 +560,39 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             self.end_headers()
             if send_body:
                 self.wfile.write(b"ok\n")
+            return
+
+        if path in favicon_svg_paths or path in favicon_ico_paths:
+            try:
+                active = favicon_active(load_incidents(self.database, self.hours, self.database_url))
+            except Exception as exc:
+                log_exception(
+                    "Failed to render dynamic favicon",
+                    exc,
+                    **{
+                        "event.action": "http_request",
+                        "event.outcome": "failure",
+                        "http.request.method": self.command,
+                        "url.path": self.path,
+                        "http.response.status_code": 500,
+                        **self.client_log_fields(),
+                    },
+                )
+                active = False
+            if path in favicon_svg_paths:
+                body = favicon_svg(active).encode("utf-8")
+                content_type = "image/svg+xml"
+            else:
+                marker_color = ACTIVE_MARKER_RGB if active else CLEAR_MARKER_RGB
+                body = make_touch_icon_png(marker_color)
+                content_type = "image/png"
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Cache-Control", FAVICON_CACHE_CONTROL)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            if send_body:
+                self.wfile.write(body)
             return
 
         if path in asset_paths:

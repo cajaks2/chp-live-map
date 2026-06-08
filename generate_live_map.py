@@ -97,15 +97,18 @@ def normalize_base_path(base_path):
     return base or "/"
 
 
-def metadata_urls(base_path, public_url):
+def metadata_urls(base_path, public_url, favicon_params=None):
     base = normalize_base_path(base_path)
     asset_base = "" if base == "/" else base
     fallback_url = base if base == "/" else f"{base}/"
     canonical_url = (public_url or fallback_url).rstrip("/") + "/"
     public_asset_base = canonical_url.rstrip("/") if public_url else asset_base
+    favicon_url = f"{public_asset_base}/favicon.svg"
+    if favicon_params:
+        favicon_url = f"{favicon_url}?{urlencode(favicon_params)}"
     return {
         "canonical": canonical_url,
-        "favicon": f"{public_asset_base}/favicon.svg",
+        "favicon": favicon_url,
         "og_image": f"{public_asset_base}/og-image.png",
     }
 
@@ -260,7 +263,11 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
         "Live and historical CHP CAD traffic incidents for Angeles Crest, Angeles Forest, "
         "Big Tujunga, Glendora Mountain, and nearby forest roads in the forest."
     )
-    urls = metadata_urls(base_path, public_url)
+    urls = metadata_urls(
+        base_path,
+        public_url,
+        {"active": 1 if active_count else 0, "v": status["version"]},
+    )
     base = normalize_base_path(base_path)
     asset_base = "" if base == "/" else base
     if public_url:
@@ -1815,8 +1822,22 @@ def report_rows(counts, limit=5):
     return "".join(rows)
 
 
-def report_shell(title, subtitle, body, hours, base_path="/", public_url=None, current="summary"):
-    urls = metadata_urls(base_path, public_url)
+def report_shell(
+    title,
+    subtitle,
+    body,
+    hours,
+    base_path="/",
+    public_url=None,
+    current="summary",
+    status=None,
+):
+    status = status or {"active_count": 0, "version": "empty"}
+    urls = metadata_urls(
+        base_path,
+        public_url,
+        {"active": 1 if status["active_count"] else 0, "v": status["version"]},
+    )
     description = "Summary and history views for CHP forest road incidents."
     return f"""<!doctype html>
 <html lang="en">
@@ -2287,10 +2308,11 @@ def build_summary_html(incidents, generated_at, hours, base_path="/", public_url
       </section>
     """
     subtitle = f"Forest CHP activity · updated {generated_at}"
-    return report_shell("Summary", subtitle, body, hours, base_path, public_url, current="summary")
+    return report_shell("Summary", subtitle, body, hours, base_path, public_url, current="summary", status=status)
 
 
 def build_history_html(incidents, generated_at, hours, base_path="/", public_url=None, filters=None):
+    status = incident_status(incidents, hours)
     filters = filters or {}
     selected_road = filters.get("road") or "all"
     selected_type = filters.get("type") or "all"
@@ -2347,7 +2369,7 @@ def build_history_html(incidents, generated_at, hours, base_path="/", public_url
       </section>
     """
     subtitle = f"Search stored CHP forest incidents · updated {generated_at}"
-    return report_shell("History", subtitle, body, hours, base_path, public_url, current="history")
+    return report_shell("History", subtitle, body, hours, base_path, public_url, current="history", status=status)
 
 
 def build_about_html(incidents, generated_at, hours, base_path="/", public_url=None):
@@ -2376,7 +2398,7 @@ def build_about_html(incidents, generated_at, hours, base_path="/", public_url=N
       </section>
     """
     subtitle = f"Source, update cadence, and project context · updated {generated_at}"
-    return report_shell("About", subtitle, body, hours, base_path, public_url, current="about")
+    return report_shell("About", subtitle, body, hours, base_path, public_url, current="about", status=status)
 
 
 def parse_args():

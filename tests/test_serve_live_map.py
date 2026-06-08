@@ -9,12 +9,14 @@ from serve_live_map import (
     CONTENT_SECURITY_POLICY,
     DISCOVERY_CACHE_CONTROL,
     EcsHTTPServer,
+    FAVICON_CACHE_CONTROL,
     INCIDENTS_CACHE_CONTROL,
     LiveMapHandler,
     MAP_CACHE_CONTROL,
 )
 from scrape_chp_traffic import connect_database
 from scrape_chp_traffic import store_scrape_run
+from scrape_chp_traffic import upsert_active_event
 
 
 def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch):
@@ -79,7 +81,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert response.status == 200
             assert "CHP Forest Incidents" in body
             assert "in last 72h" in body
-            assert '<link rel="icon" href="https://chp.flowy.us/favicon.svg" type="image/svg+xml">' in body
+            assert '<link rel="icon" href="https://chp.flowy.us/favicon.svg?active=0&amp;v=' in body
             assert '<meta property="og:image" content="https://chp.flowy.us/og-image.png">' in body
             assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
             assert response.headers["Content-Security-Policy"] == CONTENT_SECURITY_POLICY
@@ -160,8 +162,10 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         with urlopen(f"{base_url}/chp/favicon.svg", timeout=5) as response:
             assert response.status == 200
             assert response.headers["Content-Type"] == "image/svg+xml"
-            assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
-            assert b"<svg" in response.read()
+            assert response.headers["Cache-Control"] == FAVICON_CACHE_CONTROL
+            body = response.read()
+            assert b"<svg" in body
+            assert b"#2f8a4e" in body
 
         with urlopen(f"{base_url}/chp/og-image.svg", timeout=5) as response:
             assert response.status == 200
@@ -178,7 +182,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         with urlopen(f"{base_url}/favicon.ico", timeout=5) as response:
             assert response.status == 200
             assert response.headers["Content-Type"] == "image/png"
-            assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
+            assert response.headers["Cache-Control"] == FAVICON_CACHE_CONTROL
             assert response.read().startswith(b"\x89PNG\r\n\x1a\n")
 
         with urlopen(f"{base_url}/apple-touch-icon.png", timeout=5) as response:
@@ -271,6 +275,62 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert chp_log["client.geo.location.lat"] == "34.0522"
         assert chp_log["client.geo.location.lon"] == "-118.2437"
         assert chp_log["http.request.header.user_agent"] == "test-browser/1.0"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_live_map_handler_serves_red_favicon_when_active(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    conn = connect_database(database)
+    active_event = {
+        "event_key": "LACC|2026-06-08|1234",
+        "center": "LACC",
+        "incident_date": "2026-06-08",
+        "incident_no": "1234",
+        "observed_at": "2026-06-08T12:34:00-07:00",
+        "updated_as_of": "6/8/2026 12:34 PM",
+        "incident_time": "12:34 PM",
+        "type": "Traffic Hazard",
+        "location": "Angeles Crest Hwy",
+        "location_desc": "Mile marker 30",
+        "area": "Altadena",
+        "latitude": 34.25,
+        "longitude": -118.1,
+        "matched_keywords": "angeles crest",
+        "details_hash": "hash-1234",
+        "detail_entries": [],
+    }
+    upsert_active_event(conn, active_event)
+    conn.commit()
+    conn.close()
+
+    class TestHandler(LiveMapHandler):
+        pass
+
+    TestHandler.database = database
+    TestHandler.database_url = None
+    TestHandler.hours = 72.0
+    TestHandler.base_path = "/"
+    TestHandler.public_url = "https://crestmap.us/"
+
+    server = EcsHTTPServer(("127.0.0.1", 0), TestHandler)
+    thread = threading.Thread(target=server.serve_forever)
+    thread.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        with urlopen(f"{base_url}/favicon.svg", timeout=5) as response:
+            body = response.read()
+            assert response.status == 200
+            assert response.headers["Cache-Control"] == FAVICON_CACHE_CONTROL
+            assert b"#d83b3b" in body
+            assert b"#2f8a4e" not in body
+
+        with urlopen(f"{base_url}/?hours=72", timeout=5) as response:
+            body = response.read().decode("utf-8")
+            assert "1 active" in body
+            assert '<link rel="icon" href="https://crestmap.us/favicon.svg?active=1&amp;v=' in body
     finally:
         server.shutdown()
         server.server_close()

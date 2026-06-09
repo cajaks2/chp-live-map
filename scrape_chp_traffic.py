@@ -29,6 +29,8 @@ DEFAULT_ROAD_KEYWORDS = [
     "angeles forest",
     "upper big tujunga",
     "big tujunga canyon",
+    "mt wilson",
+    "mount wilson",
     "mt wilson red box",
     "red box",
     "san gabriel canyon",

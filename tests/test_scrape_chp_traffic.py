@@ -204,6 +204,16 @@ def test_default_keywords_match_mt_baldy_variants():
         assert matching_keywords(incident, DEFAULT_ROAD_KEYWORDS)
 
 
+def test_default_keywords_match_mt_wilson_without_red_box():
+    incidents = [
+        {"type": "Traffic Hazard", "location": "Mt Wilson Rd / Video Rd", "location_desc": "", "area": ""},
+        {"type": "Traffic Hazard", "location": "Mount Wilson Road / Red Box Rd", "location_desc": "", "area": ""},
+    ]
+
+    for incident in incidents:
+        assert matching_keywords(incident, DEFAULT_ROAD_KEYWORDS)
+
+
 def test_parse_lat_lon_from_span_and_map_link():
     assert parse_lat_lon("34.30123, -118.11789") == (34.30123, -118.11789)
     assert parse_lat_lon_from_detail_html(

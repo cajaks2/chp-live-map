@@ -30,10 +30,12 @@ Default road keywords:
 - `mt wilson red box`
 - `red box`
 - `san gabriel canyon`
-- `highway 39`, `hwy 39`, `ca-39`, `ca 39`, `sr39`, `sr 39`
+- scoped Highway 39 aliases: `highway 39`, `hwy 39`, `ca-39`, `ca 39`, `sr39`, `sr 39`
 - `glendora mountain`
 - `glendora ridge`
 - `mt baldy`, `mount baldy`, `san antonio canyon`
+
+Highway 39 aliases are only accepted when the CHP text also includes forest context such as San Gabriel Canyon, East Fork, Crystal Lake, Morris Reservoir, West Fork, Islip, or a mountain mile-marker. This avoids collecting far-south CA-39 incidents outside the forest.
 
 ## Requirements
 
@@ -160,7 +162,7 @@ The default container command serves the dynamic web app on port `8080`. In Kube
 For the pushed Kubernetes image workflow, use the Makefile:
 
 ```sh
-make deploy VERSION=0.1.74
+make deploy VERSION=0.1.75
 ```
 
 That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/amd64`, updates the Kubernetes manifest image tags and `SERVICE_VERSION`, applies the manifest, waits for the web rollout, and verifies the public `crestmap.us` page.
@@ -168,8 +170,8 @@ That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/a
 Useful individual targets:
 
 ```sh
-make build VERSION=0.1.74
-make update-manifest VERSION=0.1.74
+make build VERSION=0.1.75
+make update-manifest VERSION=0.1.75
 make apply
 make rollout
 make verify
@@ -219,7 +221,7 @@ For app-only updates after changing `VERSION` in `.env`, avoid restarting depend
 
 ```sh
 cd /opt/chp-live-map
-make deploy VERSION=0.1.74
+make deploy VERSION=0.1.75
 ```
 
 The `deploy/digitalocean/Makefile` wraps common VM operations:

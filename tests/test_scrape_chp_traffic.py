@@ -183,6 +183,17 @@ def test_default_keywords_match_highway_39_variants():
         assert matching_keywords(incident, DEFAULT_ROAD_KEYWORDS)
 
 
+def test_default_keywords_scope_highway_39_to_forest_context():
+    incidents = [
+        {"type": "Traffic Hazard", "location": "Hwy 39 / Arrow Hwy", "location_desc": "", "area": "Azusa"},
+        {"type": "Traffic Hazard", "location": "CA-39 / I10", "location_desc": "", "area": "Covina"},
+        {"type": "Traffic Hazard", "location": "SR 39 / Foothill Blvd", "location_desc": "", "area": "Glendora"},
+    ]
+
+    for incident in incidents:
+        assert matching_keywords(incident, DEFAULT_ROAD_KEYWORDS) == []
+
+
 def test_default_keywords_match_mt_baldy_variants():
     incidents = [
         {"type": "Traffic Hazard", "location": "Mt Baldy Rd / Glendora Ridge Rd", "location_desc": "", "area": ""},

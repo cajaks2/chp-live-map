@@ -32,17 +32,26 @@ DEFAULT_ROAD_KEYWORDS = [
     "mt wilson red box",
     "red box",
     "san gabriel canyon",
-    "highway 39",
-    "hwy 39",
-    "ca-39",
-    "ca 39",
-    "sr39",
-    "sr 39",
     "glendora mountain",
     "glendora ridge",
     "mt baldy",
     "mount baldy",
     "san antonio canyon",
+]
+HIGHWAY_39_ALIASES = ["highway 39", "hwy 39", "ca-39", "ca 39", "sr39", "sr 39"]
+HIGHWAY_39_FOREST_CONTEXT = [
+    "san gabriel canyon",
+    "east fork",
+    "crystal lake",
+    "morris reservoir",
+    "west fork",
+    "north fork",
+    "coldbrook",
+    "soldier creek",
+    "island mountain",
+    "island rd",
+    "islip",
+    "mm ",
 ]
 SCRAPER_START_TIME = time.time()
 
@@ -400,7 +409,12 @@ def matching_keywords(incident, keywords):
             incident.get("area", ""),
         ]
     ).casefold()
-    return [keyword for keyword in keywords if keyword.casefold() in haystack]
+    matches = [keyword for keyword in keywords if keyword.casefold() in haystack]
+    has_highway_39 = any(alias in haystack for alias in HIGHWAY_39_ALIASES)
+    has_highway_39_context = any(context in haystack for context in HIGHWAY_39_FOREST_CONTEXT)
+    if has_highway_39 and has_highway_39_context:
+        matches.append("highway 39")
+    return matches
 
 
 def fetch_details(opener, center, list_parser, select_index, timeout, user_agent, retries, backoff, stats=None):

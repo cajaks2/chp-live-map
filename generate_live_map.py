@@ -821,7 +821,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
     }}
     .incident-marker {{
       box-sizing: border-box;
-      position: relative;
+      position: absolute;
       display: block;
       width: 22px;
       height: 22px;

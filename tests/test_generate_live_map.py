@@ -246,6 +246,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "function markerIcon" in html
     assert "const size = 22;" in html
     assert "const size = selected ? 28 : 22" not in html
+    assert "position: absolute;" in html
     assert "incident-marker-dot" in html
     assert ".incident-marker.is-selected .incident-marker-dot::before" in html
     assert ".incident-marker.is-pulsing .incident-marker-dot::after" in html

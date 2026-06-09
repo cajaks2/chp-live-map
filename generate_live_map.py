@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, urlencode
 
 from ecs_logging import log_event, run_main
+from geo_bounds import clear_coordinates_outside_forest_bounds
 
 
 DEFAULT_CENTER = [34.32, -118.12]
@@ -83,7 +84,7 @@ def load_incidents(database, hours, database_url=None):
     conn.close()
     incidents = []
     for row in rows:
-        incident = dict(row)
+        incident = clear_coordinates_outside_forest_bounds(dict(row))
         try:
             incident["detail_entries"] = json.loads(incident.pop("details_json") or "[]")
         except json.JSONDecodeError:

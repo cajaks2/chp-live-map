@@ -61,6 +61,29 @@ def test_load_incidents_returns_active_first_with_detail_entries(tmp_path):
     assert incidents[1]["status"] == "cleared"
 
 
+def test_load_incidents_clears_out_of_bounds_coordinates(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    conn = connect_database(database)
+    row = incident_row(
+        "LACC|2026-05-31|0805",
+        "active",
+        dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "0805",
+    )
+    row["latitude"] = 34.129
+    row["longitude"] = -117.91
+
+    upsert_active_event(conn, row)
+    insert_observation(conn, row, "active")
+    conn.commit()
+    conn.close()
+
+    incidents = load_incidents(database, 72)
+
+    assert incidents[0]["latitude"] is None
+    assert incidents[0]["longitude"] is None
+
+
 def test_build_html_embeds_counts_and_escaped_incident_data():
     incidents = [
         {

@@ -26,6 +26,7 @@ from scrape_chp_traffic import (
     touch_active_event,
     upsert_active_event,
 )
+from geo_bounds import clear_coordinates_outside_forest_bounds, coordinates_in_forest_bounds
 
 
 def test_build_user_agent_optionally_includes_contact_email():
@@ -219,6 +220,18 @@ def test_parse_lat_lon_from_span_and_map_link():
     assert parse_lat_lon_from_detail_html(
         '<a href="https://maps.google.com/?q=34.31111,-118.12222">Map</a>'
     ) == (34.31111, -118.12222)
+
+
+def test_coordinate_bounds_keep_forest_points_and_reject_city_points():
+    assert coordinates_in_forest_bounds(34.260464, -118.190693)
+    assert coordinates_in_forest_bounds(34.378926, -117.690678)
+    assert not coordinates_in_forest_bounds(34.129, -117.91)
+
+
+def test_out_of_bounds_coordinates_are_cleared():
+    record = {"latitude": 34.129, "longitude": -117.91}
+
+    assert clear_coordinates_outside_forest_bounds(record) == {"latitude": None, "longitude": None}
 
 
 def test_incident_date_rolls_back_after_midnight():

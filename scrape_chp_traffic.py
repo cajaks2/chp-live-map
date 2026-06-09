@@ -18,6 +18,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 from ecs_logging import log_event, log_exception, run_main
+from geo_bounds import clear_coordinates_outside_forest_bounds
 
 
 CHP_TRAFFIC_URL = "https://cad.chp.ca.gov/Traffic.aspx"
@@ -452,7 +453,7 @@ def fetch_details(opener, center, list_parser, select_index, timeout, user_agent
                     "text": " ".join(row[2:]).strip(),
                 }
             )
-    return {
+    return clear_coordinates_outside_forest_bounds({
         "incident_no": spans.get("lblIncident", ""),
         "type": spans.get("lblType", ""),
         "location": spans.get("lblLocation", ""),
@@ -460,7 +461,7 @@ def fetch_details(opener, center, list_parser, select_index, timeout, user_agent
         "latitude": lat,
         "longitude": lon,
         "detail_entries": detail_entries,
-    }
+    })
 
 
 def parse_lat_lon(value):

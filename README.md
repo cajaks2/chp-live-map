@@ -37,6 +37,8 @@ Default road keywords:
 
 Highway 39 aliases are only accepted when the CHP text also includes forest context such as San Gabriel Canyon, East Fork, Crystal Lake, Morris Reservoir, West Fork, Islip, or a mountain mile-marker. This avoids collecting far-south CA-39 incidents outside the forest.
 
+Coordinates are also bounded to the forest area before map pins are shown. Incidents outside `34.15..34.56` latitude or `-118.36..-117.58` longitude stay in the list/history but are treated as unpinned.
+
 ## Requirements
 
 - Python 3.10+
@@ -162,7 +164,7 @@ The default container command serves the dynamic web app on port `8080`. In Kube
 For the pushed Kubernetes image workflow, use the Makefile:
 
 ```sh
-make deploy VERSION=0.1.76
+make deploy VERSION=0.1.77
 ```
 
 That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/amd64`, updates the Kubernetes manifest image tags and `SERVICE_VERSION`, applies the manifest, waits for the web rollout, and verifies the public `crestmap.us` page.
@@ -170,8 +172,8 @@ That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/a
 Useful individual targets:
 
 ```sh
-make build VERSION=0.1.76
-make update-manifest VERSION=0.1.76
+make build VERSION=0.1.77
+make update-manifest VERSION=0.1.77
 make apply
 make rollout
 make verify
@@ -221,7 +223,7 @@ For app-only updates after changing `VERSION` in `.env`, avoid restarting depend
 
 ```sh
 cd /opt/chp-live-map
-make deploy VERSION=0.1.76
+make deploy VERSION=0.1.77
 ```
 
 The `deploy/digitalocean/Makefile` wraps common VM operations:

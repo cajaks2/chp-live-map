@@ -21,6 +21,20 @@ The scraper is intentionally conservative:
 - It skips detail-page refetches for unchanged active incidents for 3 minutes by default.
 - It records both total CHP incidents seen and filtered incidents acquired in `scrape_runs`.
 
+Default road keywords:
+
+- `angeles crest`
+- `angeles forest`
+- `upper big tujunga`
+- `big tujunga canyon`
+- `mt wilson red box`
+- `red box`
+- `san gabriel canyon`
+- `highway 39`, `hwy 39`, `ca-39`, `ca 39`, `sr39`, `sr 39`
+- `glendora mountain`
+- `glendora ridge`
+- `mt baldy`, `mount baldy`, `san antonio canyon`
+
 ## Requirements
 
 - Python 3.10+
@@ -146,7 +160,7 @@ The default container command serves the dynamic web app on port `8080`. In Kube
 For the pushed Kubernetes image workflow, use the Makefile:
 
 ```sh
-make deploy VERSION=0.1.73
+make deploy VERSION=0.1.74
 ```
 
 That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/amd64`, updates the Kubernetes manifest image tags and `SERVICE_VERSION`, applies the manifest, waits for the web rollout, and verifies the public `crestmap.us` page.
@@ -154,8 +168,8 @@ That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/a
 Useful individual targets:
 
 ```sh
-make build VERSION=0.1.73
-make update-manifest VERSION=0.1.73
+make build VERSION=0.1.74
+make update-manifest VERSION=0.1.74
 make apply
 make rollout
 make verify
@@ -205,7 +219,7 @@ For app-only updates after changing `VERSION` in `.env`, avoid restarting depend
 
 ```sh
 cd /opt/chp-live-map
-make deploy VERSION=0.1.73
+make deploy VERSION=0.1.74
 ```
 
 The `deploy/digitalocean/Makefile` wraps common VM operations:

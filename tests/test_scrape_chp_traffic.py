@@ -172,6 +172,27 @@ def test_default_keywords_do_not_match_bare_sr2_connector():
     assert matching_keywords(incident, DEFAULT_ROAD_KEYWORDS) == []
 
 
+def test_default_keywords_match_highway_39_variants():
+    incidents = [
+        {"type": "Traffic Hazard", "location": "Highway 39 / East Fork Rd", "location_desc": "", "area": ""},
+        {"type": "Traffic Hazard", "location": "CA-39 / MM 30.00", "location_desc": "", "area": ""},
+        {"type": "Traffic Hazard", "location": "SR39 N / San Gabriel Canyon Rd", "location_desc": "", "area": ""},
+    ]
+
+    for incident in incidents:
+        assert matching_keywords(incident, DEFAULT_ROAD_KEYWORDS)
+
+
+def test_default_keywords_match_mt_baldy_variants():
+    incidents = [
+        {"type": "Traffic Hazard", "location": "Mt Baldy Rd / Glendora Ridge Rd", "location_desc": "", "area": ""},
+        {"type": "Traffic Hazard", "location": "Mount Baldy Road / San Antonio Canyon", "location_desc": "", "area": ""},
+    ]
+
+    for incident in incidents:
+        assert matching_keywords(incident, DEFAULT_ROAD_KEYWORDS)
+
+
 def test_parse_lat_lon_from_span_and_map_link():
     assert parse_lat_lon("34.30123, -118.11789") == (34.30123, -118.11789)
     assert parse_lat_lon_from_detail_html(

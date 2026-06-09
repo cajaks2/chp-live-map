@@ -32,8 +32,17 @@ DEFAULT_ROAD_KEYWORDS = [
     "mt wilson red box",
     "red box",
     "san gabriel canyon",
+    "highway 39",
+    "hwy 39",
+    "ca-39",
+    "ca 39",
+    "sr39",
+    "sr 39",
     "glendora mountain",
     "glendora ridge",
+    "mt baldy",
+    "mount baldy",
+    "san antonio canyon",
 ]
 SCRAPER_START_TIME = time.time()
 

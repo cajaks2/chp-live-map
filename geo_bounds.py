@@ -3,10 +3,10 @@ FOREST_LAT_MAX = 34.56
 FOREST_LON_MIN = -118.36
 FOREST_LON_MAX = -117.58
 
-# Malibu collection includes Malibu-area canyon roads plus the Santa Monica PCH segment.
+# Malibu collection includes the Ventura-to-Santa Monica PCH corridor.
 MALIBU_LAT_MIN = 33.99
-MALIBU_LAT_MAX = 34.18
-MALIBU_LON_MIN = -119.05
+MALIBU_LAT_MAX = 34.34
+MALIBU_LON_MIN = -119.35
 MALIBU_LON_MAX = -118.45
 
 REGION_BOUNDS = {

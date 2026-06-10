@@ -1866,7 +1866,8 @@ def report_rows(counts, limit=5):
         return '<div class="empty-report">No incidents in this window.</div>'
     max_count = max(count for _label, count in counts) or 1
     rows = []
-    for label, count in counts[:limit]:
+    visible_counts = counts if limit is None else counts[:limit]
+    for label, count in visible_counts:
         rows.append(
             '<div class="bar-row"><span>{}</span><div class="bar"><i style="width: {}%;"></i></div><span>{}</span></div>'.format(
                 html.escape(label),
@@ -1875,6 +1876,55 @@ def report_rows(counts, limit=5):
             )
         )
     return "".join(rows)
+
+
+def incident_day_key(incident):
+    date_text = incident.get("incident_date") or (incident.get("first_seen") or "")[:10]
+    if not date_text:
+        return "Unknown", "Unknown"
+    try:
+        parsed = dt.datetime.fromisoformat(f"{date_text}T12:00:00")
+        return date_text, f"{parsed.strftime('%b')} {parsed.day}"
+    except ValueError:
+        return date_text, date_text
+
+
+def incident_hour(incident):
+    time_text = incident.get("incident_time") or ""
+    try:
+        return dt.datetime.strptime(time_text.strip(), "%I:%M %p").hour
+    except ValueError:
+        return None
+
+
+def time_bucket_for_incident(incident):
+    hour = incident_hour(incident)
+    if hour is None:
+        return "Unknown"
+    if hour < 6:
+        return "Overnight"
+    if hour < 12:
+        return "Morning"
+    if hour < 18:
+        return "Afternoon"
+    return "Evening"
+
+
+def daily_incident_counts(incidents):
+    counts = {}
+    labels = {}
+    for incident in incidents:
+        key, label = incident_day_key(incident)
+        counts[key] = counts.get(key, 0) + 1
+        labels[key] = label
+    return [(labels[key], counts[key]) for key in sorted(counts)]
+
+
+def time_bucket_counts(incidents):
+    counts = {label: 0 for label in ("Overnight", "Morning", "Afternoon", "Evening", "Unknown")}
+    for incident in incidents:
+        counts[time_bucket_for_incident(incident)] += 1
+    return [(label, count) for label, count in counts.items() if count]
 
 
 def report_shell(
@@ -2326,6 +2376,8 @@ def build_summary_html(incidents, generated_at, hours, base_path="/", public_url
     cleared_count = status["total_count"] - active_count
     road_rows = report_rows(count_by(incidents, incident_road))
     type_rows = report_rows(count_by(incidents, lambda incident: incident.get("type") or "Unknown"))
+    day_rows = report_rows(daily_incident_counts(incidents), limit=None)
+    time_rows = report_rows(time_bucket_counts(incidents), limit=None)
     recent = sorted(
         incidents,
         key=lambda incident: incident.get("latest_observed_at") or incident.get("last_seen") or "",
@@ -2356,6 +2408,14 @@ def build_summary_html(incidents, generated_at, hours, base_path="/", public_url
       <section class="section">
         <h2>Incident Types</h2>
         {type_rows}
+      </section>
+      <section class="section">
+        <h2>Incidents by Day</h2>
+        {day_rows}
+      </section>
+      <section class="section">
+        <h2>Time of Day</h2>
+        {time_rows}
       </section>
       <section class="section">
         <h2>Recent Changes</h2>

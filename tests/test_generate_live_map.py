@@ -331,6 +331,10 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "Summary - CHP Forest Incidents" in summary_html
     assert "Busiest Roads" in summary_html
     assert "Incident Types" in summary_html
+    assert "Incidents by Day" in summary_html
+    assert "Time of Day" in summary_html
+    assert "May 31" in summary_html
+    assert "Morning" in summary_html
     assert "2</strong><span>Incidents in window" in summary_html
     assert '<nav class="range-tabs" aria-label="History range">' in summary_html
     assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in summary_html

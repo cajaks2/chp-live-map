@@ -27,7 +27,11 @@ from scrape_chp_traffic import (
     touch_active_event,
     upsert_active_event,
 )
-from geo_bounds import clear_coordinates_outside_forest_bounds, coordinates_in_forest_bounds
+from geo_bounds import (
+    clear_coordinates_outside_forest_bounds,
+    coordinates_in_forest_bounds,
+    coordinates_in_region_bounds,
+)
 
 
 def test_build_user_agent_optionally_includes_contact_email():
@@ -266,6 +270,12 @@ def test_coordinate_bounds_keep_forest_points_and_reject_city_points():
     assert coordinates_in_forest_bounds(34.260464, -118.190693)
     assert coordinates_in_forest_bounds(34.378926, -117.690678)
     assert not coordinates_in_forest_bounds(34.129, -117.91)
+
+
+def test_malibu_bounds_include_santa_monica_pch_and_reject_south_la():
+    assert coordinates_in_region_bounds(34.0379, -118.6775, "malibu")
+    assert coordinates_in_region_bounds(34.0122, -118.4996, "malibu")
+    assert not coordinates_in_region_bounds(33.7903, -118.2815, "malibu")
 
 
 def test_out_of_bounds_coordinates_are_cleared():

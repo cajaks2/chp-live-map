@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, urlencode
 
 from ecs_logging import log_event, run_main
-from geo_bounds import clear_coordinates_outside_forest_bounds
+from geo_bounds import clear_coordinates_outside_region_bounds
 
 
 DEFAULT_CENTER = [34.32, -118.12]
@@ -17,7 +17,7 @@ DEFAULT_ZOOM = 10
 HISTORY_PRESETS = [(24, "24h"), (72, "72h"), (168, "7d"), (720, "30d")]
 
 
-def load_incidents(database, hours, database_url=None):
+def load_incidents(database, hours, database_url=None, region="forest"):
     if not database_url and not database.exists():
         return []
     cutoff = (dt.datetime.now().astimezone() - dt.timedelta(hours=hours)).isoformat(
@@ -43,16 +43,19 @@ def load_incidents(database, hours, database_url=None):
                     LIMIT 1
                 ) AS details_json
             FROM events e
-            WHERE e.status = 'active'
-               OR e.first_seen >= %s
-               OR e.last_seen >= %s
-               OR e.cleared_at >= %s
+            WHERE e.region = %s
+              AND (
+                  e.status = 'active'
+                  OR e.first_seen >= %s
+                  OR e.last_seen >= %s
+                  OR e.cleared_at >= %s
+              )
             ORDER BY
                 CASE WHEN e.status = 'active' THEN 0 ELSE 1 END,
                 e.latest_observed_at DESC,
                 e.incident_no DESC
             """,
-            (cutoff, cutoff, cutoff),
+            (region, cutoff, cutoff, cutoff),
         ).fetchall()
     else:
         conn = sqlite3.connect(database)
@@ -70,21 +73,24 @@ def load_incidents(database, hours, database_url=None):
                     LIMIT 1
                 ) AS details_json
             FROM events e
-            WHERE e.status = 'active'
-               OR e.first_seen >= ?
-               OR e.last_seen >= ?
-               OR e.cleared_at >= ?
+            WHERE e.region = ?
+              AND (
+                  e.status = 'active'
+                  OR e.first_seen >= ?
+                  OR e.last_seen >= ?
+                  OR e.cleared_at >= ?
+              )
             ORDER BY
                 CASE WHEN e.status = 'active' THEN 0 ELSE 1 END,
                 e.latest_observed_at DESC,
                 e.incident_no DESC
             """,
-            (cutoff, cutoff, cutoff),
+            (region, cutoff, cutoff, cutoff),
         ).fetchall()
     conn.close()
     incidents = []
     for row in rows:
-        incident = clear_coordinates_outside_forest_bounds(dict(row))
+        incident = clear_coordinates_outside_region_bounds(dict(row), region)
         try:
             incident["detail_entries"] = json.loads(incident.pop("details_json") or "[]")
         except json.JSONDecodeError:

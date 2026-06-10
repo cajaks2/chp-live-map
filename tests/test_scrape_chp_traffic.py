@@ -16,6 +16,7 @@ from scrape_chp_traffic import (
     insert_observation,
     mark_cleared,
     matching_keywords,
+    matching_regions,
     parse_incidents,
     parse_lat_lon,
     parse_lat_lon_from_detail_html,
@@ -215,6 +216,19 @@ def test_default_keywords_match_mt_wilson_without_red_box():
         assert matching_keywords(incident, DEFAULT_ROAD_KEYWORDS)
 
 
+def test_matching_regions_classifies_malibu_roads_separately():
+    incident = {
+        "type": "Traffic Hazard",
+        "location": "Pacific Coast Hwy / Malibu Canyon Rd",
+        "location_desc": "",
+        "area": "West Valley",
+    }
+
+    assert matching_regions(incident) == {
+        "malibu": ["pacific coast hwy", "malibu canyon"],
+    }
+
+
 def test_parse_lat_lon_from_span_and_map_link():
     assert parse_lat_lon("34.30123, -118.11789") == (34.30123, -118.11789)
     assert parse_lat_lon_from_detail_html(
@@ -270,6 +284,7 @@ def test_sqlite_event_lifecycle_records_active_and_cleared_observations(tmp_path
     assert previous is None
     event = conn.execute("SELECT * FROM events WHERE event_key = ?", (row["event_key"],)).fetchone()
     assert event["status"] == "active"
+    assert event["region"] == "forest"
     assert event["first_seen"] == observed_at
     assert event["last_seen"] == observed_at
 
@@ -278,7 +293,7 @@ def test_sqlite_event_lifecycle_records_active_and_cleared_observations(tmp_path
 
     event = conn.execute("SELECT * FROM events WHERE event_key = ?", (row["event_key"],)).fetchone()
     observations = conn.execute(
-        "SELECT status, details_json FROM observations WHERE event_key = ? ORDER BY id",
+        "SELECT region, status, details_json FROM observations WHERE event_key = ? ORDER BY id",
         (row["event_key"],),
     ).fetchall()
     details = conn.execute(
@@ -288,6 +303,7 @@ def test_sqlite_event_lifecycle_records_active_and_cleared_observations(tmp_path
     assert event["status"] == "cleared"
     assert event["cleared_at"] == "2026-05-31T08:05:00-07:00"
     assert [observation["status"] for observation in observations] == ["active", "cleared"]
+    assert observations[0]["region"] == "forest"
     assert json.loads(observations[0]["details_json"]) == row["detail_entries"]
     assert details[0]["section"] == "Detail Information"
     conn.close()

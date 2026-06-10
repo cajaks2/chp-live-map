@@ -18,14 +18,14 @@ from urllib.error import HTTPError, URLError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 from ecs_logging import log_event, log_exception, run_main
-from geo_bounds import clear_coordinates_outside_forest_bounds
+from geo_bounds import clear_coordinates_outside_region_bounds
 
 
 CHP_TRAFFIC_URL = "https://cad.chp.ca.gov/Traffic.aspx"
 CHP_ROBOTS_URL = "https://cad.chp.ca.gov/robots.txt"
 DEFAULT_USER_AGENT = "chp-live-map/0.1 (+https://crestmap.us/)"
 DEFAULT_CENTERS = ["LACC"]
-DEFAULT_ROAD_KEYWORDS = [
+FOREST_ROAD_KEYWORDS = [
     "angeles crest",
     "angeles forest",
     "upper big tujunga",
@@ -41,7 +41,55 @@ DEFAULT_ROAD_KEYWORDS = [
     "mount baldy",
     "san antonio canyon",
 ]
+MALIBU_ROAD_KEYWORDS = [
+    "pacific coast hwy",
+    "pch",
+    "ca-1",
+    "ca 1",
+    "sr1",
+    "sr 1",
+    "malibu canyon",
+    "topanga canyon",
+    "las virgenes",
+    "kanan dume",
+    "kanan",
+    "decker canyon",
+    "decker rd",
+    "mulholland hwy",
+    "latigo canyon",
+    "encinal canyon",
+    "corral canyon",
+    "tuna canyon",
+    "piuma rd",
+    "stunt rd",
+    "old topanga",
+    "carbon canyon",
+    "trancas canyon",
+    "zuma beach",
+    "point dume",
+    "malibu rd",
+    "cross creek",
+    "webb way",
+    "civic center way",
+    "busch dr",
+    "bonsall dr",
+]
+REGION_ROAD_KEYWORDS = {
+    "forest": FOREST_ROAD_KEYWORDS,
+    "malibu": MALIBU_ROAD_KEYWORDS,
+}
+DEFAULT_ROAD_KEYWORDS = FOREST_ROAD_KEYWORDS + MALIBU_ROAD_KEYWORDS
 HIGHWAY_39_ALIASES = ["highway 39", "hwy 39", "ca-39", "ca 39", "sr39", "sr 39"]
+ROUTE_ALIAS_PATTERNS = {
+    "ca-1": re.compile(r"\bca[-\s]*1\b"),
+    "ca 1": re.compile(r"\bca[-\s]*1\b"),
+    "sr1": re.compile(r"\bsr\s*1\b"),
+    "sr 1": re.compile(r"\bsr\s*1\b"),
+    "ca-39": re.compile(r"\bca[-\s]*39\b"),
+    "ca 39": re.compile(r"\bca[-\s]*39\b"),
+    "sr39": re.compile(r"\bsr\s*39\b"),
+    "sr 39": re.compile(r"\bsr\s*39\b"),
+}
 HIGHWAY_39_FOREST_CONTEXT = [
     "san gabriel canyon",
     "east fork",
@@ -412,11 +460,28 @@ def matching_keywords(incident, keywords):
             incident.get("area", ""),
         ]
     ).casefold()
-    matches = [keyword for keyword in keywords if keyword.casefold() in haystack]
-    has_highway_39 = any(alias in haystack for alias in HIGHWAY_39_ALIASES)
+    matches = [keyword for keyword in keywords if keyword_matches(keyword, haystack)]
+    has_highway_39 = any(keyword_matches(alias, haystack) for alias in HIGHWAY_39_ALIASES)
     has_highway_39_context = any(context in haystack for context in HIGHWAY_39_FOREST_CONTEXT)
     if has_highway_39 and has_highway_39_context:
         matches.append("highway 39")
+    return matches
+
+
+def keyword_matches(keyword, haystack):
+    normalized = keyword.casefold()
+    pattern = ROUTE_ALIAS_PATTERNS.get(normalized)
+    if pattern:
+        return bool(pattern.search(haystack))
+    return normalized in haystack
+
+
+def matching_regions(incident):
+    matches = {}
+    for region, keywords in REGION_ROAD_KEYWORDS.items():
+        region_matches = matching_keywords(incident, keywords)
+        if region_matches:
+            matches[region] = region_matches
     return matches
 
 
@@ -453,7 +518,7 @@ def fetch_details(opener, center, list_parser, select_index, timeout, user_agent
                     "text": " ".join(row[2:]).strip(),
                 }
             )
-    return clear_coordinates_outside_forest_bounds({
+    return {
         "incident_no": spans.get("lblIncident", ""),
         "type": spans.get("lblType", ""),
         "location": spans.get("lblLocation", ""),
@@ -461,7 +526,7 @@ def fetch_details(opener, center, list_parser, select_index, timeout, user_agent
         "latitude": lat,
         "longitude": lon,
         "detail_entries": detail_entries,
-    })
+    }
 
 
 def parse_lat_lon(value):
@@ -560,6 +625,7 @@ def init_database_sqlite(conn):
         CREATE TABLE IF NOT EXISTS events (
             event_key TEXT PRIMARY KEY,
             center TEXT NOT NULL,
+            region TEXT NOT NULL DEFAULT 'forest',
             incident_date TEXT NOT NULL,
             incident_no TEXT NOT NULL,
             first_seen TEXT NOT NULL,
@@ -583,6 +649,7 @@ def init_database_sqlite(conn):
         CREATE TABLE IF NOT EXISTS observations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             event_key TEXT NOT NULL,
+            region TEXT NOT NULL DEFAULT 'forest',
             observed_at TEXT NOT NULL,
             status TEXT NOT NULL,
             updated_as_of TEXT,
@@ -637,6 +704,9 @@ def init_database_sqlite(conn):
     ensure_column_sqlite(conn, "scrape_runs", "duration_seconds", "REAL NOT NULL DEFAULT 0")
     ensure_column_sqlite(conn, "scrape_runs", "http_status_counts", "TEXT NOT NULL DEFAULT '{}'")
     ensure_column_sqlite(conn, "events", "details_fetched_at", "TEXT")
+    ensure_column_sqlite(conn, "events", "region", "TEXT NOT NULL DEFAULT 'forest'")
+    ensure_column_sqlite(conn, "observations", "region", "TEXT NOT NULL DEFAULT 'forest'")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_events_region_status ON events(region, status)")
     ensure_column_sqlite(conn, "detail_entries", "section", "TEXT")
     backfill_detail_entry_sections(conn)
 
@@ -647,6 +717,7 @@ def init_database_postgres(conn):
         CREATE TABLE IF NOT EXISTS events (
             event_key TEXT PRIMARY KEY,
             center TEXT NOT NULL,
+            region TEXT NOT NULL DEFAULT 'forest',
             incident_date TEXT NOT NULL,
             incident_no TEXT NOT NULL,
             first_seen TEXT NOT NULL,
@@ -671,6 +742,7 @@ def init_database_postgres(conn):
         CREATE TABLE IF NOT EXISTS observations (
             id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             event_key TEXT NOT NULL REFERENCES events(event_key),
+            region TEXT NOT NULL DEFAULT 'forest',
             observed_at TEXT NOT NULL,
             status TEXT NOT NULL,
             updated_as_of TEXT,
@@ -726,6 +798,9 @@ def init_database_postgres(conn):
     ensure_column_postgres(conn, "scrape_runs", "duration_seconds", "DOUBLE PRECISION NOT NULL DEFAULT 0")
     ensure_column_postgres(conn, "scrape_runs", "http_status_counts", "TEXT NOT NULL DEFAULT '{}'")
     ensure_column_postgres(conn, "events", "details_fetched_at", "TEXT")
+    ensure_column_postgres(conn, "events", "region", "TEXT NOT NULL DEFAULT 'forest'")
+    ensure_column_postgres(conn, "observations", "region", "TEXT NOT NULL DEFAULT 'forest'")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_events_region_status ON events(region, status)")
     ensure_column_postgres(conn, "detail_entries", "section", "TEXT")
     backfill_detail_entry_sections(conn)
     conn.commit()
@@ -875,17 +950,17 @@ def touch_active_event(conn, event, observed_at):
 def upsert_active_event(conn, row):
     previous = row_for_event(conn, row["event_key"])
     first_seen = previous["first_seen"] if previous else row["observed_at"]
-    params = {**row, "first_seen": first_seen, "last_seen": row["observed_at"]}
+    params = {**row, "region": row.get("region", "forest"), "first_seen": first_seen, "last_seen": row["observed_at"]}
     if is_postgres(conn):
         conn.execute(
             """
             INSERT INTO events (
-                event_key, center, incident_date, incident_no, first_seen, last_seen,
+                event_key, center, region, incident_date, incident_no, first_seen, last_seen,
                 cleared_at, status, latest_observed_at, updated_as_of, incident_time,
                 type, location, location_desc, area, latitude, longitude,
                 matched_keywords, details_hash, details_fetched_at
             ) VALUES (
-                %(event_key)s, %(center)s, %(incident_date)s, %(incident_no)s,
+                %(event_key)s, %(center)s, %(region)s, %(incident_date)s, %(incident_no)s,
                 %(first_seen)s, %(last_seen)s, NULL, 'active', %(observed_at)s,
                 %(updated_as_of)s, %(incident_time)s, %(type)s, %(location)s,
                 %(location_desc)s, %(area)s, %(latitude)s, %(longitude)s,
@@ -896,6 +971,7 @@ def upsert_active_event(conn, row):
                 cleared_at = NULL,
                 status = 'active',
                 latest_observed_at = excluded.latest_observed_at,
+                region = excluded.region,
                 updated_as_of = excluded.updated_as_of,
                 incident_time = excluded.incident_time,
                 type = excluded.type,
@@ -915,12 +991,12 @@ def upsert_active_event(conn, row):
     conn.execute(
         """
         INSERT INTO events (
-            event_key, center, incident_date, incident_no, first_seen, last_seen,
+            event_key, center, region, incident_date, incident_no, first_seen, last_seen,
             cleared_at, status, latest_observed_at, updated_as_of, incident_time,
             type, location, location_desc, area, latitude, longitude,
             matched_keywords, details_hash, details_fetched_at
         ) VALUES (
-            :event_key, :center, :incident_date, :incident_no, :first_seen,
+            :event_key, :center, :region, :incident_date, :incident_no, :first_seen,
             :last_seen, NULL, 'active', :observed_at, :updated_as_of,
             :incident_time, :type, :location, :location_desc, :area, :latitude,
             :longitude, :matched_keywords, :details_hash, :observed_at
@@ -930,6 +1006,7 @@ def upsert_active_event(conn, row):
             cleared_at = NULL,
             status = 'active',
             latest_observed_at = excluded.latest_observed_at,
+            region = excluded.region,
             updated_as_of = excluded.updated_as_of,
             incident_time = excluded.incident_time,
             type = excluded.type,
@@ -949,36 +1026,37 @@ def upsert_active_event(conn, row):
 
 def insert_observation(conn, row, status):
     details_json = json.dumps(row["detail_entries"], ensure_ascii=False)
+    params = {**row, "region": row.get("region", "forest"), "status": status, "details_json": details_json}
     if is_postgres(conn):
         conn.execute(
             """
             INSERT INTO observations (
-                event_key, observed_at, status, updated_as_of, incident_time, type,
+                event_key, region, observed_at, status, updated_as_of, incident_time, type,
                 location, location_desc, area, latitude, longitude, matched_keywords,
                 details_hash, details_json
             ) VALUES (
-                %(event_key)s, %(observed_at)s, %(status)s, %(updated_as_of)s,
+                %(event_key)s, %(region)s, %(observed_at)s, %(status)s, %(updated_as_of)s,
                 %(incident_time)s, %(type)s, %(location)s, %(location_desc)s, %(area)s,
                 %(latitude)s, %(longitude)s, %(matched_keywords)s, %(details_hash)s,
                 %(details_json)s
             )
             """,
-            {**row, "status": status, "details_json": details_json},
+            params,
         )
     else:
         conn.execute(
             """
         INSERT INTO observations (
-            event_key, observed_at, status, updated_as_of, incident_time, type,
+            event_key, region, observed_at, status, updated_as_of, incident_time, type,
             location, location_desc, area, latitude, longitude, matched_keywords,
             details_hash, details_json
         ) VALUES (
-            :event_key, :observed_at, :status, :updated_as_of, :incident_time,
+            :event_key, :region, :observed_at, :status, :updated_as_of, :incident_time,
             :type, :location, :location_desc, :area, :latitude, :longitude,
             :matched_keywords, :details_hash, :details_json
         )
         """,
-            {**row, "status": status, "details_json": details_json},
+            params,
         )
     for entry_index, entry in enumerate(row["detail_entries"], start=1):
         query = """
@@ -1097,6 +1175,8 @@ def scrape_once(args):
                 matches = matching_keywords(incident, args.road)
                 if not args.all_roads and not matches:
                     continue
+                region_matches = matching_regions(incident)
+                region = "forest" if "forest" in region_matches else "malibu" if "malibu" in region_matches else "forest"
                 incident_date = incident_date_for_time(updated_at, incident["incident_time"])
                 current_event_key = event_key(center, incident_date, incident["incident_no"])
                 previous = row_for_event(conn, current_event_key)
@@ -1130,8 +1210,10 @@ def scrape_once(args):
                         if v not in ("", None) or k in {"latitude", "longitude", "detail_entries"}
                     },
                 }
+                clear_coordinates_outside_region_bounds(merged, region)
                 row = {
                     **merged,
+                    "region": region,
                     "observed_at": observed_at,
                     "updated_as_of": updated_as_of,
                     "incident_date": incident_date,

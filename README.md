@@ -39,6 +39,8 @@ Highway 39 aliases are only accepted when the CHP text also includes forest cont
 
 Coordinates are also bounded to the forest area before map pins are shown. Incidents outside `34.15..34.56` latitude or `-118.36..-117.58` longitude stay in the list/history but are treated as unpinned.
 
+The scraper also has hidden Malibu keyword coverage for later use. Malibu rows are stored with `region='malibu'`, while the public web app/API defaults to `region='forest'`, so those rows are collected but not shown on `crestmap.us` yet. Malibu coordinates are bounded separately to `33.85..34.18` latitude and `-119.05..-118.45` longitude.
+
 ## Requirements
 
 - Python 3.10+
@@ -164,7 +166,7 @@ The default container command serves the dynamic web app on port `8080`. In Kube
 For the pushed Kubernetes image workflow, use the Makefile:
 
 ```sh
-make deploy VERSION=0.1.77
+make deploy VERSION=0.1.79
 ```
 
 That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/amd64`, updates the Kubernetes manifest image tags and `SERVICE_VERSION`, applies the manifest, waits for the web rollout, and verifies the public `crestmap.us` page.
@@ -172,8 +174,8 @@ That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/a
 Useful individual targets:
 
 ```sh
-make build VERSION=0.1.77
-make update-manifest VERSION=0.1.77
+make build VERSION=0.1.79
+make update-manifest VERSION=0.1.79
 make apply
 make rollout
 make verify
@@ -223,7 +225,7 @@ For app-only updates after changing `VERSION` in `.env`, avoid restarting depend
 
 ```sh
 cd /opt/chp-live-map
-make deploy VERSION=0.1.77
+make deploy VERSION=0.1.79
 ```
 
 The `deploy/digitalocean/Makefile` wraps common VM operations:

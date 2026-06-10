@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
 IMAGE_REPO ?= cajaks2/chp-live-map
-VERSION ?= 0.1.77
+VERSION ?= 0.1.79
 PLATFORM ?= linux/amd64
 MANIFEST ?= k8s/chp-live-map.yaml
 NAMESPACE ?= chp-live-map
@@ -18,11 +18,11 @@ help:
 		'  make venv                         Install local development dependencies' \
 		'  make test                         Run unit tests' \
 		'  make coverage                     Run tests with coverage report' \
-		'  make build VERSION=0.1.77         Build and push linux/amd64 image' \
-		'  make update-manifest VERSION=0.1.77 Update image tags and SERVICE_VERSION in k8s manifest' \
+		'  make build VERSION=0.1.79         Build and push linux/amd64 image' \
+		'  make update-manifest VERSION=0.1.79 Update image tags and SERVICE_VERSION in k8s manifest' \
 		'  make apply                        kubectl apply manifest' \
 		'  make rollout                      Wait for web deployment rollout' \
-		'  make deploy VERSION=0.1.77        Build, push, update manifest, apply, and wait' \
+		'  make deploy VERSION=0.1.79        Build, push, update manifest, apply, and wait' \
 		'  make verify                       Check public URL and recent pod logs' \
 		'  make k8s-status                   Show pods, ingress, cronjob, and service'
 

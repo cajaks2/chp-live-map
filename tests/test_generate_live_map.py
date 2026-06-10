@@ -84,6 +84,47 @@ def test_load_incidents_clears_out_of_bounds_coordinates(tmp_path):
     assert incidents[0]["longitude"] is None
 
 
+def test_load_incidents_filters_to_forest_region_by_default(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    conn = connect_database(database)
+    forest = incident_row(
+        "LACC|2026-05-31|0805",
+        "active",
+        dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "0805",
+    )
+    malibu = incident_row(
+        "LACC|2026-05-31|0806",
+        "active",
+        dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "0806",
+    )
+    malibu.update(
+        {
+            "region": "malibu",
+            "location": "Pacific Coast Hwy / Malibu Canyon Rd",
+            "latitude": 34.035,
+            "longitude": -118.68,
+            "matched_keywords": "pacific coast hwy;malibu canyon",
+        }
+    )
+
+    upsert_active_event(conn, forest)
+    insert_observation(conn, forest, "active")
+    upsert_active_event(conn, malibu)
+    insert_observation(conn, malibu, "active")
+    conn.commit()
+    conn.close()
+
+    forest_incidents = load_incidents(database, 72)
+    malibu_incidents = load_incidents(database, 72, region="malibu")
+
+    assert [incident["event_key"] for incident in forest_incidents] == [forest["event_key"]]
+    assert [incident["event_key"] for incident in malibu_incidents] == [malibu["event_key"]]
+    assert malibu_incidents[0]["latitude"] == 34.035
+    assert malibu_incidents[0]["longitude"] == -118.68
+
+
 def test_build_html_embeds_counts_and_escaped_incident_data():
     incidents = [
         {

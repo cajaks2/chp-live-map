@@ -1884,7 +1884,7 @@ def incident_day_key(incident):
         return "Unknown", "Unknown"
     try:
         parsed = dt.datetime.fromisoformat(f"{date_text}T12:00:00")
-        return date_text, f"{parsed.strftime('%b')} {parsed.day}"
+        return date_text, f"{parsed.strftime('%a')}, {parsed.strftime('%b')} {parsed.day}"
     except ValueError:
         return date_text, date_text
 

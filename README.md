@@ -166,7 +166,7 @@ The default container command serves the dynamic web app on port `8080`. In Kube
 For the pushed Kubernetes image workflow, use the Makefile:
 
 ```sh
-make deploy VERSION=0.1.85
+make deploy VERSION=0.1.86
 ```
 
 That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/amd64`, updates the Kubernetes manifest image tags and `SERVICE_VERSION`, applies the manifest, waits for the web rollout, and verifies the public `crestmap.us` page.
@@ -174,8 +174,8 @@ That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/a
 Useful individual targets:
 
 ```sh
-make build VERSION=0.1.85
-make update-manifest VERSION=0.1.85
+make build VERSION=0.1.86
+make update-manifest VERSION=0.1.86
 make apply
 make rollout
 make verify
@@ -225,7 +225,7 @@ For app-only updates after changing `VERSION` in `.env`, avoid restarting depend
 
 ```sh
 cd /opt/chp-live-map
-make deploy VERSION=0.1.85
+make deploy VERSION=0.1.86
 ```
 
 The `deploy/digitalocean/Makefile` wraps common VM operations:

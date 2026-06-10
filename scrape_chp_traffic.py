@@ -137,6 +137,7 @@ class ScraperMetrics:
         total_seen,
         active_seen,
         active_with_coords,
+        region_counts,
         details_requested,
         details_skipped,
         duration_seconds,
@@ -151,6 +152,7 @@ class ScraperMetrics:
                 "total_seen": total_seen,
                 "active_seen": active_seen,
                 "active_with_coords": active_with_coords,
+                "region_counts": region_counts or {},
                 "details_requested": details_requested,
                 "details_skipped": details_skipped,
                 "error_type": "",
@@ -167,6 +169,7 @@ class ScraperMetrics:
                 "total_seen": 0,
                 "active_seen": 0,
                 "active_with_coords": 0,
+                "region_counts": {},
                 "details_requested": 0,
                 "details_skipped": 0,
                 "error_type": exc.__class__.__name__,
@@ -206,6 +209,27 @@ class ScraperMetrics:
                 metric_line("chp_live_map_scraper_last_run_incidents", last.get("total_seen", 0), {"kind": "total_seen"}),
                 metric_line("chp_live_map_scraper_last_run_incidents", last.get("active_seen", 0), {"kind": "matched"}),
                 metric_line("chp_live_map_scraper_last_run_incidents", last.get("active_with_coords", 0), {"kind": "mapped"}),
+                "# HELP chp_live_map_scraper_last_run_region_incidents Incidents matched by the latest scraper run, grouped by hidden region and coordinate availability.",
+                "# TYPE chp_live_map_scraper_last_run_region_incidents gauge",
+            ]
+        )
+        for region, counts in sorted((last.get("region_counts") or {}).items()):
+            lines.append(
+                metric_line(
+                    "chp_live_map_scraper_last_run_region_incidents",
+                    counts.get("matched", 0),
+                    {"region": region, "kind": "matched"},
+                )
+            )
+            lines.append(
+                metric_line(
+                    "chp_live_map_scraper_last_run_region_incidents",
+                    counts.get("mapped", 0),
+                    {"region": region, "kind": "mapped"},
+                )
+            )
+        lines.extend(
+            [
                 "# HELP chp_live_map_scraper_last_run_observations_inserted Observation rows inserted by the latest scraper run.",
                 "# TYPE chp_live_map_scraper_last_run_observations_inserted gauge",
                 metric_line("chp_live_map_scraper_last_run_observations_inserted", last.get("observations_inserted", 0)),
@@ -1152,6 +1176,8 @@ def scrape_once(args):
     observed_at = now.isoformat(timespec="seconds")
     seen_keys = set()
     seen_with_coords = set()
+    region_seen_keys = {region: set() for region in REGION_ROAD_KEYWORDS}
+    region_seen_with_coords = {region: set() for region in REGION_ROAD_KEYWORDS}
     total_seen = 0
     details_requested = 0
     details_skipped = 0
@@ -1183,8 +1209,10 @@ def scrape_once(args):
                 if not should_fetch_details(previous, incident, now, args.detail_refresh_minutes):
                     details_skipped += 1
                     seen_keys.add(current_event_key)
+                    region_seen_keys.setdefault(region, set()).add(current_event_key)
                     if previous["latitude"] is not None and previous["longitude"] is not None:
                         seen_with_coords.add(current_event_key)
+                        region_seen_with_coords.setdefault(region, set()).add(current_event_key)
                     touch_active_event(conn, previous, observed_at)
                     continue
 
@@ -1223,8 +1251,10 @@ def scrape_once(args):
                 }
                 row["details_hash"] = details_hash(row)
                 seen_keys.add(row["event_key"])
+                region_seen_keys.setdefault(region, set()).add(row["event_key"])
                 if row["latitude"] is not None and row["longitude"] is not None:
                     seen_with_coords.add(row["event_key"])
+                    region_seen_with_coords.setdefault(region, set()).add(row["event_key"])
                 previous = upsert_active_event(conn, row)
                 if (
                     not previous
@@ -1270,11 +1300,19 @@ def scrape_once(args):
             time.monotonic() - started_at,
             stats["http_status_counts"],
         )
+    region_counts = {
+        region: {
+            "matched": len(region_seen_keys.get(region, set())),
+            "mapped": len(region_seen_with_coords.get(region, set())),
+        }
+        for region in sorted(REGION_ROAD_KEYWORDS)
+    }
     return (
         observations_inserted,
         total_seen,
         len(seen_keys),
         len(seen_with_coords),
+        region_counts,
         details_requested,
         details_skipped,
         time.monotonic() - started_at,
@@ -1326,6 +1364,7 @@ def main():
                 total_seen,
                 active_seen,
                 active_with_coords,
+                region_counts,
                 details_requested,
                 details_skipped,
                 duration_seconds,
@@ -1338,6 +1377,7 @@ def main():
                 total_seen,
                 active_seen,
                 active_with_coords,
+                region_counts,
                 details_requested,
                 details_skipped,
                 duration_seconds,
@@ -1351,6 +1391,7 @@ def main():
                     "chp.total_seen": total_seen,
                     "chp.active_seen": active_seen,
                     "chp.active_with_coords": active_with_coords,
+                    "chp.region_counts": region_counts,
                     "chp.observations_inserted": changed_rows,
                     "chp.details_requested": details_requested,
                     "chp.details_skipped": details_skipped,

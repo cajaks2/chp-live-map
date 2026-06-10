@@ -63,6 +63,32 @@ def test_scraper_metrics_handler_serves_health_without_ecs_access_logs(monkeypat
     assert events == []
 
 
+def test_scraper_metrics_include_region_labels():
+    metrics = scrape_chp_traffic.ScraperMetrics()
+    metrics.record_success(
+        "2026-06-09T08:00:00-07:00",
+        changed_rows=1,
+        total_seen=10,
+        active_seen=3,
+        active_with_coords=2,
+        region_counts={
+            "forest": {"matched": 2, "mapped": 1},
+            "malibu": {"matched": 1, "mapped": 1},
+        },
+        details_requested=1,
+        details_skipped=2,
+        duration_seconds=1.5,
+    )
+
+    body = metrics.render().decode("utf-8")
+
+    assert 'chp_live_map_scraper_last_run_incidents{kind="matched"} 3' in body
+    assert 'chp_live_map_scraper_last_run_region_incidents{region="forest",kind="matched"} 2' in body
+    assert 'chp_live_map_scraper_last_run_region_incidents{region="forest",kind="mapped"} 1' in body
+    assert 'chp_live_map_scraper_last_run_region_incidents{region="malibu",kind="matched"} 1' in body
+    assert 'chp_live_map_scraper_last_run_region_incidents{region="malibu",kind="mapped"} 1' in body
+
+
 def test_parse_incidents_from_cad_table():
     parser = parse_page(
         """

@@ -12,7 +12,7 @@ The CHP CAD site does not expose a documented public API for the detail logs thi
 
 The scraper is intentionally conservative:
 
-- It defaults to the Los Angeles communications center only.
+- It defaults to the Los Angeles and Ventura communications centers.
 - It filters the incident list by forest-road keywords before opening detail pages.
 - It uses a descriptive `User-Agent` with a public project URL.
 - Set `CHP_CONTACT_EMAIL` or pass `--contact-email` to include a contact address in that `User-Agent`.
@@ -51,7 +51,7 @@ The generated map uses Leaflet and OpenStreetMap tiles from public CDNs.
 
 ## Scrape Incidents
 
-Run once with the default Los Angeles center and Angeles Crest/Forest corridor keywords:
+Run once with the default Los Angeles/Ventura centers and Angeles Crest/Forest/Malibu corridor keywords:
 
 ```sh
 python3 scrape_chp_traffic.py
@@ -166,7 +166,7 @@ The default container command serves the dynamic web app on port `8080`. In Kube
 For the pushed Kubernetes image workflow, use the Makefile:
 
 ```sh
-make deploy VERSION=0.1.83
+make deploy VERSION=0.1.84
 ```
 
 That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/amd64`, updates the Kubernetes manifest image tags and `SERVICE_VERSION`, applies the manifest, waits for the web rollout, and verifies the public `crestmap.us` page.
@@ -174,8 +174,8 @@ That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/a
 Useful individual targets:
 
 ```sh
-make build VERSION=0.1.83
-make update-manifest VERSION=0.1.83
+make build VERSION=0.1.84
+make update-manifest VERSION=0.1.84
 make apply
 make rollout
 make verify
@@ -225,7 +225,7 @@ For app-only updates after changing `VERSION` in `.env`, avoid restarting depend
 
 ```sh
 cd /opt/chp-live-map
-make deploy VERSION=0.1.83
+make deploy VERSION=0.1.84
 ```
 
 The `deploy/digitalocean/Makefile` wraps common VM operations:

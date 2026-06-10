@@ -24,7 +24,7 @@ from geo_bounds import clear_coordinates_outside_region_bounds
 CHP_TRAFFIC_URL = "https://cad.chp.ca.gov/Traffic.aspx"
 CHP_ROBOTS_URL = "https://cad.chp.ca.gov/robots.txt"
 DEFAULT_USER_AGENT = "chp-live-map/0.1 (+https://crestmap.us/)"
-DEFAULT_CENTERS = ["LACC"]
+DEFAULT_CENTERS = ["LACC", "VTCC"]
 FOREST_ROAD_KEYWORDS = [
     "angeles crest",
     "angeles forest",

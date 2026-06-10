@@ -29,6 +29,7 @@ INCIDENTS_CACHE_CONTROL = "public, max-age=15, s-maxage=30, stale-while-revalida
 ASSET_CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800"
 FAVICON_CACHE_CONTROL = "public, max-age=30, s-maxage=30, stale-while-revalidate=60, stale-if-error=300"
 DISCOVERY_CACHE_CONTROL = "public, max-age=300, s-maxage=300, stale-while-revalidate=600"
+METRIC_REGIONS = ("forest", "malibu")
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; "
     "script-src 'self' 'unsafe-inline' https://unpkg.com https://www.googletagmanager.com https://www.google-analytics.com; "
@@ -353,6 +354,39 @@ def prometheus_metrics(database, database_url, hours):
         metric_line("chp_live_map_incidents", active_count, {"status": "active"}),
         metric_line("chp_live_map_incidents", cleared_count, {"status": "cleared"}),
         metric_line("chp_live_map_incidents", status["mapped_count"], {"status": "mapped"}),
+        "# HELP chp_live_map_region_incidents Incidents in the selected history window, grouped by hidden collection region.",
+        "# TYPE chp_live_map_region_incidents gauge",
+    ]
+    for region in METRIC_REGIONS:
+        region_status = incident_status(load_incidents(database, hours, database_url, region=region), hours)
+        region_active_count = region_status["active_count"]
+        region_cleared_count = region_status["total_count"] - region_active_count
+        lines.extend(
+            [
+                metric_line(
+                    "chp_live_map_region_incidents",
+                    region_status["total_count"],
+                    {"region": region, "status": "total"},
+                ),
+                metric_line(
+                    "chp_live_map_region_incidents",
+                    region_active_count,
+                    {"region": region, "status": "active"},
+                ),
+                metric_line(
+                    "chp_live_map_region_incidents",
+                    region_cleared_count,
+                    {"region": region, "status": "cleared"},
+                ),
+                metric_line(
+                    "chp_live_map_region_incidents",
+                    region_status["mapped_count"],
+                    {"region": region, "status": "mapped"},
+                ),
+            ]
+        )
+    lines.extend(
+        [
         "# HELP chp_live_map_history_window_hours History window used for map metrics.",
         "# TYPE chp_live_map_history_window_hours gauge",
         metric_line("chp_live_map_history_window_hours", status["hours"]),
@@ -364,7 +398,8 @@ def prometheus_metrics(database, database_url, hours):
         ),
         "# HELP chp_live_map_http_requests_total HTTP requests served by method, route, and status.",
         "# TYPE chp_live_map_http_requests_total counter",
-    ]
+        ]
+    )
     lines.extend(scrape_run_metrics(database, database_url))
     for (method, route, status_code), count in sorted(HTTP_REQUESTS_TOTAL.items()):
         lines.append(

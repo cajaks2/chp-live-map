@@ -166,7 +166,7 @@ The default container command serves the dynamic web app on port `8080`. In Kube
 For the pushed Kubernetes image workflow, use the Makefile:
 
 ```sh
-make deploy VERSION=0.1.80
+make deploy VERSION=0.1.81
 ```
 
 That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/amd64`, updates the Kubernetes manifest image tags and `SERVICE_VERSION`, applies the manifest, waits for the web rollout, and verifies the public `crestmap.us` page.
@@ -174,8 +174,8 @@ That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/a
 Useful individual targets:
 
 ```sh
-make build VERSION=0.1.80
-make update-manifest VERSION=0.1.80
+make build VERSION=0.1.81
+make update-manifest VERSION=0.1.81
 make apply
 make rollout
 make verify
@@ -225,7 +225,7 @@ For app-only updates after changing `VERSION` in `.env`, avoid restarting depend
 
 ```sh
 cd /opt/chp-live-map
-make deploy VERSION=0.1.80
+make deploy VERSION=0.1.81
 ```
 
 The `deploy/digitalocean/Makefile` wraps common VM operations:
@@ -258,6 +258,7 @@ Prometheus metrics:
 | `chp_live_map_incidents{status="active"}` | gauge | Active incident count in the default map history window. |
 | `chp_live_map_incidents{status="cleared"}` | gauge | Cleared incident count in the default map history window. |
 | `chp_live_map_incidents{status="mapped"}` | gauge | Incidents with coordinates in the default map history window. |
+| `chp_live_map_region_incidents{region,status}` | gauge | Incident counts in the default map history window, grouped by hidden collection region such as `forest` or `malibu`. |
 | `chp_live_map_history_window_hours` | gauge | The history-window size used for `/metrics` incident gauges. In production this is `72`, matching the default map view; user-selected `?hours=` values only affect that page/status request, not this process-level metric. |
 | `chp_live_map_data_updated_timestamp_seconds` | gauge | Unix timestamp of the newest observed incident data included in the metrics window. |
 | `chp_live_map_http_requests_total{method,route,status}` | counter | HTTP requests handled by the web process, grouped by method, coarse route, and status code. |

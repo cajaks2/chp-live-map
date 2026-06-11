@@ -22,6 +22,7 @@ from scrape_chp_traffic import (
     parse_lat_lon_from_detail_html,
     parse_page,
     fetch_details,
+    region_for_incident,
     should_fetch_details,
     store_scrape_run,
     touch_active_event,
@@ -257,6 +258,40 @@ def test_matching_regions_classifies_malibu_roads_separately():
     assert matching_regions(incident) == {
         "malibu": ["pacific coast hwy", "malibu canyon"],
     }
+
+
+def test_matching_regions_keeps_tuna_canyon_but_excludes_la_tuna_canyon():
+    assert matching_regions(
+        {
+            "type": "Traffic Hazard",
+            "location": "Tuna Canyon Rd / Saddle Peak Rd",
+            "location_desc": "",
+            "area": "West Valley",
+        }
+    ) == {"malibu": ["tuna canyon"]}
+    assert matching_regions(
+        {
+            "type": "Traffic Hazard",
+            "location": "I210 W / La Tuna Canyon Rd",
+            "location_desc": "WB 210 JEO LA TUNA",
+            "area": "Altadena",
+        }
+    ) == {}
+
+
+def test_la_tuna_canyon_is_never_a_malibu_match():
+    incident = {
+        "type": "Traffic Hazard",
+        "location": "I210 W / La Tuna Canyon Rd",
+        "location_desc": "WB 210 JEO LA TUNA",
+        "area": "Altadena",
+    }
+    assert matching_keywords(incident, DEFAULT_ROAD_KEYWORDS) == []
+    assert region_for_incident(matching_regions(incident), incident) is None
+    assert region_for_incident(
+        matching_regions(incident),
+        {**incident, "latitude": 34.095893, "longitude": -118.816193},
+    ) is None
 
 
 def test_parse_lat_lon_from_span_and_map_link():

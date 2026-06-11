@@ -485,6 +485,8 @@ def matching_keywords(incident, keywords):
         ]
     ).casefold()
     matches = [keyword for keyword in keywords if keyword_matches(keyword, haystack)]
+    if "tuna canyon" in matches and is_la_tuna_canyon_match(incident):
+        matches = [match for match in matches if match != "tuna canyon"]
     has_highway_39 = any(keyword_matches(alias, haystack) for alias in HIGHWAY_39_ALIASES)
     has_highway_39_context = any(context in haystack for context in HIGHWAY_39_FOREST_CONTEXT)
     if has_highway_39 and has_highway_39_context:
@@ -504,9 +506,29 @@ def matching_regions(incident):
     matches = {}
     for region, keywords in REGION_ROAD_KEYWORDS.items():
         region_matches = matching_keywords(incident, keywords)
+        if region == "malibu" and is_la_tuna_canyon_match(incident):
+            region_matches = [match for match in region_matches if match != "tuna canyon"]
         if region_matches:
             matches[region] = region_matches
     return matches
+
+
+def is_la_tuna_canyon_match(incident):
+    haystack = " ".join(
+        [
+            incident.get("location", ""),
+            incident.get("location_desc", ""),
+        ]
+    ).casefold()
+    return "la tuna canyon" in haystack
+
+
+def region_for_incident(region_matches, merged=None):
+    if "forest" in region_matches:
+        return "forest"
+    if "malibu" in region_matches:
+        return "malibu"
+    return None
 
 
 def fetch_details(opener, center, list_parser, select_index, timeout, user_agent, retries, backoff, stats=None):
@@ -1202,11 +1224,11 @@ def scrape_once(args):
                 if not args.all_roads and not matches:
                     continue
                 region_matches = matching_regions(incident)
-                region = "forest" if "forest" in region_matches else "malibu" if "malibu" in region_matches else "forest"
+                region = region_for_incident(region_matches)
                 incident_date = incident_date_for_time(updated_at, incident["incident_time"])
                 current_event_key = event_key(center, incident_date, incident["incident_no"])
                 previous = row_for_event(conn, current_event_key)
-                if not should_fetch_details(previous, incident, now, args.detail_refresh_minutes):
+                if region and not should_fetch_details(previous, incident, now, args.detail_refresh_minutes):
                     details_skipped += 1
                     seen_keys.add(current_event_key)
                     region_seen_keys.setdefault(region, set()).add(current_event_key)
@@ -1238,7 +1260,11 @@ def scrape_once(args):
                         if v not in ("", None) or k in {"latitude", "longitude", "detail_entries"}
                     },
                 }
+                region = region or region_for_incident(region_matches, merged)
+                if not region:
+                    continue
                 clear_coordinates_outside_region_bounds(merged, region)
+                matched_keywords = region_matches.get(region) or ["tuna canyon"]
                 row = {
                     **merged,
                     "region": region,
@@ -1246,7 +1272,7 @@ def scrape_once(args):
                     "updated_as_of": updated_as_of,
                     "incident_date": incident_date,
                     "event_key": current_event_key,
-                    "matched_keywords": ";".join(matches) if matches else "*",
+                    "matched_keywords": ";".join(matched_keywords) if matched_keywords else "*",
                     "detail_entries": merged.get("detail_entries", []),
                 }
                 row["details_hash"] = details_hash(row)

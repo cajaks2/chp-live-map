@@ -3,10 +3,10 @@ FOREST_LAT_MAX = 34.56
 FOREST_LON_MIN = -118.36
 FOREST_LON_MAX = -117.58
 
-# Malibu collection includes the Ventura-to-Santa Monica PCH corridor.
+# Malibu collection includes the Point Mugu-to-Santa Monica coastal corridor.
 MALIBU_LAT_MIN = 33.99
 MALIBU_LAT_MAX = 34.34
-MALIBU_LON_MIN = -119.35
+MALIBU_LON_MIN = -119.10
 MALIBU_LON_MAX = -118.45
 
 REGION_BOUNDS = {

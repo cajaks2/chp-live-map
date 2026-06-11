@@ -18,7 +18,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 from ecs_logging import log_event, log_exception, run_main
-from geo_bounds import clear_coordinates_outside_region_bounds
+from geo_bounds import clear_coordinates_outside_region_bounds, coordinates_in_region_bounds
 
 
 CHP_TRAFFIC_URL = "https://cad.chp.ca.gov/Traffic.aspx"
@@ -1284,6 +1284,13 @@ def scrape_once(args):
                 }
                 region = region or region_for_incident(region_matches, merged)
                 if not region:
+                    continue
+                if (
+                    region == "malibu"
+                    and merged.get("latitude") is not None
+                    and merged.get("longitude") is not None
+                    and not coordinates_in_region_bounds(merged.get("latitude"), merged.get("longitude"), region)
+                ):
                     continue
                 clear_coordinates_outside_region_bounds(merged, region)
                 matched_keywords = region_matches.get(region) or ["tuna canyon"]

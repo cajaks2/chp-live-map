@@ -1,5 +1,7 @@
 import argparse
+import base64
 import datetime as dt
+import hmac
 import json
 import os
 import struct
@@ -420,6 +422,8 @@ class LiveMapHandler(BaseHTTPRequestHandler):
     base_path = "/"
     public_url = None
     google_analytics_id = None
+    private_preview_user = None
+    private_preview_password = None
 
     def send_response(self, code, message=None):
         self._last_status_code = int(code)
@@ -452,6 +456,39 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             "status": (params.get("status") or ["all"])[0],
             "mapped": (params.get("mapped") or ["all"])[0],
         }
+
+    def private_preview_enabled(self):
+        return bool(self.private_preview_user and self.private_preview_password)
+
+    def private_preview_authorized(self):
+        if not self.private_preview_enabled():
+            return False
+        header = self.headers.get("Authorization", "")
+        if not header.startswith("Basic "):
+            return False
+        try:
+            decoded = base64.b64decode(header.split(" ", 1)[1]).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            return False
+        username, separator, password = decoded.partition(":")
+        if not separator:
+            return False
+        return hmac.compare_digest(username, self.private_preview_user) and hmac.compare_digest(
+            password, self.private_preview_password
+        )
+
+    def require_private_preview_auth(self, send_body):
+        if self.private_preview_authorized():
+            return True
+        self.send_response(401 if self.private_preview_enabled() else 404)
+        if self.private_preview_enabled():
+            self.send_header("WWW-Authenticate", 'Basic realm="Crestmap private preview"')
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        if send_body:
+            self.wfile.write(b"private preview requires authentication\n")
+        return False
 
     def client_log_fields(self):
         forwarded_for = self.headers.get("X-Forwarded-For", "")
@@ -564,6 +601,21 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         status_paths = {"/status.json", f"{'' if base_path == '/' else base_path}/status.json"}
         incidents_paths = {"/incidents.json", f"{'' if base_path == '/' else base_path}/incidents.json"}
         asset_base = "" if base_path == "/" else base_path
+        private_base = f"{asset_base}/malibu"
+        private_map_paths = {private_base, f"{private_base}/", f"{private_base}/live_chp_map.html"}
+        private_summary_paths = {f"{private_base}/summary"}
+        private_history_paths = {f"{private_base}/history"}
+        private_about_paths = {f"{private_base}/about"}
+        private_status_paths = {f"{private_base}/status.json"}
+        private_incidents_paths = {f"{private_base}/incidents.json"}
+        private_paths = (
+            private_map_paths
+            | private_summary_paths
+            | private_history_paths
+            | private_about_paths
+            | private_status_paths
+            | private_incidents_paths
+        )
         robots_paths = {"/robots.txt", f"{asset_base}/robots.txt"}
         sitemap_paths = {"/sitemap.xml", f"{asset_base}/sitemap.xml"}
         metrics_paths = {"/metrics", f"{asset_base}/metrics"}
@@ -694,10 +746,18 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             return
 
-        if path in status_paths:
+        if path in private_paths and not self.require_private_preview_auth(send_body):
+            return
+
+        if path in status_paths or path in private_status_paths:
             try:
                 hours = self.requested_hours()
-                incidents = load_incidents(self.database, hours, self.database_url)
+                incidents = load_incidents(
+                    self.database,
+                    hours,
+                    self.database_url,
+                    region="malibu" if path in private_status_paths else "forest",
+                )
                 payload = {
                     **incident_status(incidents, hours),
                     "checked_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -725,17 +785,25 @@ class LiveMapHandler(BaseHTTPRequestHandler):
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Cache-Control", "private, max-age=15, stale-while-revalidate=30")
+            self.send_header(
+                "Cache-Control",
+                "no-store" if path in private_status_paths else "private, max-age=15, stale-while-revalidate=30",
+            )
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             if send_body:
                 self.wfile.write(body)
             return
 
-        if path in incidents_paths:
+        if path in incidents_paths or path in private_incidents_paths:
             try:
                 hours = self.requested_hours()
-                incidents = load_incidents(self.database, hours, self.database_url)
+                incidents = load_incidents(
+                    self.database,
+                    hours,
+                    self.database_url,
+                    region="malibu" if path in private_incidents_paths else "forest",
+                )
                 payload = {
                     "incidents": incidents,
                     "status": incident_status(incidents, hours),
@@ -764,54 +832,70 @@ class LiveMapHandler(BaseHTTPRequestHandler):
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Cache-Control", INCIDENTS_CACHE_CONTROL)
+            self.send_header("Cache-Control", "no-store" if path in private_incidents_paths else INCIDENTS_CACHE_CONTROL)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             if send_body:
                 self.wfile.write(body)
             return
 
-        if path not in map_paths and path not in summary_paths and path not in history_paths and path not in about_paths:
+        if (
+            path not in map_paths
+            and path not in summary_paths
+            and path not in history_paths
+            and path not in about_paths
+            and path not in private_map_paths
+            and path not in private_summary_paths
+            and path not in private_history_paths
+            and path not in private_about_paths
+        ):
             self.send_error(404)
             return
 
         try:
             generated_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
             hours = self.requested_hours()
-            incidents = load_incidents(self.database, hours, self.database_url)
-            if path in summary_paths:
+            is_private_preview = path in (
+                private_map_paths | private_summary_paths | private_history_paths | private_about_paths
+            )
+            region = "malibu" if is_private_preview else "forest"
+            incidents = load_incidents(self.database, hours, self.database_url, region=region)
+            render_base_path = private_base if is_private_preview else self.base_path
+            render_public_url = None if is_private_preview else self.public_url
+            if path in summary_paths or path in private_summary_paths:
                 body = build_summary_html(
                     incidents,
                     generated_at,
                     hours,
-                    base_path=self.base_path,
-                    public_url=self.public_url,
+                    base_path=render_base_path,
+                    public_url=render_public_url,
                 ).encode("utf-8")
-            elif path in history_paths:
+            elif path in history_paths or path in private_history_paths:
                 body = build_history_html(
                     incidents,
                     generated_at,
                     hours,
-                    base_path=self.base_path,
-                    public_url=self.public_url,
+                    base_path=render_base_path,
+                    public_url=render_public_url,
                     filters=self.history_filters(),
                 ).encode("utf-8")
-            elif path in about_paths:
+            elif path in about_paths or path in private_about_paths:
                 body = build_about_html(
                     incidents,
                     generated_at,
                     hours,
-                    base_path=self.base_path,
-                    public_url=self.public_url,
+                    base_path=render_base_path,
+                    public_url=render_public_url,
                 ).encode("utf-8")
             else:
                 body = build_html(
                     incidents,
                     generated_at,
                     hours,
-                    base_path=self.base_path,
-                    public_url=self.public_url,
-                    google_analytics_id=self.google_analytics_id,
+                    base_path=render_base_path,
+                    public_url=render_public_url,
+                    google_analytics_id=None if is_private_preview else self.google_analytics_id,
+                    map_label="Malibu" if is_private_preview else "Forest",
                 ).encode("utf-8")
         except Exception as exc:
             log_exception(
@@ -834,7 +918,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
 
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Cache-Control", MAP_CACHE_CONTROL)
+        self.send_header("Cache-Control", "no-store" if is_private_preview else MAP_CACHE_CONTROL)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         if send_body:
@@ -901,6 +985,8 @@ def parse_args():
     parser.add_argument("--base-path", default=os.environ.get("BASE_PATH", "/"))
     parser.add_argument("--public-url", default=os.environ.get("PUBLIC_URL"))
     parser.add_argument("--google-analytics-id", default=os.environ.get("GOOGLE_ANALYTICS_ID"))
+    parser.add_argument("--private-preview-user", default=os.environ.get("PRIVATE_PREVIEW_USER"))
+    parser.add_argument("--private-preview-password", default=os.environ.get("PRIVATE_PREVIEW_PASSWORD"))
     return parser.parse_args()
 
 
@@ -912,6 +998,8 @@ def main():
     LiveMapHandler.base_path = args.base_path
     LiveMapHandler.public_url = args.public_url
     LiveMapHandler.google_analytics_id = args.google_analytics_id
+    LiveMapHandler.private_preview_user = args.private_preview_user
+    LiveMapHandler.private_preview_password = args.private_preview_password
     with connect_database(args.database, args.database_url):
         pass
     server = EcsHTTPServer((args.host, args.port), LiveMapHandler)

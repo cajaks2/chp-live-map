@@ -261,15 +261,26 @@ def analytics_script(google_analytics_id=None):
 """
 
 
-def build_html(incidents, generated_at, hours, base_path="/", public_url=None, google_analytics_id=None):
+def build_html(
+    incidents,
+    generated_at,
+    hours,
+    base_path="/",
+    public_url=None,
+    google_analytics_id=None,
+    map_label="Forest",
+):
     status = incident_status(incidents, hours)
     active_count = status["active_count"]
     mapped_count = status["mapped_count"]
-    title = f"CHP Forest Incidents ({active_count} active, {status['total_count']} total)"
-    description = (
-        "Live and historical CHP CAD traffic incidents for Angeles Crest, Angeles Forest, "
-        "Big Tujunga, Glendora Mountain, and nearby forest roads in the forest."
-    )
+    title = f"CHP {map_label} Incidents ({active_count} active, {status['total_count']} total)"
+    if map_label == "Forest":
+        description = (
+            "Live and historical CHP CAD traffic incidents for Angeles Crest, Angeles Forest, "
+            "Big Tujunga, Glendora Mountain, and nearby forest roads in the forest."
+        )
+    else:
+        description = f"Private preview of live and historical CHP CAD traffic incidents for {map_label}."
     urls = metadata_urls(
         base_path,
         public_url,
@@ -290,7 +301,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
             {
                 "@type": "WebSite",
                 "@id": f"{urls['canonical']}#website",
-                "name": "CHP Forest Incidents",
+                "name": f"CHP {map_label} Incidents",
                 "url": urls["canonical"],
                 "description": description,
                 "inLanguage": "en-US",
@@ -298,7 +309,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
             {
                 "@type": "WebApplication",
                 "@id": f"{urls['canonical']}#app",
-                "name": "CHP Forest Incidents",
+                "name": f"CHP {map_label} Incidents",
                 "url": urls["canonical"],
                 "description": description,
                 "applicationCategory": "MapApplication",
@@ -1159,7 +1170,7 @@ def build_html(incidents, generated_at, hours, base_path="/", public_url=None, g
     <aside id="sidebar">
       <header>
         <div class="title-row">
-          <h1>CHP Forest Incidents</h1>
+          <h1>CHP {html.escape(map_label)} Incidents</h1>
           {view_menu(base_path, "map", hours)}
         </div>
         <div class="meta">{active_count} active · {len(incidents)} in last {hours:g}h · {mapped_count} mapped</div>

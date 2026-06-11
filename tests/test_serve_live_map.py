@@ -1,3 +1,4 @@
+import base64
 import json
 import threading
 from urllib.request import HTTPError, urlopen
@@ -48,6 +49,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
     TestHandler.hours = 72.0
     TestHandler.base_path = "/"
     TestHandler.public_url = "https://crestmap.us/"
+    TestHandler.private_preview_user = None
+    TestHandler.private_preview_password = None
 
     server = EcsHTTPServer(("127.0.0.1", 0), TestHandler)
     thread = threading.Thread(target=server.serve_forever)
@@ -242,6 +245,13 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         else:
             raise AssertionError("expected /missing to return 404")
 
+        try:
+            urlopen(f"{base_url}/malibu", timeout=5)
+        except HTTPError as exc:
+            assert exc.code == 404
+        else:
+            raise AssertionError("expected /malibu to be hidden without credentials")
+
         logged_paths = [kwargs["url.path"] for _args, kwargs in access_logs]
         assert "/healthz" not in logged_paths
         assert "/metrics" not in logged_paths
@@ -277,6 +287,85 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert chp_log["client.geo.location.lat"] == "34.0522"
         assert chp_log["client.geo.location.lon"] == "-118.2437"
         assert chp_log["http.request.header.user_agent"] == "test-browser/1.0"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_private_malibu_preview_requires_basic_auth(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    conn = connect_database(database)
+    upsert_active_event(
+        conn,
+        {
+            "event_key": "LACC|2026-06-11|0867",
+            "center": "LACC",
+            "incident_date": "2026-06-11",
+            "incident_no": "0867",
+            "observed_at": "2026-06-11T17:07:03+00:00",
+            "updated_as_of": "2026-06-11T17:07:00+00:00",
+            "incident_time": "10:07 AM",
+            "type": "Traffic Hazard",
+            "location": "Las Virgenes Rd / Piuma Rd",
+            "location_desc": "SB LAS VIRGENES RD JSO PIUMA RD",
+            "area": "West Valley",
+            "latitude": 34.082133,
+            "longitude": -118.704535,
+            "matched_keywords": "las virgenes;piuma rd",
+            "details_hash": "hash",
+            "detail_entries": [],
+            "region": "malibu",
+        },
+    )
+    conn.commit()
+    conn.close()
+
+    class TestHandler(LiveMapHandler):
+        pass
+
+    TestHandler.database = database
+    TestHandler.database_url = None
+    TestHandler.hours = 72.0
+    TestHandler.base_path = "/"
+    TestHandler.public_url = "https://crestmap.us/"
+    TestHandler.private_preview_user = "preview"
+    TestHandler.private_preview_password = "secret"
+
+    server = EcsHTTPServer(("127.0.0.1", 0), TestHandler)
+    thread = threading.Thread(target=server.serve_forever)
+    thread.start()
+    base_url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        try:
+            urlopen(f"{base_url}/malibu?hours=24", timeout=5)
+        except HTTPError as exc:
+            assert exc.code == 401
+            assert exc.headers["WWW-Authenticate"] == 'Basic realm="Crestmap private preview"'
+            assert exc.headers["Cache-Control"] == "no-store"
+        else:
+            raise AssertionError("expected /malibu to require auth")
+
+        credentials = base64.b64encode(b"preview:secret").decode("ascii")
+        request = Request(f"{base_url}/malibu?hours=24", headers={"Authorization": f"Basic {credentials}"})
+        with urlopen(request, timeout=5) as response:
+            body = response.read().decode("utf-8")
+            assert response.status == 200
+            assert response.headers["Cache-Control"] == "no-store"
+            assert "CHP Malibu Incidents" in body
+            assert "/malibu/incidents.json" in body
+
+        request = Request(
+            f"{base_url}/malibu/incidents.json?hours=24",
+            headers={"Authorization": f"Basic {credentials}"},
+        )
+        with urlopen(request, timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            assert response.status == 200
+            assert response.headers["Cache-Control"] == "no-store"
+            assert payload["status"]["total_count"] == 1
+            assert payload["incidents"][0]["region"] == "malibu"
+            assert payload["incidents"][0]["location"] == "Las Virgenes Rd / Piuma Rd"
     finally:
         server.shutdown()
         server.server_close()

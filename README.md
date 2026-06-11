@@ -39,7 +39,7 @@ Highway 39 aliases are only accepted when the CHP text also includes forest cont
 
 Coordinates are also bounded to the forest area before map pins are shown. Incidents outside `34.15..34.56` latitude or `-118.36..-117.58` longitude stay in the list/history but are treated as unpinned.
 
-The scraper also has hidden Malibu keyword coverage for later use. Malibu rows are stored with `region='malibu'`, while the public web app/API defaults to `region='forest'`, so those rows are collected but not shown on `crestmap.us` yet. Malibu coordinates are bounded separately to `33.85..34.18` latitude and `-119.05..-118.45` longitude.
+The scraper also has hidden Malibu/Ventura coast keyword coverage for later use. Malibu rows are stored with `region='malibu'`, while the public web app/API defaults to `region='forest'`, so those rows are collected but not shown on `crestmap.us` yet. Malibu coordinates are bounded separately to `33.99..34.34` latitude and `-119.35..-118.45` longitude.
 
 ## Requirements
 
@@ -166,7 +166,7 @@ The default container command serves the dynamic web app on port `8080`. In Kube
 For the pushed Kubernetes image workflow, use the Makefile:
 
 ```sh
-make deploy VERSION=0.1.88
+make deploy VERSION=0.1.89
 ```
 
 That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/amd64`, updates the Kubernetes manifest image tags and `SERVICE_VERSION`, applies the manifest, waits for the web rollout, and verifies the public `crestmap.us` page.
@@ -174,8 +174,8 @@ That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/a
 Useful individual targets:
 
 ```sh
-make build VERSION=0.1.88
-make update-manifest VERSION=0.1.88
+make build VERSION=0.1.89
+make update-manifest VERSION=0.1.89
 make apply
 make rollout
 make verify
@@ -225,7 +225,7 @@ For app-only updates after changing `VERSION` in `.env`, avoid restarting depend
 
 ```sh
 cd /opt/chp-live-map
-make deploy VERSION=0.1.88
+make deploy VERSION=0.1.89
 ```
 
 The `deploy/digitalocean/Makefile` wraps common VM operations:
@@ -243,6 +243,7 @@ The web service also exposes:
 
 - `/status.json?hours=72`: lightweight status/version check used by the browser to decide whether a refresh is useful.
 - `/incidents.json?hours=72`: JSON payload for the selected incident window. This is the current compatibility endpoint and exposes the internal incident row shape.
+- `/malibu?hours=720`: private Basic Auth preview for the hidden Malibu/Ventura coast map. It is hidden unless `PRIVATE_PREVIEW_USER` and `PRIVATE_PREVIEW_PASSWORD` are set in the runtime environment. Matching private JSON endpoints live under `/malibu/status.json` and `/malibu/incidents.json`, use `Cache-Control: no-store`, and are not exposed by the public `/incidents.json` compatibility endpoint.
 - Web `/metrics`: Prometheus text-format metrics for web process uptime, incident counts, data freshness, HTTP request counters, and DB-backed latest scrape data.
 - Scraper `:8081/metrics`: Prometheus text-format metrics emitted by the long-lived scraper service, including scrape attempt counters and outbound CHP response-code counters.
 

@@ -506,21 +506,42 @@ def matching_regions(incident):
     matches = {}
     for region, keywords in REGION_ROAD_KEYWORDS.items():
         region_matches = matching_keywords(incident, keywords)
-        if region == "malibu" and is_la_tuna_canyon_match(incident):
-            region_matches = [match for match in region_matches if match != "tuna canyon"]
+        if region == "malibu":
+            if is_malibu_false_positive(incident):
+                region_matches = []
+            elif is_la_tuna_canyon_match(incident):
+                region_matches = [match for match in region_matches if match != "tuna canyon"]
         if region_matches:
             matches[region] = region_matches
     return matches
 
 
-def is_la_tuna_canyon_match(incident):
-    haystack = " ".join(
+def incident_match_text(incident):
+    return " ".join(
         [
             incident.get("location", ""),
             incident.get("location_desc", ""),
+            incident.get("area", ""),
         ]
     ).casefold()
+
+
+def is_la_tuna_canyon_match(incident):
+    haystack = incident_match_text(incident)
     return "la tuna canyon" in haystack
+
+
+def is_malibu_false_positive(incident):
+    haystack = incident_match_text(incident)
+    if "south la" in haystack and (" pch" in f" {haystack}" or "pacific coast hwy" in haystack):
+        return True
+    if any(freeway in haystack for freeway in ("i110", "i 110", "i710", "i 710")) and (
+        " pch" in f" {haystack}" or "pacific coast hwy" in haystack
+    ):
+        return True
+    if "topanga canyon" in haystack and any(route in haystack for route in ("sr118", "sr 118", "ca118", "ca 118", " 118 ")):
+        return True
+    return False
 
 
 def region_for_incident(region_matches, merged=None):
@@ -528,6 +549,7 @@ def region_for_incident(region_matches, merged=None):
         return "forest"
     if "malibu" in region_matches:
         return "malibu"
+    return None
     return None
 
 

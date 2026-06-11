@@ -294,6 +294,39 @@ def test_la_tuna_canyon_is_never_a_malibu_match():
     ) is None
 
 
+def test_matching_regions_excludes_malibu_false_positive_freeway_pch_hits():
+    south_la_incidents = [
+        {
+            "type": "Traffic Hazard",
+            "location": "I110 S / Pacific Coast Hwy Onr",
+            "location_desc": "SB 110 ON PCH ONR",
+            "area": "South LA",
+        },
+        {
+            "type": "Trfc Collision-Unkn Inj",
+            "location": "I710 N / Pacific Coast Hwy",
+            "location_desc": "NB 710 JNO PCH",
+            "area": "South LA",
+        },
+    ]
+
+    for incident in south_la_incidents:
+        assert matching_keywords(incident, DEFAULT_ROAD_KEYWORDS)
+        assert matching_regions(incident) == {}
+
+
+def test_matching_regions_excludes_sr118_topanga_false_positive():
+    incident = {
+        "type": "Traffic Hazard",
+        "location": "SR118 W / Topanga Canyon Blvd",
+        "location_desc": "JEO",
+        "area": "West Valley",
+    }
+
+    assert matching_keywords(incident, DEFAULT_ROAD_KEYWORDS)
+    assert matching_regions(incident) == {}
+
+
 def test_parse_lat_lon_from_span_and_map_link():
     assert parse_lat_lon("34.30123, -118.11789") == (34.30123, -118.11789)
     assert parse_lat_lon_from_detail_html(

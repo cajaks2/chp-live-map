@@ -39,7 +39,7 @@ Highway 39 aliases are only accepted when the CHP text also includes forest cont
 
 Coordinates are also bounded to the forest area before map pins are shown. Incidents outside `34.15..34.56` latitude or `-118.36..-117.58` longitude stay in the list/history but are treated as unpinned.
 
-The scraper also has hidden Malibu coast keyword coverage for later use. Malibu rows are stored with `region='malibu'`, while the public web app/API defaults to `region='forest'`, so those rows are collected but not shown on `crestmap.us` yet. Malibu coordinates are bounded separately to `33.99..34.34` latitude and `-119.10..-118.45` longitude.
+The scraper also collects Malibu coast/canyon incidents into `region='malibu'`. The public web app defaults to `region=forest`, but users can switch to Malibu with the region selector or by linking `?region=malibu`. Malibu coordinates are bounded separately to `33.99..34.34` latitude and `-119.10..-118.45` longitude.
 
 ## Requirements
 
@@ -115,17 +115,17 @@ python3 serve_live_map.py --port 8080
 
 ## Web App Views
 
-The dynamic server exposes four human-facing views. Each accepts `?hours=` and preserves the selected window while moving between views:
+The dynamic server exposes four human-facing views. Each accepts `?hours=` and `?region=forest|malibu`, and preserves the selected window/region while moving between views:
 
 - `/`: live incident map with selectable incidents and copyable incident links.
 - `/summary`: counts, busiest roads, incident types, and recent changes for the selected window.
 - `/history`: searchable/filterable incident history with links back to the map. Use `?hours=720` for the 30-day window.
 - `/about`: source, scrape cadence, coverage, and caveat notes.
 
-Direct incident links use the `incident` query parameter:
+Direct incident links use the `incident` query parameter. Include `region` so links reopen in the same dataset:
 
 ```text
-https://crestmap.us/?hours=720&incident=LACC%7C2026-06-02%7C2780
+https://crestmap.us/?region=forest&hours=720&incident=LACC%7C2026-06-02%7C2780
 ```
 
 If the linked incident is older than the default 72-hour map window, keep the wider `hours` value in the URL so the map loads that incident into its dataset.
@@ -243,7 +243,7 @@ The web service also exposes:
 
 - `/status.json?hours=72`: lightweight status/version check used by the browser to decide whether a refresh is useful.
 - `/incidents.json?hours=72`: JSON payload for the selected incident window. This is the current compatibility endpoint and exposes the internal incident row shape.
-- `/malibu?hours=720`: private Basic Auth preview for the hidden Malibu/Ventura coast map. It is hidden unless `PRIVATE_PREVIEW_USER` and `PRIVATE_PREVIEW_PASSWORD` are set in the runtime environment. Matching private JSON endpoints live under `/malibu/status.json` and `/malibu/incidents.json`, use `Cache-Control: no-store`, and are not exposed by the public `/incidents.json` compatibility endpoint.
+- `?region=malibu`: public Malibu coast/canyon dataset selector supported by the map, summary, history, about, `/status.json`, and `/incidents.json`. `/malibu` remains a compatibility alias that renders the same public Malibu dataset.
 - Web `/metrics`: Prometheus text-format metrics for web process uptime, incident counts, data freshness, HTTP request counters, and DB-backed latest scrape data.
 - Scraper `:8081/metrics`: Prometheus text-format metrics emitted by the long-lived scraper service, including scrape attempt counters and outbound CHP response-code counters.
 

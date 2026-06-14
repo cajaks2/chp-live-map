@@ -201,8 +201,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "CHP forest road incident history" in html
     assert "scrollbar-width: thin" in html
     assert "view-menu" in html
-    assert 'href="/summary?hours=72"' in html
-    assert 'href="/history?hours=72"' in html
+    assert 'href="/summary?hours=72&amp;region=forest"' in html
+    assert 'href="/history?hours=72&amp;region=forest"' in html
     assert 'id="incident-list-shell"' in html
     assert "flex-basis: clamp(176px, 28svh, 240px)" in html
     assert "min-height: 176px" in html
@@ -235,17 +235,22 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'window.localStorage.setItem("chp-about-panel"' not in html
     assert '<nav class="range-tabs" aria-label="History range">' in html
     assert '<nav class="view-tabs" aria-label="View navigation">' in html
-    assert '<a class="view-tab is-active" href="/?hours=72" aria-current="page">Map</a>' in html
-    assert '<a class="view-tab" href="/summary?hours=72">Summary</a>' in html
-    assert '<a class="view-tab" href="/history?hours=72">History</a>' in html
-    assert '<a class="view-tab" href="/about?hours=72">About</a>' in html
-    assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in html
-    assert '<a class="range-tab" href="?hours=720">30d</a>' in html
+    assert '<nav class="region-tabs" aria-label="Region">' in html
+    assert '<a class="region-tab is-active" href="/?hours=72&amp;region=forest" aria-current="page">Forest</a>' in html
+    assert '<a class="region-tab" href="/?hours=72&amp;region=malibu">Malibu</a>' in html
+    assert '<a class="view-tab is-active" href="/?hours=72&amp;region=forest" aria-current="page">Map</a>' in html
+    assert '<a class="view-tab" href="/summary?hours=72&amp;region=forest">Summary</a>' in html
+    assert '<a class="view-tab" href="/history?hours=72&amp;region=forest">History</a>' in html
+    assert '<a class="view-tab" href="/about?hours=72&amp;region=forest">About</a>' in html
+    assert '<a class="range-tab is-active" href="?hours=72&amp;region=forest" aria-current="page">72h</a>' in html
+    assert '<a class="range-tab" href="?hours=720&amp;region=forest">30d</a>' in html
     assert "1 active · 2 in last 72h · 1 mapped" in html
     assert 'Last checked <time id="generated-at" datetime="2026-05-31T08:05:00-07:00">' in html
     assert "const initialDataStatus" in html
+    assert '"region": "forest"' in html
     assert 'const statusEndpoint = "/status.json"' in html
     assert 'const incidentsEndpoint = "/incidents.json"' in html
+    assert 'const currentRegion = "forest"' in html
     assert "let incidents = []" in html
     assert "fetchIncidentData()" in html
     assert 'url.searchParams.set("v", version)' in html
@@ -257,6 +262,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "function formatIncidentWhen" in html
     assert 'new URLSearchParams(window.location.search).get("incident")' in html
     assert 'url.searchParams.set("incident", incident.event_key)' in html
+    assert 'url.searchParams.set("region", currentRegion)' in html
+    assert "function ensureCurrentRegionUrl" in html
+    assert "ensureCurrentRegionUrl();" in html
     assert "function updateIncidentUrl" in html
     assert "const linkedIncident = incidentFromUrl();" in html
     assert "revealList: Boolean(linkedIncident)" in html
@@ -284,6 +292,16 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "Google tag (gtag.js)" in analytics_html
     assert "https://www.googletagmanager.com/gtag/js?id=G-TEST123" in analytics_html
     assert 'gtag(\'config\', "G-TEST123");' in analytics_html
+
+    malibu_html = build_html(
+        incidents,
+        "2026-05-31T08:05:00-07:00",
+        72,
+        region="malibu",
+    )
+    assert "CHP Malibu Incidents" in malibu_html
+    assert 'href="/summary?hours=72&amp;region=malibu"' in malibu_html
+    assert 'const currentRegion = "malibu"' in malibu_html
     assert "Automatically reload when new incident data is available" in html
     assert "let dismissed = false" in html
     assert "async () =>" in html
@@ -338,8 +356,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "Morning" in summary_html
     assert "2</strong><span>Incidents in window" in summary_html
     assert '<nav class="range-tabs" aria-label="History range">' in summary_html
-    assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in summary_html
-    assert 'class="view-tab is-active" href="/summary?hours=72" aria-current="page">Summary</a>' in summary_html
+    assert '<a class="range-tab is-active" href="?hours=72&amp;region=forest" aria-current="page">72h</a>' in summary_html
+    assert 'class="view-tab is-active" href="/summary?hours=72&amp;region=forest" aria-current="page">Summary</a>' in summary_html
 
     history_html = build_history_html(incidents, "2026-05-31T08:05:00-07:00", 72)
     assert "History - CHP Forest Incidents" in history_html
@@ -351,10 +369,11 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '<select class="filter" name="mapped" aria-label="Map pin filter">' in history_html
     assert "Apply filters" in history_html
     assert "Show on map" in history_html
-    assert 'href="/?hours=72&amp;incident=LACC%7C2026-05-31%7C0805">Show on map</a>' in history_html
+    assert 'href="/?hours=72&amp;region=forest&amp;incident=LACC%7C2026-05-31%7C0805">Show on map</a>' in history_html
     assert '<nav class="range-tabs" aria-label="History range">' in history_html
-    assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in history_html
-    assert 'class="view-tab is-active" href="/history?hours=72" aria-current="page">History</a>' in history_html
+    assert '<input type="hidden" name="region" value="forest">' in history_html
+    assert '<a class="range-tab is-active" href="?hours=72&amp;region=forest" aria-current="page">72h</a>' in history_html
+    assert 'class="view-tab is-active" href="/history?hours=72&amp;region=forest" aria-current="page">History</a>' in history_html
 
     filtered_history_html = build_history_html(
         incidents,
@@ -373,8 +392,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "What This Is" in about_html
     assert "Update Cadence" in about_html
     assert "CHP CAD source" in about_html
-    assert '<a class="range-tab is-active" href="?hours=72" aria-current="page">72h</a>' in about_html
-    assert 'class="view-tab is-active" href="/about?hours=72" aria-current="page">About</a>' in about_html
+    assert '<a class="range-tab is-active" href="?hours=72&amp;region=forest" aria-current="page">72h</a>' in about_html
+    assert 'class="view-tab is-active" href="/about?hours=72&amp;region=forest" aria-current="page">About</a>' in about_html
     assert "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" in html
     assert "basemaps.cartocdn.com/light_all" not in html
     assert ".setView([34.32, -118.12], 10)" in html

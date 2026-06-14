@@ -15,6 +15,19 @@ from geo_bounds import clear_coordinates_outside_region_bounds
 DEFAULT_CENTER = [34.32, -118.12]
 DEFAULT_ZOOM = 10
 HISTORY_PRESETS = [(24, "24h"), (72, "72h"), (168, "7d"), (720, "30d")]
+REGION_LABELS = {
+    "forest": "Forest",
+    "malibu": "Malibu",
+}
+
+
+def normalize_region(region):
+    normalized = (region or "forest").casefold()
+    return normalized if normalized in REGION_LABELS else "forest"
+
+
+def region_label(region):
+    return REGION_LABELS[normalize_region(region)]
 
 
 def load_incidents(database, hours, database_url=None, region="forest"):
@@ -120,15 +133,15 @@ def metadata_urls(base_path, public_url, favicon_params=None):
     }
 
 
-def history_controls(hours):
+def history_controls(hours, region="forest"):
     current = int(hours)
     links = []
     for preset_hours, label in HISTORY_PRESETS:
         selected = preset_hours == current
         links.append(
-            '<a class="range-tab{}" href="?hours={}"{}>{}</a>'.format(
+            '<a class="range-tab{}" href="{}"{}>{}</a>'.format(
                 " is-active" if selected else "",
-                preset_hours,
+                html.escape(href_with_query("", hours=f"{preset_hours:g}", region=normalize_region(region))),
                 ' aria-current="page"' if selected else "",
                 html.escape(label),
             )
@@ -155,16 +168,16 @@ def href_with_query(href, **params):
     return f"{href}{separator}{urlencode(clean_params)}"
 
 
-def view_href(base_path, suffix, hours):
-    return href_with_query(app_path(base_path, suffix), hours=f"{hours:g}")
+def view_href(base_path, suffix, hours, region="forest"):
+    return href_with_query(app_path(base_path, suffix), hours=f"{hours:g}", region=normalize_region(region))
 
 
-def view_menu(base_path, current, hours):
+def view_menu(base_path, current, hours, region="forest"):
     items = [
-        ("map", "Map", "Current incidents", view_href(base_path, "/", hours)),
-        ("summary", "Summary", "Counts + trends", view_href(base_path, "/summary", hours)),
-        ("history", "History", "Search incidents", view_href(base_path, "/history", hours)),
-        ("about", "About", "Source + cadence", view_href(base_path, "/about", hours)),
+        ("map", "Map", "Current incidents", view_href(base_path, "/", hours, region)),
+        ("summary", "Summary", "Counts + trends", view_href(base_path, "/summary", hours, region)),
+        ("history", "History", "Search incidents", view_href(base_path, "/history", hours, region)),
+        ("about", "About", "Source + cadence", view_href(base_path, "/about", hours, region)),
     ]
     rows = []
     for key, label, description, href in items:
@@ -185,12 +198,12 @@ def view_menu(base_path, current, hours):
     )
 
 
-def view_tabs(base_path, current, hours):
+def view_tabs(base_path, current, hours, region="forest"):
     items = [
-        ("map", "Map", view_href(base_path, "/", hours)),
-        ("summary", "Summary", view_href(base_path, "/summary", hours)),
-        ("history", "History", view_href(base_path, "/history", hours)),
-        ("about", "About", view_href(base_path, "/about", hours)),
+        ("map", "Map", view_href(base_path, "/", hours, region)),
+        ("summary", "Summary", view_href(base_path, "/summary", hours, region)),
+        ("history", "History", view_href(base_path, "/history", hours, region)),
+        ("about", "About", view_href(base_path, "/about", hours, region)),
     ]
     return "".join(
         '<a class="view-tab{}" href="{}"{}>{}</a>'.format(
@@ -200,6 +213,19 @@ def view_tabs(base_path, current, hours):
             html.escape(label),
         )
         for key, label, href in items
+    )
+
+
+def region_tabs(base_path, current, hours, region="forest"):
+    region = normalize_region(region)
+    return "".join(
+        '<a class="region-tab{}" href="{}"{}>{}</a>'.format(
+            " is-active" if key == region else "",
+            html.escape(view_href(base_path, "/", hours, key) if current == "map" else view_href(base_path, f"/{current}", hours, key)),
+            ' aria-current="page"' if key == region else "",
+            html.escape(label),
+        )
+        for key, label in REGION_LABELS.items()
     )
 
 
@@ -269,18 +295,23 @@ def build_html(
     public_url=None,
     google_analytics_id=None,
     map_label="Forest",
+    region="forest",
 ):
-    status = incident_status(incidents, hours)
+    region = normalize_region(region)
+    map_label = region_label(region)
+    status = {**incident_status(incidents, hours), "region": region}
     active_count = status["active_count"]
     mapped_count = status["mapped_count"]
     title = f"CHP {map_label} Incidents ({active_count} active, {status['total_count']} total)"
-    if map_label == "Forest":
+    if region == "forest":
         description = (
             "Live and historical CHP CAD traffic incidents for Angeles Crest, Angeles Forest, "
             "Big Tujunga, Glendora Mountain, and nearby forest roads in the forest."
         )
     else:
-        description = f"Private preview of live and historical CHP CAD traffic incidents for {map_label}."
+        description = (
+            "Live and historical CHP CAD traffic incidents for Malibu canyon and coastal roads."
+        )
     urls = metadata_urls(
         base_path,
         public_url,
@@ -317,24 +348,39 @@ def build_html(
                 "isAccessibleForFree": True,
                 "areaServed": {
                     "@type": "Place",
-                    "name": "Angeles National Forest and nearby Southern California mountain roads",
+                    "name": (
+                        "Angeles National Forest and nearby Southern California mountain roads"
+                        if region == "forest"
+                        else "Malibu canyon and coastal roads"
+                    ),
                 },
                 "about": [
                     "CHP CAD traffic incidents",
-                    "Angeles Crest Highway",
-                    "Angeles Forest Highway",
-                    "Big Tujunga Canyon Road",
-                    "Glendora Mountain Road",
+                    *(
+                        [
+                            "Angeles Crest Highway",
+                            "Angeles Forest Highway",
+                            "Big Tujunga Canyon Road",
+                            "Glendora Mountain Road",
+                        ]
+                        if region == "forest"
+                        else [
+                            "Pacific Coast Highway",
+                            "Malibu Canyon Road",
+                            "Topanga Canyon Boulevard",
+                            "Las Virgenes Road",
+                        ]
+                    ),
                 ],
             },
             {
                 "@type": "Dataset",
                 "@id": f"{urls['canonical']}#incident-history",
-                "name": "CHP forest road incident history",
+                "name": f"CHP {map_label.lower()} road incident history",
                 "url": urls["canonical"],
                 "description": (
-                    "Rolling incident history collected from public CHP CAD pages for selected "
-                    "Angeles National Forest roads. The scraper checks CHP about once a minute."
+                    f"Rolling incident history collected from public CHP CAD pages for selected "
+                    f"{map_label.lower()} roads. The scraper checks CHP about once a minute."
                 ),
                 "temporalCoverage": f"last {hours:g} hours",
                 "isAccessibleForFree": True,
@@ -597,6 +643,39 @@ def build_html(
       outline: none;
     }}
     .range-tab.is-active {{
+      color: #ffffff;
+      background: #277447;
+    }}
+    .region-tabs {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 3px;
+      margin-top: 10px;
+      padding: 3px;
+      border: 1px solid #d8ddd2;
+      border-radius: 8px;
+      background: #eef1ea;
+    }}
+    .region-tab {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 28px;
+      padding: 0 7px;
+      border-radius: 5px;
+      color: #3f4a44;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      text-align: center;
+      text-decoration: none;
+    }}
+    .region-tab:hover,
+    .region-tab:focus {{
+      background: #ffffff;
+      outline: none;
+    }}
+    .region-tab.is-active {{
       color: #ffffff;
       background: #277447;
     }}
@@ -1171,7 +1250,7 @@ def build_html(
       <header>
         <div class="title-row">
           <h1>CHP {html.escape(map_label)} Incidents</h1>
-          {view_menu(base_path, "map", hours)}
+          {view_menu(base_path, "map", hours, region)}
         </div>
         <div class="meta">{active_count} active · {len(incidents)} in last {hours:g}h · {mapped_count} mapped</div>
         <div class="meta checked-meta"><span>Last checked <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span><span aria-hidden="true">·</span>
@@ -1180,8 +1259,9 @@ def build_html(
             Auto refresh
           </label>
         </div>
-        <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
-        <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, "map", hours)}</nav>
+        <nav class="range-tabs" aria-label="History range">{history_controls(hours, region)}</nav>
+        <nav class="region-tabs" aria-label="Region">{region_tabs(base_path, "map", hours, region)}</nav>
+        <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, "map", hours, region)}</nav>
         <div id="stale-notice" role="status">
           <span id="stale-notice-text">Data may be stale.</span>
           <button type="button" id="refresh-page">Refresh</button>
@@ -1202,6 +1282,7 @@ def build_html(
     const initialDataStatus = {json.dumps(status, ensure_ascii=False)};
     const statusEndpoint = "{html.escape(status_endpoint)}";
     const incidentsEndpoint = "{html.escape(incidents_endpoint)}";
+    const currentRegion = "{html.escape(region)}";
     let incidents = [];
     let currentDataStatus = initialDataStatus;
     let selectedIncidentKey = new URLSearchParams(window.location.search).get("incident");
@@ -1388,6 +1469,7 @@ def build_html(
         try {{
           const url = new URL(statusEndpoint, window.location.origin);
           url.searchParams.set("hours", new URLSearchParams(window.location.search).get("hours") || String(currentDataStatus.hours || 72));
+          url.searchParams.set("region", currentRegion);
           url.searchParams.set("check", String(now));
           const response = await fetch(url, {{
             cache: "no-store",
@@ -1462,8 +1544,21 @@ def build_html(
       window.history.replaceState({{ incident: incident.event_key }}, "", url);
     }}
 
+    function ensureCurrentRegionUrl() {{
+      if (!window.history?.replaceState) {{
+        return;
+      }}
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("region") === currentRegion) {{
+        return;
+      }}
+      url.searchParams.set("region", currentRegion);
+      window.history.replaceState({{ region: currentRegion }}, "", url);
+    }}
+
     function incidentUrl(incident) {{
       const url = new URL(window.location.href);
+      url.searchParams.set("region", currentRegion);
       url.searchParams.set("incident", incident.event_key);
       ["nocache", "verify", "align", "details", "tapcheck", "markertouch", "statusapi"].forEach((key) => {{
         url.searchParams.delete(key);
@@ -1695,6 +1790,7 @@ def build_html(
       if (!incidents.length) {{
         list.innerHTML = '<div class="empty">No active matching CHP incidents are currently stored.</div>';
         detailsPanel.innerHTML = '<div class="empty">No active matching CHP incidents are currently stored.</div>';
+        ensureCurrentRegionUrl();
         updateListScrollCue();
         return;
       }}
@@ -1747,6 +1843,7 @@ def build_html(
       const hours = new URLSearchParams(window.location.search).get("hours") || String(currentDataStatus.hours || 72);
       const url = new URL(incidentsEndpoint, window.location.origin);
       url.searchParams.set("hours", hours);
+      url.searchParams.set("region", currentRegion);
       const version = options.status?.version || currentDataStatus.version;
       if (version) {{
         url.searchParams.set("v", version);
@@ -1947,20 +2044,24 @@ def report_shell(
     public_url=None,
     current="summary",
     status=None,
+    region="forest",
 ):
-    status = status or {"active_count": 0, "version": "empty"}
+    region = normalize_region(region)
+    label = region_label(region)
+    status = status or {"active_count": 0, "version": "empty", "region": region}
+    status = {**status, "region": region}
     urls = metadata_urls(
         base_path,
         public_url,
         {"active": 1 if status["active_count"] else 0, "v": status["version"]},
     )
-    description = "Summary and history views for CHP forest road incidents."
+    description = f"Summary and history views for CHP {label.lower()} road incidents."
     return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{html.escape(title)} - CHP Forest Incidents</title>
+  <title>{html.escape(title)} - CHP {html.escape(label)} Incidents</title>
   <meta name="description" content="{html.escape(description)}">
   <meta name="robots" content="index,follow,max-image-preview:large">
   <link rel="canonical" href="{html.escape(urls["canonical"])}">
@@ -2130,6 +2231,39 @@ def report_shell(
       outline: none;
     }}
     .range-tab.is-active {{
+      color: #ffffff;
+      background: #277447;
+    }}
+    .region-tabs {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 3px;
+      margin-top: 10px;
+      padding: 3px;
+      border: 1px solid #d8ddd2;
+      border-radius: 8px;
+      background: #eef1ea;
+    }}
+    .region-tab {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      padding: 0 7px;
+      border-radius: 5px;
+      color: #3f4a44;
+      font-size: 13px;
+      font-weight: 800;
+      line-height: 1;
+      text-align: center;
+      text-decoration: none;
+    }}
+    .region-tab:hover,
+    .region-tab:focus {{
+      background: #ffffff;
+      outline: none;
+    }}
+    .region-tab.is-active {{
       color: #ffffff;
       background: #277447;
     }}
@@ -2365,11 +2499,12 @@ def report_shell(
             <div class="meta">{html.escape(subtitle)}</div>
             <div class="meta">Window: last {hours:g}h</div>
           </div>
-          {view_menu(base_path, current, hours)}
+          {view_menu(base_path, current, hours, region)}
         </div>
         <div class="report-nav">
-          <nav class="range-tabs" aria-label="History range">{history_controls(hours)}</nav>
-          <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, current, hours)}</nav>
+          <nav class="range-tabs" aria-label="History range">{history_controls(hours, region)}</nav>
+          <nav class="region-tabs" aria-label="Region">{region_tabs(base_path, current, hours, region)}</nav>
+          <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, current, hours, region)}</nav>
         </div>
       </div>
     </header>
@@ -2380,8 +2515,10 @@ def report_shell(
 """
 
 
-def build_summary_html(incidents, generated_at, hours, base_path="/", public_url=None):
-    status = incident_status(incidents, hours)
+def build_summary_html(incidents, generated_at, hours, base_path="/", public_url=None, region="forest"):
+    region = normalize_region(region)
+    label = region_label(region)
+    status = {**incident_status(incidents, hours), "region": region}
     active_count = status["active_count"]
     mapped_count = status["mapped_count"]
     cleared_count = status["total_count"] - active_count
@@ -2433,12 +2570,14 @@ def build_summary_html(incidents, generated_at, hours, base_path="/", public_url
         {recent_html}
       </section>
     """
-    subtitle = f"Forest CHP activity · updated {generated_at}"
-    return report_shell("Summary", subtitle, body, hours, base_path, public_url, current="summary", status=status)
+    subtitle = f"{label} CHP activity · updated {generated_at}"
+    return report_shell("Summary", subtitle, body, hours, base_path, public_url, current="summary", status=status, region=region)
 
 
-def build_history_html(incidents, generated_at, hours, base_path="/", public_url=None, filters=None):
-    status = incident_status(incidents, hours)
+def build_history_html(incidents, generated_at, hours, base_path="/", public_url=None, filters=None, region="forest"):
+    region = normalize_region(region)
+    label = region_label(region)
+    status = {**incident_status(incidents, hours), "region": region}
     filters = filters or {}
     selected_road = filters.get("road") or "all"
     selected_type = filters.get("type") or "all"
@@ -2454,7 +2593,7 @@ def build_history_html(incidents, generated_at, hours, base_path="/", public_url
     ]
     status_options = [("all", "All statuses"), ("active", "Active"), ("cleared", "Cleared")]
     mapped_options = [("all", "Mapped + unpinned"), ("mapped", "Mapped only"), ("unpinned", "Unpinned only")]
-    reset_href = app_path(base_path, "/history") + f"?hours={hours:g}"
+    reset_href = href_with_query(app_path(base_path, "/history"), hours=f"{hours:g}", region=region)
     result_rows = "".join(
         '<div class="result"><span class="status-pill {}">{}</span><strong>{}</strong><span>{}</span><span>{} · {} · #{} · <a href="{}">Show on map</a></span></div>'.format(
             "status-active" if incident.get("status") == "active" else "status-cleared",
@@ -2468,6 +2607,7 @@ def build_history_html(incidents, generated_at, hours, base_path="/", public_url
                 href_with_query(
                     app_path(base_path, "/"),
                     hours=f"{hours:g}",
+                    region=region,
                     incident=incident.get("event_key") or "",
                 )
             ),
@@ -2477,6 +2617,7 @@ def build_history_html(incidents, generated_at, hours, base_path="/", public_url
     body = f"""
       <form method="get" action="{html.escape(app_path(base_path, "/history"))}" aria-label="History filters">
         <input type="hidden" name="hours" value="{hours:g}">
+        <input type="hidden" name="region" value="{html.escape(region)}">
         <input class="search-box" type="search" name="q" value="{html.escape(query)}" placeholder="Search road, type, incident number...">
         <div class="filter-grid">
           <select class="filter" name="road" aria-label="Road filter">{option_tags(road_options, selected_road)}</select>
@@ -2494,16 +2635,22 @@ def build_history_html(incidents, generated_at, hours, base_path="/", public_url
         {result_rows}
       </section>
     """
-    subtitle = f"Search stored CHP forest incidents · updated {generated_at}"
-    return report_shell("History", subtitle, body, hours, base_path, public_url, current="history", status=status)
+    subtitle = f"Search stored CHP {label.lower()} incidents · updated {generated_at}"
+    return report_shell("History", subtitle, body, hours, base_path, public_url, current="history", status=status, region=region)
 
 
-def build_about_html(incidents, generated_at, hours, base_path="/", public_url=None):
-    status = incident_status(incidents, hours)
+def build_about_html(incidents, generated_at, hours, base_path="/", public_url=None, region="forest"):
+    region = normalize_region(region)
+    label = region_label(region)
+    status = {**incident_status(incidents, hours), "region": region}
+    if region == "forest":
+        scope_text = "Angeles Crest, Angeles Forest, Big Tujunga, Glendora Mountain, and nearby forest roads"
+    else:
+        scope_text = "Malibu canyon and coastal roads including PCH-adjacent CHP incidents"
     body = f"""
       <section class="section" style="margin-top: 0; padding-top: 0; border-top: 0;">
         <h2>What This Is</h2>
-        <p class="empty-report">Crestmap is a live mirror of public <a href="https://cad.chp.ca.gov/Traffic.aspx" rel="noopener">CHP CAD traffic incidents</a> for Angeles Crest, Angeles Forest, Big Tujunga, Glendora Mountain, and nearby forest roads.</p>
+        <p class="empty-report">Crestmap is a live mirror of public <a href="https://cad.chp.ca.gov/Traffic.aspx" rel="noopener">CHP CAD traffic incidents</a> for {html.escape(scope_text)}.</p>
       </section>
       <section class="kpi-grid" aria-label="Current data status" style="margin-top: 14px;">
         <div class="kpi"><strong>{status["total_count"]}</strong><span>Incidents in this window</span></div>
@@ -2523,8 +2670,8 @@ def build_about_html(incidents, generated_at, hours, base_path="/", public_url=N
         <div class="result"><strong>Project README</strong><span><a href="https://github.com/cajaks2/chp-live-map#readme" rel="noopener">github.com/cajaks2/chp-live-map</a></span></div>
       </section>
     """
-    subtitle = f"Source, update cadence, and project context · updated {generated_at}"
-    return report_shell("About", subtitle, body, hours, base_path, public_url, current="about", status=status)
+    subtitle = f"{label} source, update cadence, and project context · updated {generated_at}"
+    return report_shell("About", subtitle, body, hours, base_path, public_url, current="about", status=status, region=region)
 
 
 def parse_args():

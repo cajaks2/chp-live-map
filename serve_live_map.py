@@ -1,7 +1,5 @@
 import argparse
-import base64
 import datetime as dt
-import hmac
 import json
 import os
 import struct
@@ -22,6 +20,8 @@ from generate_live_map import (
     incident_status,
     load_incidents,
     normalize_base_path,
+    normalize_region,
+    region_label,
 )
 from scrape_chp_traffic import connect_database
 
@@ -422,9 +422,6 @@ class LiveMapHandler(BaseHTTPRequestHandler):
     base_path = "/"
     public_url = None
     google_analytics_id = None
-    private_preview_user = None
-    private_preview_password = None
-
     def send_response(self, code, message=None):
         self._last_status_code = int(code)
         super().send_response(code, message)
@@ -447,6 +444,17 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             return self.hours
         return min(max(hours, MIN_HISTORY_HOURS), MAX_HISTORY_HOURS)
 
+    def requested_region(self, path=None):
+        parsed = urlsplit(self.path)
+        params = parse_qs(parsed.query)
+        requested = (params.get("region") or [None])[0]
+        path = path if path is not None else (parsed.path.rstrip("/") or "/")
+        base_path = normalize_base_path(self.base_path)
+        asset_base = "" if base_path == "/" else base_path
+        if requested is None and path.startswith(f"{asset_base}/malibu"):
+            requested = "malibu"
+        return normalize_region(requested)
+
     def history_filters(self):
         params = parse_qs(urlsplit(self.path).query)
         return {
@@ -456,39 +464,6 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             "status": (params.get("status") or ["all"])[0],
             "mapped": (params.get("mapped") or ["all"])[0],
         }
-
-    def private_preview_enabled(self):
-        return bool(self.private_preview_user and self.private_preview_password)
-
-    def private_preview_authorized(self):
-        if not self.private_preview_enabled():
-            return False
-        header = self.headers.get("Authorization", "")
-        if not header.startswith("Basic "):
-            return False
-        try:
-            decoded = base64.b64decode(header.split(" ", 1)[1]).decode("utf-8")
-        except (ValueError, UnicodeDecodeError):
-            return False
-        username, separator, password = decoded.partition(":")
-        if not separator:
-            return False
-        return hmac.compare_digest(username, self.private_preview_user) and hmac.compare_digest(
-            password, self.private_preview_password
-        )
-
-    def require_private_preview_auth(self, send_body):
-        if self.private_preview_authorized():
-            return True
-        self.send_response(401 if self.private_preview_enabled() else 404)
-        if self.private_preview_enabled():
-            self.send_header("WWW-Authenticate", 'Basic realm="Crestmap private preview"')
-        self.send_header("Content-Type", "text/plain; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        if send_body:
-            self.wfile.write(b"private preview requires authentication\n")
-        return False
 
     def client_log_fields(self):
         forwarded_for = self.headers.get("X-Forwarded-For", "")
@@ -746,8 +721,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             return
 
-        if path in private_paths and not self.require_private_preview_auth(send_body):
-            return
+        region = self.requested_region(path)
 
         if path in status_paths or path in private_status_paths:
             try:
@@ -756,10 +730,11 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                     self.database,
                     hours,
                     self.database_url,
-                    region="malibu" if path in private_status_paths else "forest",
+                    region=region,
                 )
                 payload = {
                     **incident_status(incidents, hours),
+                    "region": region,
                     "checked_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
                 }
                 body = json.dumps(payload, sort_keys=True).encode("utf-8")
@@ -787,7 +762,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header(
                 "Cache-Control",
-                "no-store" if path in private_status_paths else "private, max-age=15, stale-while-revalidate=30",
+                "private, max-age=15, stale-while-revalidate=30",
             )
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
@@ -802,11 +777,12 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                     self.database,
                     hours,
                     self.database_url,
-                    region="malibu" if path in private_incidents_paths else "forest",
+                    region=region,
                 )
                 payload = {
                     "incidents": incidents,
-                    "status": incident_status(incidents, hours),
+                    "status": {**incident_status(incidents, hours), "region": region},
+                    "region": region,
                     "checked_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
                 }
                 body = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
@@ -832,7 +808,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Cache-Control", "no-store" if path in private_incidents_paths else INCIDENTS_CACHE_CONTROL)
+            self.send_header("Cache-Control", INCIDENTS_CACHE_CONTROL)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             if send_body:
@@ -855,47 +831,45 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         try:
             generated_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
             hours = self.requested_hours()
-            is_private_preview = path in (
-                private_map_paths | private_summary_paths | private_history_paths | private_about_paths
-            )
-            region = "malibu" if is_private_preview else "forest"
             incidents = load_incidents(self.database, hours, self.database_url, region=region)
-            render_base_path = private_base if is_private_preview else self.base_path
-            render_public_url = None if is_private_preview else self.public_url
             if path in summary_paths or path in private_summary_paths:
                 body = build_summary_html(
                     incidents,
                     generated_at,
                     hours,
-                    base_path=render_base_path,
-                    public_url=render_public_url,
+                    base_path=self.base_path,
+                    public_url=self.public_url,
+                    region=region,
                 ).encode("utf-8")
             elif path in history_paths or path in private_history_paths:
                 body = build_history_html(
                     incidents,
                     generated_at,
                     hours,
-                    base_path=render_base_path,
-                    public_url=render_public_url,
+                    base_path=self.base_path,
+                    public_url=self.public_url,
                     filters=self.history_filters(),
+                    region=region,
                 ).encode("utf-8")
             elif path in about_paths or path in private_about_paths:
                 body = build_about_html(
                     incidents,
                     generated_at,
                     hours,
-                    base_path=render_base_path,
-                    public_url=render_public_url,
+                    base_path=self.base_path,
+                    public_url=self.public_url,
+                    region=region,
                 ).encode("utf-8")
             else:
                 body = build_html(
                     incidents,
                     generated_at,
                     hours,
-                    base_path=render_base_path,
-                    public_url=render_public_url,
-                    google_analytics_id=None if is_private_preview else self.google_analytics_id,
-                    map_label="Malibu" if is_private_preview else "Forest",
+                    base_path=self.base_path,
+                    public_url=self.public_url,
+                    google_analytics_id=self.google_analytics_id,
+                    map_label=region_label(region),
+                    region=region,
                 ).encode("utf-8")
         except Exception as exc:
             log_exception(
@@ -918,7 +892,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
 
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Cache-Control", "no-store" if is_private_preview else MAP_CACHE_CONTROL)
+        self.send_header("Cache-Control", MAP_CACHE_CONTROL)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         if send_body:
@@ -985,8 +959,6 @@ def parse_args():
     parser.add_argument("--base-path", default=os.environ.get("BASE_PATH", "/"))
     parser.add_argument("--public-url", default=os.environ.get("PUBLIC_URL"))
     parser.add_argument("--google-analytics-id", default=os.environ.get("GOOGLE_ANALYTICS_ID"))
-    parser.add_argument("--private-preview-user", default=os.environ.get("PRIVATE_PREVIEW_USER"))
-    parser.add_argument("--private-preview-password", default=os.environ.get("PRIVATE_PREVIEW_PASSWORD"))
     return parser.parse_args()
 
 
@@ -998,8 +970,6 @@ def main():
     LiveMapHandler.base_path = args.base_path
     LiveMapHandler.public_url = args.public_url
     LiveMapHandler.google_analytics_id = args.google_analytics_id
-    LiveMapHandler.private_preview_user = args.private_preview_user
-    LiveMapHandler.private_preview_password = args.private_preview_password
     with connect_database(args.database, args.database_url):
         pass
     server = EcsHTTPServer((args.host, args.port), LiveMapHandler)

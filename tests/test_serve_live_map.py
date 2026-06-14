@@ -1,4 +1,3 @@
-import base64
 import json
 import threading
 from urllib.request import HTTPError, urlopen
@@ -49,8 +48,6 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
     TestHandler.hours = 72.0
     TestHandler.base_path = "/"
     TestHandler.public_url = "https://crestmap.us/"
-    TestHandler.private_preview_user = None
-    TestHandler.private_preview_password = None
 
     server = EcsHTTPServer(("127.0.0.1", 0), TestHandler)
     thread = threading.Thread(target=server.serve_forever)
@@ -98,9 +95,10 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert "in last 24h" in body
-            assert '<a class="range-tab is-active" href="?hours=24" aria-current="page">24h</a>' in body
-            assert 'href="/summary?hours=24"' in body
-            assert 'href="/history?hours=24"' in body
+            assert '<a class="range-tab is-active" href="?hours=24&amp;region=forest" aria-current="page">24h</a>' in body
+            assert 'href="/summary?hours=24&amp;region=forest"' in body
+            assert 'href="/history?hours=24&amp;region=forest"' in body
+            assert 'href="/?hours=24&amp;region=malibu"' in body
 
         with urlopen(f"{base_url}/summary?hours=24", timeout=5) as response:
             body = response.read().decode("utf-8")
@@ -108,8 +106,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
             assert "Summary - CHP Forest Incidents" in body
             assert "Busiest Roads" in body
-            assert '<a class="range-tab is-active" href="?hours=24" aria-current="page">24h</a>' in body
-            assert '<a class="view-tab is-active" href="/summary?hours=24" aria-current="page">Summary</a>' in body
+            assert '<a class="range-tab is-active" href="?hours=24&amp;region=forest" aria-current="page">24h</a>' in body
+            assert '<a class="view-tab is-active" href="/summary?hours=24&amp;region=forest" aria-current="page">Summary</a>' in body
 
         with urlopen(f"{base_url}/history?hours=24", timeout=5) as response:
             body = response.read().decode("utf-8")
@@ -117,8 +115,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
             assert "History - CHP Forest Incidents" in body
             assert "Search road, type, incident number" in body
-            assert '<a class="range-tab is-active" href="?hours=24" aria-current="page">24h</a>' in body
-            assert '<a class="view-tab is-active" href="/history?hours=24" aria-current="page">History</a>' in body
+            assert '<a class="range-tab is-active" href="?hours=24&amp;region=forest" aria-current="page">24h</a>' in body
+            assert '<a class="view-tab is-active" href="/history?hours=24&amp;region=forest" aria-current="page">History</a>' in body
             assert '<select class="filter" name="status" aria-label="Status filter">' in body
 
         with urlopen(f"{base_url}/history?hours=24&status=active&mapped=mapped", timeout=5) as response:
@@ -133,8 +131,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
             assert "About - CHP Forest Incidents" in body
             assert "Update Cadence" in body
-            assert '<a class="range-tab is-active" href="?hours=24" aria-current="page">24h</a>' in body
-            assert '<a class="view-tab is-active" href="/about?hours=24" aria-current="page">About</a>' in body
+            assert '<a class="range-tab is-active" href="?hours=24&amp;region=forest" aria-current="page">24h</a>' in body
+            assert '<a class="view-tab is-active" href="/about?hours=24&amp;region=forest" aria-current="page">About</a>' in body
 
         with urlopen(f"{base_url}/status.json?hours=24", timeout=5) as response:
             body = response.read().decode("utf-8")
@@ -142,6 +140,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert response.headers["Content-Type"] == "application/json; charset=utf-8"
             assert response.headers["Cache-Control"] == "private, max-age=15, stale-while-revalidate=30"
             assert '"active_count": 0' in body
+            assert '"region": "forest"' in body
             assert '"total_count": 0' in body
             assert '"version":' in body
 
@@ -154,13 +153,15 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert payload["status"]["active_count"] == 0
             assert payload["status"]["total_count"] == 0
             assert payload["status"]["hours"] == 24.0
+            assert payload["region"] == "forest"
+            assert payload["status"]["region"] == "forest"
             assert "checked_at" in payload
 
         with urlopen(f"{base_url}/?hours=9999", timeout=5) as response:
             body = response.read().decode("utf-8")
             assert response.status == 200
             assert "in last 720h" in body
-            assert '<a class="range-tab is-active" href="?hours=720" aria-current="page">30d</a>' in body
+            assert '<a class="range-tab is-active" href="?hours=720&amp;region=forest" aria-current="page">30d</a>' in body
 
         with urlopen(f"{base_url}/favicon.svg", timeout=5) as response:
             assert response.status == 200
@@ -245,12 +246,11 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         else:
             raise AssertionError("expected /missing to return 404")
 
-        try:
-            urlopen(f"{base_url}/malibu", timeout=5)
-        except HTTPError as exc:
-            assert exc.code == 404
-        else:
-            raise AssertionError("expected /malibu to be hidden without credentials")
+        with urlopen(f"{base_url}/malibu", timeout=5) as response:
+            body = response.read().decode("utf-8")
+            assert response.status == 200
+            assert "CHP Malibu Incidents" in body
+            assert 'href="/?hours=72&amp;region=forest"' in body
 
         logged_paths = [kwargs["url.path"] for _args, kwargs in access_logs]
         assert "/healthz" not in logged_paths
@@ -293,7 +293,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         thread.join(timeout=5)
 
 
-def test_private_malibu_preview_requires_basic_auth(tmp_path):
+def test_public_malibu_region_is_available_without_auth(tmp_path):
     database = tmp_path / "chp.sqlite"
     conn = connect_database(database)
     upsert_active_event(
@@ -329,43 +329,42 @@ def test_private_malibu_preview_requires_basic_auth(tmp_path):
     TestHandler.hours = 72.0
     TestHandler.base_path = "/"
     TestHandler.public_url = "https://crestmap.us/"
-    TestHandler.private_preview_user = "preview"
-    TestHandler.private_preview_password = "secret"
 
     server = EcsHTTPServer(("127.0.0.1", 0), TestHandler)
     thread = threading.Thread(target=server.serve_forever)
     thread.start()
     base_url = f"http://127.0.0.1:{server.server_address[1]}"
     try:
-        try:
-            urlopen(f"{base_url}/malibu?hours=24", timeout=5)
-        except HTTPError as exc:
-            assert exc.code == 401
-            assert exc.headers["WWW-Authenticate"] == 'Basic realm="Crestmap private preview"'
-            assert exc.headers["Cache-Control"] == "no-store"
-        else:
-            raise AssertionError("expected /malibu to require auth")
-
-        credentials = base64.b64encode(b"preview:secret").decode("ascii")
-        request = Request(f"{base_url}/malibu?hours=24", headers={"Authorization": f"Basic {credentials}"})
-        with urlopen(request, timeout=5) as response:
+        with urlopen(f"{base_url}/?region=malibu&hours=24", timeout=5) as response:
             body = response.read().decode("utf-8")
             assert response.status == 200
-            assert response.headers["Cache-Control"] == "no-store"
+            assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
             assert "CHP Malibu Incidents" in body
-            assert "/malibu/incidents.json" in body
+            assert 'href="/?hours=24&amp;region=forest"' in body
+            assert 'href="/?hours=24&amp;region=malibu" aria-current="page">Malibu</a>' in body
+            assert 'const currentRegion = "malibu"' in body
 
-        request = Request(
-            f"{base_url}/malibu/incidents.json?hours=24",
-            headers={"Authorization": f"Basic {credentials}"},
-        )
-        with urlopen(request, timeout=5) as response:
+        with urlopen(f"{base_url}/malibu?hours=24", timeout=5) as response:
+            body = response.read().decode("utf-8")
+            assert response.status == 200
+            assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
+            assert "CHP Malibu Incidents" in body
+
+        with urlopen(f"{base_url}/incidents.json?region=malibu&hours=24", timeout=5) as response:
             payload = json.loads(response.read().decode("utf-8"))
             assert response.status == 200
-            assert response.headers["Cache-Control"] == "no-store"
+            assert response.headers["Cache-Control"] == INCIDENTS_CACHE_CONTROL
+            assert payload["region"] == "malibu"
+            assert payload["status"]["region"] == "malibu"
             assert payload["status"]["total_count"] == 1
             assert payload["incidents"][0]["region"] == "malibu"
             assert payload["incidents"][0]["location"] == "Las Virgenes Rd / Piuma Rd"
+
+        with urlopen(f"{base_url}/malibu/incidents.json?hours=24", timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            assert response.status == 200
+            assert payload["region"] == "malibu"
+            assert payload["status"]["total_count"] == 1
     finally:
         server.shutdown()
         server.server_close()

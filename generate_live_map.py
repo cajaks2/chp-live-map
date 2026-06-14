@@ -31,6 +31,7 @@ def region_label(region):
 
 
 def load_incidents(database, hours, database_url=None, region="forest"):
+    region = normalize_region(region)
     if not database_url and not database.exists():
         return []
     cutoff = (dt.datetime.now().astimezone() - dt.timedelta(hours=hours)).isoformat(

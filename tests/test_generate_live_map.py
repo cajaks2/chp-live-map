@@ -118,9 +118,11 @@ def test_load_incidents_filters_to_forest_region_by_default(tmp_path):
 
     forest_incidents = load_incidents(database, 72)
     malibu_incidents = load_incidents(database, 72, region="malibu")
+    malicious_region_incidents = load_incidents(database, 72, region="malibu'; DROP TABLE events; --")
 
     assert [incident["event_key"] for incident in forest_incidents] == [forest["event_key"]]
     assert [incident["event_key"] for incident in malibu_incidents] == [malibu["event_key"]]
+    assert [incident["event_key"] for incident in malicious_region_incidents] == [forest["event_key"]]
     assert malibu_incidents[0]["latitude"] == 34.035
     assert malibu_incidents[0]["longitude"] == -118.68
 

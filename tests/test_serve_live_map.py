@@ -157,6 +157,12 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert payload["status"]["region"] == "forest"
             assert "checked_at" in payload
 
+        with urlopen(f"{base_url}/incidents.json?hours=24&region=malibu%27%3Bdrop%20table%20events%3B--", timeout=5) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            assert response.status == 200
+            assert payload["region"] == "forest"
+            assert payload["incidents"] == []
+
         with urlopen(f"{base_url}/?hours=9999", timeout=5) as response:
             body = response.read().decode("utf-8")
             assert response.status == 200

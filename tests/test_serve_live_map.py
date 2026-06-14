@@ -246,11 +246,12 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         else:
             raise AssertionError("expected /missing to return 404")
 
-        with urlopen(f"{base_url}/malibu", timeout=5) as response:
-            body = response.read().decode("utf-8")
-            assert response.status == 200
-            assert "CHP Malibu Incidents" in body
-            assert 'href="/?hours=72&amp;region=forest"' in body
+        try:
+            urlopen(f"{base_url}/malibu", timeout=5)
+        except HTTPError as exc:
+            assert exc.code == 404
+        else:
+            raise AssertionError("expected /malibu to return 404")
 
         logged_paths = [kwargs["url.path"] for _args, kwargs in access_logs]
         assert "/healthz" not in logged_paths
@@ -344,12 +345,6 @@ def test_public_malibu_region_is_available_without_auth(tmp_path):
             assert 'href="/?hours=24&amp;region=malibu" aria-current="page">Malibu</a>' in body
             assert 'const currentRegion = "malibu"' in body
 
-        with urlopen(f"{base_url}/malibu?hours=24", timeout=5) as response:
-            body = response.read().decode("utf-8")
-            assert response.status == 200
-            assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
-            assert "CHP Malibu Incidents" in body
-
         with urlopen(f"{base_url}/incidents.json?region=malibu&hours=24", timeout=5) as response:
             payload = json.loads(response.read().decode("utf-8"))
             assert response.status == 200
@@ -360,11 +355,6 @@ def test_public_malibu_region_is_available_without_auth(tmp_path):
             assert payload["incidents"][0]["region"] == "malibu"
             assert payload["incidents"][0]["location"] == "Las Virgenes Rd / Piuma Rd"
 
-        with urlopen(f"{base_url}/malibu/incidents.json?hours=24", timeout=5) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-            assert response.status == 200
-            assert payload["region"] == "malibu"
-            assert payload["status"]["total_count"] == 1
     finally:
         server.shutdown()
         server.server_close()

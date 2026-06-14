@@ -444,15 +444,10 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             return self.hours
         return min(max(hours, MIN_HISTORY_HOURS), MAX_HISTORY_HOURS)
 
-    def requested_region(self, path=None):
+    def requested_region(self):
         parsed = urlsplit(self.path)
         params = parse_qs(parsed.query)
         requested = (params.get("region") or [None])[0]
-        path = path if path is not None else (parsed.path.rstrip("/") or "/")
-        base_path = normalize_base_path(self.base_path)
-        asset_base = "" if base_path == "/" else base_path
-        if requested is None and path.startswith(f"{asset_base}/malibu"):
-            requested = "malibu"
         return normalize_region(requested)
 
     def history_filters(self):
@@ -576,21 +571,6 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         status_paths = {"/status.json", f"{'' if base_path == '/' else base_path}/status.json"}
         incidents_paths = {"/incidents.json", f"{'' if base_path == '/' else base_path}/incidents.json"}
         asset_base = "" if base_path == "/" else base_path
-        private_base = f"{asset_base}/malibu"
-        private_map_paths = {private_base, f"{private_base}/", f"{private_base}/live_chp_map.html"}
-        private_summary_paths = {f"{private_base}/summary"}
-        private_history_paths = {f"{private_base}/history"}
-        private_about_paths = {f"{private_base}/about"}
-        private_status_paths = {f"{private_base}/status.json"}
-        private_incidents_paths = {f"{private_base}/incidents.json"}
-        private_paths = (
-            private_map_paths
-            | private_summary_paths
-            | private_history_paths
-            | private_about_paths
-            | private_status_paths
-            | private_incidents_paths
-        )
         robots_paths = {"/robots.txt", f"{asset_base}/robots.txt"}
         sitemap_paths = {"/sitemap.xml", f"{asset_base}/sitemap.xml"}
         metrics_paths = {"/metrics", f"{asset_base}/metrics"}
@@ -721,9 +701,9 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             return
 
-        region = self.requested_region(path)
+        region = self.requested_region()
 
-        if path in status_paths or path in private_status_paths:
+        if path in status_paths:
             try:
                 hours = self.requested_hours()
                 incidents = load_incidents(
@@ -770,7 +750,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             return
 
-        if path in incidents_paths or path in private_incidents_paths:
+        if path in incidents_paths:
             try:
                 hours = self.requested_hours()
                 incidents = load_incidents(
@@ -820,10 +800,6 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             and path not in summary_paths
             and path not in history_paths
             and path not in about_paths
-            and path not in private_map_paths
-            and path not in private_summary_paths
-            and path not in private_history_paths
-            and path not in private_about_paths
         ):
             self.send_error(404)
             return
@@ -832,7 +808,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             generated_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
             hours = self.requested_hours()
             incidents = load_incidents(self.database, hours, self.database_url, region=region)
-            if path in summary_paths or path in private_summary_paths:
+            if path in summary_paths:
                 body = build_summary_html(
                     incidents,
                     generated_at,
@@ -841,7 +817,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                     public_url=self.public_url,
                     region=region,
                 ).encode("utf-8")
-            elif path in history_paths or path in private_history_paths:
+            elif path in history_paths:
                 body = build_history_html(
                     incidents,
                     generated_at,
@@ -851,7 +827,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                     filters=self.history_filters(),
                     region=region,
                 ).encode("utf-8")
-            elif path in about_paths or path in private_about_paths:
+            elif path in about_paths:
                 body = build_about_html(
                     incidents,
                     generated_at,

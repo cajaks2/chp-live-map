@@ -14,6 +14,10 @@ from geo_bounds import clear_coordinates_outside_region_bounds
 
 DEFAULT_CENTER = [34.32, -118.12]
 DEFAULT_ZOOM = 10
+REGION_VIEWPORTS = {
+    "forest": {"center": DEFAULT_CENTER, "zoom": DEFAULT_ZOOM},
+    "malibu": {"center": [34.09, -118.78], "zoom": 10},
+}
 HISTORY_PRESETS = [(24, "24h"), (72, "72h"), (168, "7d"), (720, "30d")]
 REGION_LABELS = {
     "forest": "Forest",
@@ -28,6 +32,10 @@ def normalize_region(region):
 
 def region_label(region):
     return REGION_LABELS[normalize_region(region)]
+
+
+def region_viewport(region):
+    return REGION_VIEWPORTS[normalize_region(region)]
 
 
 def load_incidents(database, hours, database_url=None, region="forest"):
@@ -300,6 +308,7 @@ def build_html(
 ):
     region = normalize_region(region)
     map_label = region_label(region)
+    viewport = region_viewport(region)
     status = {**incident_status(incidents, hours), "region": region}
     active_count = status["active_count"]
     mapped_count = status["mapped_count"]
@@ -1300,7 +1309,7 @@ def build_html(
       zoomAnimation: true,
       fadeAnimation: true,
       markerZoomAnimation: true
-    }}).setView({json.dumps(DEFAULT_CENTER)}, {DEFAULT_ZOOM});
+    }}).setView({json.dumps(viewport["center"])}, {viewport["zoom"]});
     const baseLayer = L.tileLayer("https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png", {{
       subdomains: "abc",
       maxZoom: 19,

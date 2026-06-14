@@ -304,6 +304,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "CHP Malibu Incidents" in malibu_html
     assert 'href="/summary?hours=72&amp;region=malibu"' in malibu_html
     assert 'const currentRegion = "malibu"' in malibu_html
+    assert ".setView([34.09, -118.78], 10)" in malibu_html
+    assert ".setView([34.32, -118.12], 10)" not in malibu_html
     assert "Automatically reload when new incident data is available" in html
     assert "let dismissed = false" in html
     assert "async () =>" in html

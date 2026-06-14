@@ -1739,7 +1739,7 @@ def build_html(
       selectIncident(selectedIncident, {{
         pan: Boolean(linkedIncident) && !options.preserveViewport,
         revealList: Boolean(linkedIncident),
-        updateUrl: Boolean(linkedIncident || preservedIncident)
+        updateUrl: true
       }});
     }}
 

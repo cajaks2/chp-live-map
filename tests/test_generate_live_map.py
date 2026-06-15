@@ -206,16 +206,18 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'href="/summary?hours=72&amp;region=forest"' in html
     assert 'href="/history?hours=72&amp;region=forest"' in html
     assert 'id="incident-list-shell"' in html
-    assert "flex-basis: clamp(176px, 28svh, 240px)" in html
-    assert "min-height: 176px" in html
+    assert "flex-basis: clamp(150px, 23svh, 200px)" in html
+    assert "min-height: 150px" in html
     assert 'id="scroll-incidents"' in html
     assert "has-more-below #scroll-incidents" in html
     assert "function updateListScrollCue" in html
     assert "function scrollIncidentListDown" in html
     assert 'id="details-cue"' in html
     assert "Incident details below" in html
-    assert "height: 42svh" in html
-    assert "bottom: max(26px, calc(env(safe-area-inset-bottom) + 10px))" in html
+    assert "height: 45svh" in html
+    assert "bottom: var(--details-cue-bottom, max(26px, calc(env(safe-area-inset-bottom) + 10px)))" in html
+    assert "function updateDetailsCuePosition" in html
+    assert "window.visualViewport.addEventListener" in html
     assert "selected-pill" in html
     assert '<span class="selected-pill">Open</span>' in html
     assert "background: #d4e6d5" in html
@@ -323,6 +325,12 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "window.chpLiveMap" in html
     assert "touch-action: none" in html
     assert "-webkit-tap-highlight-color: transparent" in html
+    assert "@media (max-width: 760px)" in html
+    assert "padding: 8px 12px 8px;" in html
+    assert ".view-menu {\n        display: block;" in html
+    assert ".view-tabs {\n        display: none;" in html
+    assert "flex-basis: clamp(150px, 23svh, 200px);" in html
+    assert "height: 45svh;" in html
     assert "tap: true" in html
     assert "touchZoom: true" in html
     assert "doubleClickZoom: true" in html

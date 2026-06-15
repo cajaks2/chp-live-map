@@ -689,6 +689,9 @@ def build_html(
       color: #ffffff;
       background: #277447;
     }}
+    .secondary-tabs {{
+      display: contents;
+    }}
     .view-tabs {{
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1195,30 +1198,103 @@ def build_html(
         border-right: 0;
         border-bottom: 1px solid #d8ddd2;
       }}
+      header {{
+        padding: 8px 12px 8px;
+      }}
+      h1 {{
+        margin-bottom: 2px;
+        font-size: 17px;
+        line-height: 1.12;
+      }}
+      .title-row {{
+        align-items: center;
+        gap: 8px;
+      }}
+      .view-menu {{
+        display: block;
+      }}
+      .view-menu summary {{
+        width: 30px;
+        height: 30px;
+        border-radius: 6px;
+        font-size: 15px;
+      }}
+      .view-menu-popover {{
+        top: 36px;
+        width: min(270px, calc(100vw - 24px));
+      }}
+      .meta {{
+        font-size: 11px;
+        line-height: 1.25;
+      }}
+      .checked-meta {{
+        gap: 0 4px;
+      }}
+      .auto-refresh-control {{
+        gap: 3px;
+      }}
+      .auto-refresh-control input {{
+        width: 11px;
+        height: 11px;
+      }}
+      .range-tabs,
+      .region-tabs {{
+        gap: 2px;
+        margin-top: 5px;
+        padding: 2px;
+        border-radius: 7px;
+      }}
+      .range-tab,
+      .region-tab {{
+        min-height: 23px;
+        padding: 0 5px;
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 800;
+      }}
+      .secondary-tabs {{
+        display: contents;
+        margin-top: 5px;
+      }}
+      .secondary-tabs .region-tabs {{
+        margin-top: 5px;
+      }}
+      .view-tabs {{
+        display: none;
+      }}
       #incident-list-shell {{
-        flex: 0 0 192px;
-        flex-basis: clamp(176px, 28svh, 240px);
-        min-height: 176px;
+        flex: 0 0 164px;
+        flex-basis: clamp(150px, 23svh, 200px);
+        min-height: 150px;
       }}
       #incident-list {{
         -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 32px), transparent 100%);
         mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 32px), transparent 100%);
       }}
       .incident {{
-        padding: 11px 14px;
+        padding: 9px 12px;
       }}
       .incident strong {{
         font-size: 13px;
       }}
+      .incident span {{
+        font-size: 11px;
+        line-height: 1.28;
+      }}
+      .status-pill {{
+        margin-bottom: 4px;
+        padding: 1px 7px;
+        font-size: 10px;
+      }}
       #map {{
-        height: 42svh;
+        height: 45svh;
         min-height: 280px;
       }}
       #details-cue {{
         display: flex;
         position: absolute;
         left: 50%;
-        bottom: max(26px, calc(env(safe-area-inset-bottom) + 10px));
+        bottom: var(--details-cue-bottom, max(26px, calc(env(safe-area-inset-bottom) + 10px)));
         z-index: 600;
         align-items: center;
         gap: 8px;
@@ -1270,8 +1346,10 @@ def build_html(
           </label>
         </div>
         <nav class="range-tabs" aria-label="History range">{history_controls(hours, region)}</nav>
-        <nav class="region-tabs" aria-label="Region">{region_tabs(base_path, "map", hours, region)}</nav>
-        <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, "map", hours, region)}</nav>
+        <div class="secondary-tabs">
+          <nav class="region-tabs" aria-label="Region">{region_tabs(base_path, "map", hours, region)}</nav>
+          <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, "map", hours, region)}</nav>
+        </div>
         <div id="stale-notice" role="status">
           <span id="stale-notice-text">Data may be stale.</span>
           <button type="button" id="refresh-page">Refresh</button>
@@ -1391,6 +1469,37 @@ def build_html(
         }}
         lastTap = currentTap;
       }}, {{ passive: false }});
+    }}
+
+    function updateDetailsCuePosition() {{
+      if (!detailsCue || !mobileViewport.matches) {{
+        mapEl.style.removeProperty("--details-cue-bottom");
+        return;
+      }}
+      const viewport = window.visualViewport;
+      const viewportTop = viewport ? viewport.offsetTop : 0;
+      const viewportBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
+      const rect = mapEl.getBoundingClientRect();
+      const visibleTop = Math.max(rect.top, viewportTop);
+      const visibleBottom = Math.min(rect.bottom, viewportBottom);
+      if (visibleBottom <= visibleTop) {{
+        return;
+      }}
+      const targetBottomGap = 18;
+      const targetY = Math.max(visibleTop + 44, visibleBottom - targetBottomGap - 36);
+      const cueBottom = Math.max(18, Math.round(rect.bottom - targetY));
+      mapEl.style.setProperty("--details-cue-bottom", `${{cueBottom}}px`);
+    }}
+
+    function setupDetailsCuePosition() {{
+      updateDetailsCuePosition();
+      window.addEventListener("scroll", updateDetailsCuePosition, {{ passive: true }});
+      window.addEventListener("resize", updateDetailsCuePosition);
+      mobileViewport.addEventListener("change", updateDetailsCuePosition);
+      if (window.visualViewport) {{
+        window.visualViewport.addEventListener("resize", updateDetailsCuePosition);
+        window.visualViewport.addEventListener("scroll", updateDetailsCuePosition);
+      }}
     }}
 
     function escapeHtml(value) {{
@@ -1891,6 +2000,7 @@ def build_html(
     formatGeneratedAt();
     setupStaleRefresh();
     setupDoubleTapZoom();
+    setupDetailsCuePosition();
     list.addEventListener("scroll", updateListScrollCue, {{ passive: true }});
     scrollIncidentsButton?.addEventListener("click", scrollIncidentListDown);
     window.addEventListener("resize", updateListScrollCue);
@@ -2098,7 +2208,7 @@ def report_shell(
       position: sticky;
       top: 0;
       z-index: 5;
-      padding: 18px;
+      padding: 8px 12px;
       border-bottom: 1px solid #d8ddd2;
       background: rgba(251, 252, 248, 0.98);
     }}
@@ -2109,19 +2219,20 @@ def report_shell(
       gap: 12px;
     }}
     .report-nav {{
-      margin-top: 13px;
+      margin-top: 8px;
     }}
     h1 {{
-      margin: 0 0 5px;
-      font-size: 24px;
+      margin: 0 0 3px;
+      font-size: 18px;
       line-height: 1.1;
     }}
     .meta {{
       color: #58645d;
-      font-size: 14px;
-      line-height: 1.35;
+      font-size: 11px;
+      line-height: 1.25;
     }}
     .view-menu {{
+      display: block;
       position: relative;
       flex: 0 0 auto;
     }}
@@ -2129,12 +2240,12 @@ def report_shell(
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 36px;
-      height: 36px;
+      width: 30px;
+      height: 30px;
       border: 1px solid #d8ddd2;
-      border-radius: 8px;
+      border-radius: 6px;
       background: #fff;
-      font-size: 16px;
+      font-size: 15px;
       font-weight: 900;
       cursor: pointer;
       list-style: none;
@@ -2144,10 +2255,10 @@ def report_shell(
     }}
     .view-menu-popover {{
       position: absolute;
-      top: 42px;
+      top: 36px;
       right: 0;
       z-index: 10;
-      width: min(290px, calc(100vw - 36px));
+      width: min(270px, calc(100vw - 24px));
       padding: 6px;
       border: 1px solid #d8ddd2;
       border-radius: 8px;
@@ -2179,24 +2290,24 @@ def report_shell(
       outline: none;
     }}
     .view-tabs {{
-      display: grid;
+      display: none;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 3px;
-      margin-top: 10px;
-      padding: 3px;
-      border: 1px solid #d8ddd2;
-      border-radius: 8px;
-      background: #eef1ea;
+      gap: 2px;
+      margin-top: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
     }}
     .view-tab {{
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 34px;
-      padding: 0 7px;
-      border-radius: 5px;
+      min-height: 28px;
+      padding: 0 3px;
+      border-radius: 4px;
       color: #3f4a44;
-      font-size: 13px;
+      font-size: 11px;
       font-weight: 800;
       line-height: 1;
       text-align: center;
@@ -2208,8 +2319,9 @@ def report_shell(
       outline: none;
     }}
     .view-tab.is-active {{
-      color: #ffffff;
-      background: #277447;
+      color: #1f6840;
+      background: transparent;
+      box-shadow: inset 0 -2px 0 #277447;
     }}
     .range-tabs {{
       display: grid;
@@ -2225,11 +2337,11 @@ def report_shell(
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 34px;
+      min-height: 23px;
       padding: 0 7px;
       border-radius: 5px;
       color: #3f4a44;
-      font-size: 13px;
+      font-size: 11px;
       font-weight: 800;
       line-height: 1;
       text-align: center;
@@ -2258,11 +2370,11 @@ def report_shell(
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 34px;
+      min-height: 23px;
       padding: 0 7px;
       border-radius: 5px;
       color: #3f4a44;
-      font-size: 13px;
+      font-size: 11px;
       font-weight: 800;
       line-height: 1;
       text-align: center;
@@ -2276,6 +2388,13 @@ def report_shell(
     .region-tab.is-active {{
       color: #ffffff;
       background: #277447;
+    }}
+    .secondary-tabs {{
+      display: contents;
+      margin-top: 6px;
+    }}
+    .secondary-tabs .region-tabs {{
+      margin-top: 6px;
     }}
     main {{
       padding: 14px 16px 30px;
@@ -2437,8 +2556,50 @@ def report_shell(
       main {{
         padding: 18px;
       }}
+      header {{
+        padding: 18px;
+      }}
+      h1 {{
+        margin-bottom: 5px;
+        font-size: 24px;
+      }}
+      .meta {{
+        font-size: 14px;
+        line-height: 1.35;
+      }}
+      .view-menu {{
+        display: block;
+      }}
       .kpi-grid {{
         grid-template-columns: repeat(4, minmax(0, 1fr));
+      }}
+      .secondary-tabs {{
+        display: contents;
+      }}
+      .view-tabs {{
+        display: grid;
+        gap: 3px;
+        margin-top: 10px;
+        padding: 3px;
+        border: 1px solid #d8ddd2;
+        border-radius: 8px;
+        background: #eef1ea;
+      }}
+      .view-tab {{
+        min-height: 34px;
+        padding: 0 7px;
+        border-radius: 5px;
+        font-size: 13px;
+      }}
+      .range-tab,
+      .region-tab {{
+        min-height: 34px;
+        font-size: 13px;
+      }}
+      .view-tab.is-active {{
+        color: #ffffff;
+        background: #277447;
+        box-shadow: none;
       }}
     }}
     @media (min-width: 980px) {{
@@ -2513,8 +2674,10 @@ def report_shell(
         </div>
         <div class="report-nav">
           <nav class="range-tabs" aria-label="History range">{history_controls(hours, region)}</nav>
-          <nav class="region-tabs" aria-label="Region">{region_tabs(base_path, current, hours, region)}</nav>
-          <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, current, hours, region)}</nav>
+          <div class="secondary-tabs">
+            <nav class="region-tabs" aria-label="Region">{region_tabs(base_path, current, hours, region)}</nav>
+            <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, current, hours, region)}</nav>
+          </div>
         </div>
       </div>
     </header>

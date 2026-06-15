@@ -233,10 +233,9 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert 'chp_live_map_incidents{status="total"} 0' in body
             assert 'chp_live_map_region_incidents{region="forest",status="total"} 0' in body
             assert 'chp_live_map_region_incidents{region="malibu",status="total"} 0' in body
-            assert 'chp_live_map_scrape_last_run_incidents{kind="total_seen"} 12' in body
-            assert 'chp_live_map_scrape_last_run_details{result="requested"} 2' in body
-            assert 'chp_live_map_scrape_chp_http_requests_total{method="GET",route="list",status="200"} 1' in body
-            assert 'chp_live_map_scrape_chp_http_requests_total{method="POST",route="detail",status="200"} 2' in body
+            assert "chp_live_map_scrape_last_run_incidents" not in body
+            assert "chp_live_map_scrape_last_run_details" not in body
+            assert "chp_live_map_scrape_chp_http_requests_total" not in body
             assert "chp_live_map_http_requests_total" in body
 
         head_request = Request(f"{base_url}/", method="HEAD")

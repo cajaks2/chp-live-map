@@ -270,74 +270,6 @@ def metric_line(name, value, labels=None):
     return f"{name} {value}"
 
 
-def scrape_run_metrics(database, database_url):
-    if not database_url and not database.exists():
-        return []
-    with connect_database(database, database_url) as conn:
-        latest = conn.execute(
-            "SELECT * FROM scrape_runs ORDER BY id DESC LIMIT 1"
-        ).fetchone()
-        status_rows = conn.execute(
-            "SELECT http_status_counts FROM scrape_runs"
-        ).fetchall()
-
-    lines = [
-        "# HELP chp_live_map_scrape_last_run_timestamp_seconds Unix timestamp of the latest completed CHP scrape.",
-        "# TYPE chp_live_map_scrape_last_run_timestamp_seconds gauge",
-    ]
-    if latest:
-        lines.extend(
-            [
-                metric_line(
-                    "chp_live_map_scrape_last_run_timestamp_seconds",
-                    f"{parse_timestamp(latest['observed_at']):.3f}",
-                ),
-                "# HELP chp_live_map_scrape_last_run_duration_seconds Duration of the latest completed CHP scrape.",
-                "# TYPE chp_live_map_scrape_last_run_duration_seconds gauge",
-                metric_line("chp_live_map_scrape_last_run_duration_seconds", latest["duration_seconds"]),
-                "# HELP chp_live_map_scrape_last_run_incidents Incidents seen by the latest scrape.",
-                "# TYPE chp_live_map_scrape_last_run_incidents gauge",
-                metric_line("chp_live_map_scrape_last_run_incidents", latest["total_seen"], {"kind": "total_seen"}),
-                metric_line("chp_live_map_scrape_last_run_incidents", latest["active_seen"], {"kind": "matched"}),
-                metric_line("chp_live_map_scrape_last_run_incidents", latest["active_with_coords"], {"kind": "mapped"}),
-                "# HELP chp_live_map_scrape_last_run_observations_inserted Observation rows inserted by the latest scrape.",
-                "# TYPE chp_live_map_scrape_last_run_observations_inserted gauge",
-                metric_line("chp_live_map_scrape_last_run_observations_inserted", latest["observations_inserted"]),
-                "# HELP chp_live_map_scrape_last_run_details Detail pages requested or skipped by the latest scrape.",
-                "# TYPE chp_live_map_scrape_last_run_details gauge",
-                metric_line("chp_live_map_scrape_last_run_details", latest["details_requested"], {"result": "requested"}),
-                metric_line("chp_live_map_scrape_last_run_details", latest["details_skipped"], {"result": "skipped"}),
-            ]
-        )
-    else:
-        lines.append("chp_live_map_scrape_last_run_timestamp_seconds 0")
-
-    totals = defaultdict(int)
-    for row in status_rows:
-        try:
-            counts = json.loads(row["http_status_counts"] or "{}")
-        except (TypeError, ValueError):
-            continue
-        for key, count in counts.items():
-            method, route, status = (key.split(":", 2) + ["", "", ""])[:3]
-            totals[(method, route, status)] += int(count)
-    lines.extend(
-        [
-            "# HELP chp_live_map_scrape_chp_http_requests_total Outbound CHP HTTP requests made by scraper, grouped by method, route, and status.",
-            "# TYPE chp_live_map_scrape_chp_http_requests_total counter",
-        ]
-    )
-    for (method, route, status), count in sorted(totals.items()):
-        lines.append(
-            metric_line(
-                "chp_live_map_scrape_chp_http_requests_total",
-                count,
-                {"method": method, "route": route, "status": status},
-            )
-        )
-    return lines
-
-
 def prometheus_metrics(database, database_url, hours):
     incidents = load_incidents(database, hours, database_url)
     status = incident_status(incidents, hours)
@@ -402,7 +334,6 @@ def prometheus_metrics(database, database_url, hours):
         "# TYPE chp_live_map_http_requests_total counter",
         ]
     )
-    lines.extend(scrape_run_metrics(database, database_url))
     for (method, route, status_code), count in sorted(HTTP_REQUESTS_TOTAL.items()):
         lines.append(
             metric_line(

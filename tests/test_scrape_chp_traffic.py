@@ -85,10 +85,18 @@ def test_scraper_metrics_include_region_labels():
         details_requested=1,
         details_skipped=2,
         duration_seconds=1.5,
+        source_durations={"cad": 1.1, "xml": 0.4, "total": 1.5},
+        source_bytes={"cad": 12345, "xml": 6789, "total": 19134},
     )
 
     body = metrics.render().decode("utf-8")
 
+    assert 'chp_live_map_scraper_last_run_source_duration_seconds{source="cad"} 1.1' in body
+    assert 'chp_live_map_scraper_last_run_source_duration_seconds{source="xml"} 0.4' in body
+    assert 'chp_live_map_scraper_last_run_source_duration_seconds{source="total"} 1.5' in body
+    assert 'chp_live_map_scraper_last_run_source_response_bytes{source="cad"} 12345' in body
+    assert 'chp_live_map_scraper_last_run_source_response_bytes{source="xml"} 6789' in body
+    assert 'chp_live_map_scraper_last_run_source_response_bytes{source="total"} 19134' in body
     assert 'chp_live_map_scraper_last_run_incidents{kind="matched"} 3' in body
     assert 'chp_live_map_scraper_last_run_region_incidents{region="forest",kind="matched"} 2' in body
     assert 'chp_live_map_scraper_last_run_region_incidents{region="forest",kind="mapped"} 1' in body

@@ -145,6 +145,8 @@ class ScraperMetrics:
         details_requested,
         details_skipped,
         duration_seconds,
+        source_durations=None,
+        source_bytes=None,
     ):
         with self.lock:
             self.scrapes["success"] += 1
@@ -152,6 +154,8 @@ class ScraperMetrics:
                 "outcome": "success",
                 "observed_at": observed_at,
                 "duration_seconds": duration_seconds,
+                "source_durations": source_durations or {"total": duration_seconds},
+                "source_bytes": source_bytes or {},
                 "observations_inserted": changed_rows,
                 "total_seen": total_seen,
                 "active_seen": active_seen,
@@ -169,6 +173,8 @@ class ScraperMetrics:
                 "outcome": "failure",
                 "observed_at": observed_at,
                 "duration_seconds": duration_seconds,
+                "source_durations": {"total": duration_seconds},
+                "source_bytes": {},
                 "observations_inserted": 0,
                 "total_seen": 0,
                 "active_seen": 0,
@@ -280,6 +286,40 @@ class ScraperMetrics:
                 "# HELP chp_live_map_scraper_last_run_duration_seconds Duration of the latest scraper run.",
                 "# TYPE chp_live_map_scraper_last_run_duration_seconds gauge",
                 metric_line("chp_live_map_scraper_last_run_duration_seconds", last.get("duration_seconds", 0)),
+                "# HELP chp_live_map_scraper_last_run_source_duration_seconds Duration of the latest scraper run grouped by source.",
+                "# TYPE chp_live_map_scraper_last_run_source_duration_seconds gauge",
+            ]
+        )
+        source_durations = dict(last.get("source_durations") or {})
+        source_durations.setdefault("total", last.get("duration_seconds", 0))
+        for source, duration_seconds in sorted(source_durations.items()):
+            lines.append(
+                metric_line(
+                    "chp_live_map_scraper_last_run_source_duration_seconds",
+                    duration_seconds,
+                    {"source": source},
+                )
+            )
+        lines.extend(
+            [
+                "# HELP chp_live_map_scraper_last_run_source_response_bytes Bytes downloaded by the latest scraper run grouped by source.",
+                "# TYPE chp_live_map_scraper_last_run_source_response_bytes gauge",
+            ]
+        )
+        source_bytes = dict(last.get("source_bytes") or {})
+        for source in ("cad", "xml"):
+            source_bytes.setdefault(source, 0)
+        source_bytes["total"] = source_bytes.get("cad", 0) + source_bytes.get("xml", 0)
+        for source, byte_count in sorted(source_bytes.items()):
+            lines.append(
+                metric_line(
+                    "chp_live_map_scraper_last_run_source_response_bytes",
+                    byte_count,
+                    {"source": source},
+                )
+            )
+        lines.extend(
+            [
                 "# HELP chp_live_map_scraper_last_run_incidents Incidents seen by the latest scraper run.",
                 "# TYPE chp_live_map_scraper_last_run_incidents gauge",
                 metric_line("chp_live_map_scraper_last_run_incidents", last.get("total_seen", 0), {"kind": "total_seen"}),
@@ -502,12 +542,26 @@ def record_response_status(stats, method, route, status):
     stats["http_status_counts"][key] = stats["http_status_counts"].get(key, 0) + 1
 
 
+def source_for_route(route):
+    return "xml" if route == "media_xml" else "cad"
+
+
+def record_response_bytes(stats, route, byte_count):
+    if stats is None:
+        return
+    source = source_for_route(route)
+    stats.setdefault("source_bytes", {})
+    stats["source_bytes"][source] = stats["source_bytes"].get(source, 0) + byte_count
+
+
 def request_text(opener, req, timeout, retries, backoff, stats=None, route="traffic"):
     for attempt in range(retries + 1):
         try:
             with opener.open(req, timeout=timeout) as response:
                 record_response_status(stats, req.get_method(), route, response.status)
-                return response.read().decode("utf-8", errors="replace")
+                body = response.read()
+                record_response_bytes(stats, route, len(body))
+                return body.decode("utf-8", errors="replace")
         except HTTPError as exc:
             record_response_status(stats, req.get_method(), route, exc.code)
             retryable = exc.code in {429, 500, 502, 503, 504}
@@ -820,7 +874,7 @@ def log_xml_shadow_comparison(
                 "http.request.header.user_agent": args.user_agent,
             },
         )
-        return
+        return duration_seconds
 
     cad_only = sorted(cad_keys - xml_keys)
     xml_only = sorted(xml_keys - cad_keys)
@@ -866,6 +920,7 @@ def log_xml_shadow_comparison(
             "chp.xml_region_counts": xml_region_counts,
         },
     )
+    return duration_seconds
 
 
 def normalize_header(value):
@@ -1624,7 +1679,7 @@ def scrape_once(args):
     details_requested = 0
     details_skipped = 0
     observations_inserted = 0
-    stats = {"http_status_counts": {}}
+    stats = {"http_status_counts": {}, "source_bytes": {}}
 
     if args.respect_robots and not robots_allows(args.user_agent, args.timeout):
         raise RuntimeError(f"robots.txt disallows scraping {CHP_TRAFFIC_URL} for {args.user_agent}")
@@ -1760,8 +1815,10 @@ def scrape_once(args):
         }
         for region in sorted(REGION_ROAD_KEYWORDS)
     }
+    cad_duration_seconds = time.monotonic() - started_at
+    xml_duration_seconds = 0
     if args.xml_shadow_compare:
-        log_xml_shadow_comparison(
+        xml_duration_seconds = log_xml_shadow_comparison(
             args,
             observed_at,
             total_seen,
@@ -1769,7 +1826,18 @@ def scrape_once(args):
             seen_with_coords,
             region_counts,
             stats,
-        )
+        ) or 0
+    duration_seconds = time.monotonic() - started_at
+    source_durations = {
+        "cad": cad_duration_seconds,
+        "xml": xml_duration_seconds,
+        "total": duration_seconds,
+    }
+    source_bytes = {
+        "cad": stats.get("source_bytes", {}).get("cad", 0),
+        "xml": stats.get("source_bytes", {}).get("xml", 0),
+    }
+    source_bytes["total"] = source_bytes["cad"] + source_bytes["xml"]
     return (
         observations_inserted,
         total_seen,
@@ -1778,7 +1846,9 @@ def scrape_once(args):
         region_counts,
         details_requested,
         details_skipped,
-        time.monotonic() - started_at,
+        duration_seconds,
+        source_durations,
+        source_bytes,
         stats["http_status_counts"],
         observed_at,
     )
@@ -1838,6 +1908,8 @@ def main():
                 details_requested,
                 details_skipped,
                 duration_seconds,
+                source_durations,
+                source_bytes,
                 http_status_counts,
                 scrape_observed_at,
             ) = scrape_once(args)
@@ -1851,6 +1923,8 @@ def main():
                 details_requested,
                 details_skipped,
                 duration_seconds,
+                source_durations,
+                source_bytes,
             )
             log_event(
                 "info",
@@ -1866,6 +1940,10 @@ def main():
                     "chp.details_requested": details_requested,
                     "chp.details_skipped": details_skipped,
                     "chp.duration_seconds": round(duration_seconds, 3),
+                    "chp.source_durations": {
+                        source: round(duration, 3) for source, duration in source_durations.items()
+                    },
+                    "chp.source_bytes": source_bytes,
                     "chp.http_status_counts": http_status_counts,
                     "chp.centers": args.center,
                     "http.request.header.user_agent": args.user_agent,

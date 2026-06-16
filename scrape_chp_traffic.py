@@ -124,8 +124,10 @@ class ScraperMetrics:
     def __init__(self):
         self.lock = threading.Lock()
         self.scrapes = {"success": 0, "failure": 0}
+        self.source_compares = {"success": 0, "failure": 0, "mismatch": 0}
         self.http_status_counts = {}
         self.last = {}
+        self.last_source_compare = {}
 
     def record_chp_http(self, method, route, status):
         key = (str(method), str(route), str(status))
@@ -177,11 +179,72 @@ class ScraperMetrics:
                 "error_type": exc.__class__.__name__,
             }
 
+    def record_source_compare_success(
+        self,
+        observed_at,
+        cad_total_seen,
+        cad_matched,
+        cad_mapped,
+        cad_region_counts,
+        xml_total_seen,
+        xml_matched,
+        xml_mapped,
+        xml_region_counts,
+        overlap_matched,
+        cad_only,
+        xml_only,
+    ):
+        has_mismatch = cad_only > 0 or xml_only > 0
+        with self.lock:
+            self.source_compares["success"] += 1
+            if has_mismatch:
+                self.source_compares["mismatch"] += 1
+            self.last_source_compare = {
+                "outcome": "success",
+                "observed_at": observed_at,
+                "cad_total_seen": cad_total_seen,
+                "cad_matched": cad_matched,
+                "cad_mapped": cad_mapped,
+                "cad_region_counts": cad_region_counts or {},
+                "xml_total_seen": xml_total_seen,
+                "xml_matched": xml_matched,
+                "xml_mapped": xml_mapped,
+                "xml_region_counts": xml_region_counts or {},
+                "overlap_matched": overlap_matched,
+                "cad_only": cad_only,
+                "xml_only": xml_only,
+                "mismatch": 1 if has_mismatch else 0,
+                "error_type": "",
+            }
+
+    def record_source_compare_failure(self, observed_at, exc):
+        with self.lock:
+            self.source_compares["failure"] += 1
+            self.last_source_compare = {
+                "outcome": "failure",
+                "observed_at": observed_at,
+                "cad_total_seen": 0,
+                "cad_matched": 0,
+                "cad_mapped": 0,
+                "cad_region_counts": {},
+                "xml_total_seen": 0,
+                "xml_matched": 0,
+                "xml_mapped": 0,
+                "xml_region_counts": {},
+                "overlap_matched": 0,
+                "cad_only": 0,
+                "xml_only": 0,
+                "mismatch": 0,
+                "error_type": exc.__class__.__name__,
+            }
+
     def render(self):
         with self.lock:
             scrapes = dict(self.scrapes)
+            source_compares = dict(self.source_compares)
             http_counts = dict(self.http_status_counts)
             last = dict(self.last)
+            last_source_compare = dict(self.last_source_compare)
         lines = [
             "# HELP chp_live_map_scraper_up Whether the scraper metrics service is running.",
             "# TYPE chp_live_map_scraper_up gauge",
@@ -194,6 +257,14 @@ class ScraperMetrics:
         ]
         for outcome, count in sorted(scrapes.items()):
             lines.append(metric_line("chp_live_map_scraper_scrapes_total", count, {"outcome": outcome}))
+        lines.extend(
+            [
+                "# HELP chp_live_map_scraper_source_compare_runs_total Source comparison runs by outcome.",
+                "# TYPE chp_live_map_scraper_source_compare_runs_total counter",
+            ]
+        )
+        for outcome, count in sorted(source_compares.items()):
+            lines.append(metric_line("chp_live_map_scraper_source_compare_runs_total", count, {"outcome": outcome}))
         lines.extend(
             [
                 "# HELP chp_live_map_scraper_last_run_timestamp_seconds Unix timestamp of the latest scraper run.",
@@ -230,6 +301,93 @@ class ScraperMetrics:
                     {"region": region, "kind": "mapped"},
                 )
             )
+        lines.extend(
+            [
+                "# HELP chp_live_map_scraper_source_compare_last_run_timestamp_seconds Unix timestamp of the latest source comparison run.",
+                "# TYPE chp_live_map_scraper_source_compare_last_run_timestamp_seconds gauge",
+                metric_line(
+                    "chp_live_map_scraper_source_compare_last_run_timestamp_seconds",
+                    f"{parse_metric_timestamp(last_source_compare.get('observed_at')):.3f}",
+                    {
+                        "outcome": last_source_compare.get("outcome", "none"),
+                        "error_type": last_source_compare.get("error_type", ""),
+                    },
+                ),
+                "# HELP chp_live_map_scraper_source_compare_last_run_incidents Last source comparison incident counts by source/result.",
+                "# TYPE chp_live_map_scraper_source_compare_last_run_incidents gauge",
+                metric_line(
+                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    last_source_compare.get("cad_total_seen", 0),
+                    {"source": "cad", "kind": "total_seen"},
+                ),
+                metric_line(
+                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    last_source_compare.get("cad_matched", 0),
+                    {"source": "cad", "kind": "matched"},
+                ),
+                metric_line(
+                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    last_source_compare.get("cad_mapped", 0),
+                    {"source": "cad", "kind": "mapped"},
+                ),
+                metric_line(
+                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    last_source_compare.get("xml_total_seen", 0),
+                    {"source": "xml", "kind": "total_seen"},
+                ),
+                metric_line(
+                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    last_source_compare.get("xml_matched", 0),
+                    {"source": "xml", "kind": "matched"},
+                ),
+                metric_line(
+                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    last_source_compare.get("xml_mapped", 0),
+                    {"source": "xml", "kind": "mapped"},
+                ),
+                metric_line(
+                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    last_source_compare.get("overlap_matched", 0),
+                    {"source": "comparison", "kind": "overlap"},
+                ),
+                metric_line(
+                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    last_source_compare.get("cad_only", 0),
+                    {"source": "comparison", "kind": "cad_only"},
+                ),
+                metric_line(
+                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    last_source_compare.get("xml_only", 0),
+                    {"source": "comparison", "kind": "xml_only"},
+                ),
+                metric_line(
+                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    last_source_compare.get("mismatch", 0),
+                    {"source": "comparison", "kind": "mismatch"},
+                ),
+                "# HELP chp_live_map_scraper_source_compare_last_run_region_incidents Last source comparison incidents grouped by source, region, and coordinate availability.",
+                "# TYPE chp_live_map_scraper_source_compare_last_run_region_incidents gauge",
+            ]
+        )
+        for source, region_counts in (
+            ("cad", last_source_compare.get("cad_region_counts") or {}),
+            ("xml", last_source_compare.get("xml_region_counts") or {}),
+        ):
+            for region, counts in sorted(region_counts.items()):
+                lines.append(
+                    metric_line(
+                        "chp_live_map_scraper_source_compare_last_run_region_incidents",
+                        counts.get("matched", 0),
+                        {"source": source, "region": region, "kind": "matched"},
+                    )
+                )
+                lines.append(
+                    metric_line(
+                        "chp_live_map_scraper_source_compare_last_run_region_incidents",
+                        counts.get("mapped", 0),
+                        {"source": source, "region": region, "kind": "mapped"},
+                    )
+                )
         lines.extend(
             [
                 "# HELP chp_live_map_scraper_last_run_observations_inserted Observation rows inserted by the latest scraper run.",
@@ -625,11 +783,20 @@ def filtered_xml_incident_keys(incidents, args):
     return matched, mapped, region_counts
 
 
-def log_xml_shadow_comparison(args, observed_at, cad_keys, cad_mapped_keys, stats):
+def log_xml_shadow_comparison(
+    args,
+    observed_at,
+    cad_total_seen,
+    cad_keys,
+    cad_mapped_keys,
+    cad_region_counts,
+    stats,
+):
     try:
         xml_incidents = fetch_media_xml_incidents(args, stats)
         xml_keys, xml_mapped_keys, xml_region_counts = filtered_xml_incident_keys(xml_incidents, args)
     except Exception as exc:
+        SCRAPER_METRICS.record_source_compare_failure(observed_at, exc)
         log_exception(
             "CHP XML shadow comparison failed",
             exc,
@@ -644,6 +811,20 @@ def log_xml_shadow_comparison(args, observed_at, cad_keys, cad_mapped_keys, stat
 
     cad_only = sorted(cad_keys - xml_keys)
     xml_only = sorted(xml_keys - cad_keys)
+    SCRAPER_METRICS.record_source_compare_success(
+        observed_at=observed_at,
+        cad_total_seen=cad_total_seen,
+        cad_matched=len(cad_keys),
+        cad_mapped=len(cad_mapped_keys),
+        cad_region_counts=cad_region_counts,
+        xml_total_seen=len(xml_incidents),
+        xml_matched=len(xml_keys),
+        xml_mapped=len(xml_mapped_keys),
+        xml_region_counts=xml_region_counts,
+        overlap_matched=len(cad_keys & xml_keys),
+        cad_only=len(cad_only),
+        xml_only=len(xml_only),
+    )
     log_event(
         "info",
         "CHP XML shadow comparison completed",
@@ -653,7 +834,9 @@ def log_xml_shadow_comparison(args, observed_at, cad_keys, cad_mapped_keys, stat
             "chp.source": "media_xml",
             "chp.observed_at": observed_at,
             "chp.centers": args.center,
+            "chp.cad_total_seen": cad_total_seen,
             "chp.cad_matched": len(cad_keys),
+            "chp.cad_mapped": len(cad_mapped_keys),
             "chp.xml_total_seen": len(xml_incidents),
             "chp.xml_matched": len(xml_keys),
             "chp.xml_mapped": len(xml_mapped_keys),
@@ -662,6 +845,7 @@ def log_xml_shadow_comparison(args, observed_at, cad_keys, cad_mapped_keys, stat
             "chp.xml_only": len(xml_only),
             "chp.cad_only_sample": cad_only[:5],
             "chp.xml_only_sample": xml_only[:5],
+            "chp.cad_region_counts": cad_region_counts,
             "chp.xml_region_counts": xml_region_counts,
         },
     )
@@ -1552,8 +1736,6 @@ def scrape_once(args):
             time.monotonic() - started_at,
             stats["http_status_counts"],
         )
-    if args.xml_shadow_compare:
-        log_xml_shadow_comparison(args, observed_at, seen_keys, seen_with_coords, stats)
     region_counts = {
         region: {
             "matched": len(region_seen_keys.get(region, set())),
@@ -1561,6 +1743,16 @@ def scrape_once(args):
         }
         for region in sorted(REGION_ROAD_KEYWORDS)
     }
+    if args.xml_shadow_compare:
+        log_xml_shadow_comparison(
+            args,
+            observed_at,
+            total_seen,
+            seen_keys,
+            seen_with_coords,
+            region_counts,
+            stats,
+        )
     return (
         observations_inserted,
         total_seen,

@@ -96,6 +96,80 @@ def test_scraper_metrics_include_region_labels():
     assert 'chp_live_map_scraper_last_run_region_incidents{region="malibu",kind="mapped"} 1' in body
 
 
+def test_scraper_metrics_include_source_compare_labels():
+    metrics = scrape_chp_traffic.ScraperMetrics()
+    metrics.record_source_compare_success(
+        observed_at="2026-06-09T08:00:00-07:00",
+        cad_total_seen=25,
+        cad_matched=3,
+        cad_mapped=2,
+        cad_region_counts={
+            "forest": {"matched": 2, "mapped": 1},
+            "malibu": {"matched": 1, "mapped": 1},
+        },
+        xml_total_seen=40,
+        xml_matched=4,
+        xml_mapped=3,
+        xml_region_counts={
+            "forest": {"matched": 2, "mapped": 2},
+            "malibu": {"matched": 2, "mapped": 1},
+        },
+        overlap_matched=2,
+        cad_only=1,
+        xml_only=2,
+    )
+
+    body = metrics.render().decode("utf-8")
+
+    assert 'chp_live_map_scraper_source_compare_runs_total{outcome="success"} 1' in body
+    assert 'chp_live_map_scraper_source_compare_runs_total{outcome="mismatch"} 1' in body
+    assert (
+        'chp_live_map_scraper_source_compare_last_run_incidents{source="cad",kind="total_seen"} 25'
+        in body
+    )
+    assert 'chp_live_map_scraper_source_compare_last_run_incidents{source="cad",kind="matched"} 3' in body
+    assert 'chp_live_map_scraper_source_compare_last_run_incidents{source="cad",kind="mapped"} 2' in body
+    assert (
+        'chp_live_map_scraper_source_compare_last_run_incidents{source="xml",kind="total_seen"} 40'
+        in body
+    )
+    assert 'chp_live_map_scraper_source_compare_last_run_incidents{source="xml",kind="matched"} 4' in body
+    assert 'chp_live_map_scraper_source_compare_last_run_incidents{source="xml",kind="mapped"} 3' in body
+    assert (
+        'chp_live_map_scraper_source_compare_last_run_incidents{source="comparison",kind="cad_only"} 1'
+        in body
+    )
+    assert (
+        'chp_live_map_scraper_source_compare_last_run_incidents{source="comparison",kind="xml_only"} 2'
+        in body
+    )
+    assert (
+        'chp_live_map_scraper_source_compare_last_run_incidents{source="comparison",kind="mismatch"} 1'
+        in body
+    )
+    assert (
+        'chp_live_map_scraper_source_compare_last_run_region_incidents{source="cad",region="forest",kind="matched"} 2'
+        in body
+    )
+    assert (
+        'chp_live_map_scraper_source_compare_last_run_region_incidents{source="xml",region="malibu",kind="mapped"} 1'
+        in body
+    )
+
+
+def test_scraper_metrics_include_source_compare_failures():
+    metrics = scrape_chp_traffic.ScraperMetrics()
+    metrics.record_source_compare_failure("2026-06-09T08:00:00-07:00", TimeoutError())
+
+    body = metrics.render().decode("utf-8")
+
+    assert 'chp_live_map_scraper_source_compare_runs_total{outcome="failure"} 1' in body
+    assert (
+        'chp_live_map_scraper_source_compare_last_run_timestamp_seconds{outcome="failure",error_type="TimeoutError"}'
+        in body
+    )
+
+
 def test_parse_incidents_from_cad_table():
     parser = parse_page(
         """

@@ -100,6 +100,7 @@ def test_scraper_metrics_include_source_compare_labels():
     metrics = scrape_chp_traffic.ScraperMetrics()
     metrics.record_source_compare_success(
         observed_at="2026-06-09T08:00:00-07:00",
+        duration_seconds=0.42,
         cad_total_seen=25,
         cad_matched=3,
         cad_mapped=2,
@@ -123,6 +124,7 @@ def test_scraper_metrics_include_source_compare_labels():
 
     assert 'chp_live_map_scraper_source_compare_runs_total{outcome="success"} 1' in body
     assert 'chp_live_map_scraper_source_compare_runs_total{outcome="mismatch"} 1' in body
+    assert "chp_live_map_scraper_source_compare_last_run_duration_seconds 0.42" in body
     assert (
         'chp_live_map_scraper_source_compare_last_run_incidents{source="cad",kind="total_seen"} 25'
         in body
@@ -159,11 +161,12 @@ def test_scraper_metrics_include_source_compare_labels():
 
 def test_scraper_metrics_include_source_compare_failures():
     metrics = scrape_chp_traffic.ScraperMetrics()
-    metrics.record_source_compare_failure("2026-06-09T08:00:00-07:00", TimeoutError())
+    metrics.record_source_compare_failure("2026-06-09T08:00:00-07:00", 1.25, TimeoutError())
 
     body = metrics.render().decode("utf-8")
 
     assert 'chp_live_map_scraper_source_compare_runs_total{outcome="failure"} 1' in body
+    assert "chp_live_map_scraper_source_compare_last_run_duration_seconds 1.25" in body
     assert (
         'chp_live_map_scraper_source_compare_last_run_timestamp_seconds{outcome="failure",error_type="TimeoutError"}'
         in body

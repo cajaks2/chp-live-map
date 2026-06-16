@@ -182,6 +182,7 @@ class ScraperMetrics:
     def record_source_compare_success(
         self,
         observed_at,
+        duration_seconds,
         cad_total_seen,
         cad_matched,
         cad_mapped,
@@ -202,6 +203,7 @@ class ScraperMetrics:
             self.last_source_compare = {
                 "outcome": "success",
                 "observed_at": observed_at,
+                "duration_seconds": duration_seconds,
                 "cad_total_seen": cad_total_seen,
                 "cad_matched": cad_matched,
                 "cad_mapped": cad_mapped,
@@ -217,12 +219,13 @@ class ScraperMetrics:
                 "error_type": "",
             }
 
-    def record_source_compare_failure(self, observed_at, exc):
+    def record_source_compare_failure(self, observed_at, duration_seconds, exc):
         with self.lock:
             self.source_compares["failure"] += 1
             self.last_source_compare = {
                 "outcome": "failure",
                 "observed_at": observed_at,
+                "duration_seconds": duration_seconds,
                 "cad_total_seen": 0,
                 "cad_matched": 0,
                 "cad_mapped": 0,
@@ -312,6 +315,12 @@ class ScraperMetrics:
                         "outcome": last_source_compare.get("outcome", "none"),
                         "error_type": last_source_compare.get("error_type", ""),
                     },
+                ),
+                "# HELP chp_live_map_scraper_source_compare_last_run_duration_seconds Duration of the latest source comparison run.",
+                "# TYPE chp_live_map_scraper_source_compare_last_run_duration_seconds gauge",
+                metric_line(
+                    "chp_live_map_scraper_source_compare_last_run_duration_seconds",
+                    last_source_compare.get("duration_seconds", 0),
                 ),
                 "# HELP chp_live_map_scraper_source_compare_last_run_incidents Last source comparison incident counts by source/result.",
                 "# TYPE chp_live_map_scraper_source_compare_last_run_incidents gauge",
@@ -792,17 +801,21 @@ def log_xml_shadow_comparison(
     cad_region_counts,
     stats,
 ):
+    started_at = time.monotonic()
     try:
         xml_incidents = fetch_media_xml_incidents(args, stats)
         xml_keys, xml_mapped_keys, xml_region_counts = filtered_xml_incident_keys(xml_incidents, args)
     except Exception as exc:
-        SCRAPER_METRICS.record_source_compare_failure(observed_at, exc)
+        duration_seconds = time.monotonic() - started_at
+        SCRAPER_METRICS.record_source_compare_failure(observed_at, duration_seconds, exc)
         log_exception(
             "CHP XML shadow comparison failed",
             exc,
             **{
                 "event.action": "xml_shadow_compare",
                 "event.outcome": "failure",
+                "event.duration": int(duration_seconds * 1_000_000_000),
+                "chp.duration_seconds": round(duration_seconds, 3),
                 "chp.source": "media_xml",
                 "http.request.header.user_agent": args.user_agent,
             },
@@ -811,8 +824,10 @@ def log_xml_shadow_comparison(
 
     cad_only = sorted(cad_keys - xml_keys)
     xml_only = sorted(xml_keys - cad_keys)
+    duration_seconds = time.monotonic() - started_at
     SCRAPER_METRICS.record_source_compare_success(
         observed_at=observed_at,
+        duration_seconds=duration_seconds,
         cad_total_seen=cad_total_seen,
         cad_matched=len(cad_keys),
         cad_mapped=len(cad_mapped_keys),
@@ -831,9 +846,11 @@ def log_xml_shadow_comparison(
         **{
             "event.action": "xml_shadow_compare",
             "event.outcome": "success",
+            "event.duration": int(duration_seconds * 1_000_000_000),
             "chp.source": "media_xml",
             "chp.observed_at": observed_at,
             "chp.centers": args.center,
+            "chp.duration_seconds": round(duration_seconds, 3),
             "chp.cad_total_seen": cad_total_seen,
             "chp.cad_matched": len(cad_keys),
             "chp.cad_mapped": len(cad_mapped_keys),

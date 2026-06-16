@@ -20,8 +20,10 @@ from scrape_chp_traffic import (
     parse_incidents,
     parse_lat_lon,
     parse_lat_lon_from_detail_html,
+    parse_media_xml_incidents,
     parse_page,
     fetch_details,
+    filtered_xml_incident_keys,
     region_for_incident,
     should_fetch_details,
     store_scrape_run,
@@ -116,6 +118,108 @@ def test_parse_incidents_from_cad_table():
             "area": "Antelope Valley",
         }
     ]
+
+
+def test_parse_media_xml_incidents_preserves_details_units_and_event_key():
+    incidents = parse_media_xml_incidents(
+        """
+        <State><Center ID="LAHB"><Dispatch ID="LACC">
+          <Log ID="260615LA2002">
+            <LogTime>"Jun 15 2026  5:21PM"</LogTime>
+            <LogType>"1179-Trfc Collision-1141 Enrt"</LogType>
+            <Location>"Angeles Crest Hwy / Mm 30.50"</Location>
+            <LocationDesc>"ANGELES CREST HWY JSO MM30.5"</LocationDesc>
+            <Area>"Altadena"</Area>
+            <LATLON>"34260464:118190693"</LATLON>
+            <LogDetails>
+              <details>
+                <DetailTime>"Jun 15 2026  5:23PM"</DetailTime>
+                <IncidentDetail>"[6] VEH OFF RDWAY"</IncidentDetail>
+              </details>
+              <units>
+                <UnitTime>"Jun 15 2026  5:24PM"</UnitTime>
+                <UnitDetail>"Unit Enroute"</UnitDetail>
+              </units>
+            </LogDetails>
+          </Log>
+        </Dispatch><Dispatch ID="SACC">
+          <Log ID="260615SA0868"><LogTime>"Jun 15 2026  5:21PM"</LogTime></Log>
+        </Dispatch></Center></State>
+        """,
+        ["LACC"],
+    )
+
+    assert len(incidents) == 1
+    assert incidents[0]["event_key"] == "LACC|2026-06-15|2002"
+    assert incidents[0]["incident_no"] == "2002"
+    assert incidents[0]["incident_time"] == "5:21 PM"
+    assert incidents[0]["latitude"] == 34.260464
+    assert incidents[0]["longitude"] == -118.190693
+    assert incidents[0]["detail_entries"] == [
+        {
+            "section": "Detail Information",
+            "time": "5:23 PM",
+            "entry_no": "6",
+            "text": "[6] VEH OFF RDWAY",
+        },
+        {
+            "section": "Unit Information",
+            "time": "5:24 PM",
+            "entry_no": "1",
+            "text": "Unit Enroute",
+        },
+    ]
+
+
+def test_parse_media_xml_incidents_normalizes_fsp_log_ids_to_cad_event_key():
+    incidents = parse_media_xml_incidents(
+        """
+        <State><Center ID="LAHB"><Dispatch ID="LACC">
+          <Log ID="260615LAFSP0186">
+            <LogTime>"Jun 15 2026  5:21PM"</LogTime>
+            <Location>"Angeles Crest Hwy"</Location>
+          </Log>
+        </Dispatch></Center></State>
+        """,
+        ["LACC"],
+    )
+
+    assert incidents[0]["incident_no"] == "0186"
+    assert incidents[0]["event_key"] == "LACC|2026-06-15|0186"
+
+
+def test_filtered_xml_incident_keys_applies_region_bounds():
+    class Args:
+        all_roads = False
+        road = DEFAULT_ROAD_KEYWORDS
+
+    incidents = [
+        {
+            "event_key": "LACC|2026-06-15|2002",
+            "type": "Traffic Hazard",
+            "location": "Angeles Crest Hwy / Mm 30.50",
+            "location_desc": "",
+            "area": "Altadena",
+            "latitude": 34.260464,
+            "longitude": -118.190693,
+        },
+        {
+            "event_key": "LACC|2026-06-15|9999",
+            "type": "Traffic Hazard",
+            "location": "PCH / Imperial Hwy",
+            "location_desc": "",
+            "area": "South LA",
+            "latitude": 33.9300,
+            "longitude": -118.4100,
+        },
+    ]
+
+    matched, mapped, region_counts = filtered_xml_incident_keys(incidents, Args())
+
+    assert matched == {"LACC|2026-06-15|2002"}
+    assert mapped == {"LACC|2026-06-15|2002"}
+    assert region_counts["forest"] == {"matched": 1, "mapped": 1}
+    assert region_counts["malibu"] == {"matched": 0, "mapped": 0}
 
 
 def test_parser_keeps_repeated_detail_tables():

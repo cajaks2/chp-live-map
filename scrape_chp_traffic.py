@@ -9,6 +9,7 @@ import sqlite3
 import threading
 import time
 import urllib.robotparser
+import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from http.cookiejar import CookieJar
@@ -22,6 +23,7 @@ from geo_bounds import clear_coordinates_outside_region_bounds, coordinates_in_r
 
 
 CHP_TRAFFIC_URL = "https://cad.chp.ca.gov/Traffic.aspx"
+CHP_MEDIA_XML_URL = "https://media.chp.ca.gov/sa_xml/sa.xml"
 CHP_ROBOTS_URL = "https://cad.chp.ca.gov/robots.txt"
 DEFAULT_USER_AGENT = "chp-live-map/0.1 (+https://crestmap.us/)"
 DEFAULT_CENTERS = ["LACC", "VTCC"]
@@ -468,6 +470,201 @@ def parse_incidents(center, parser):
             }
         )
     return incidents
+
+
+def clean_xml_text(value):
+    value = clean_text(value)
+    if len(value) >= 2 and value[0] == value[-1] == '"':
+        return value[1:-1].strip()
+    return value
+
+
+def parse_media_xml_timestamp(value):
+    raw = re.sub(r"\s+", " ", clean_xml_text(value)).strip()
+    for fmt in ("%b %d %Y %I:%M%p", "%b %d %Y %I:%M %p"):
+        try:
+            return dt.datetime.strptime(raw, fmt)
+        except ValueError:
+            pass
+    return None
+
+
+def format_incident_time(value):
+    if not value:
+        return ""
+    hour = value.strftime("%I").lstrip("0") or "0"
+    return f"{hour}:{value.strftime('%M %p')}"
+
+
+def parse_media_lat_lon(value):
+    raw = clean_xml_text(value)
+    match = re.search(r"(-?\d+)\s*:\s*(-?\d+)", raw)
+    if not match:
+        return parse_lat_lon(raw)
+    lat = int(match.group(1)) / 1_000_000
+    lon = int(match.group(2)) / 1_000_000
+    if lon > 0:
+        lon = -lon
+    return lat, lon
+
+
+def media_incident_no(center, incident_date, log_id):
+    compact_date = incident_date[2:4] + incident_date[5:7] + incident_date[8:10]
+    prefix = center[:-2] if center.endswith("CC") else center
+    stem = str(log_id or "")
+    for candidate in (compact_date + prefix, compact_date):
+        if stem.startswith(candidate):
+            incident_no = stem[len(candidate):]
+            if incident_no.startswith("FSP") and incident_no[3:].isdigit():
+                return incident_no[3:]
+            return incident_no
+    return stem
+
+
+def parse_media_xml_incidents(xml_text, centers):
+    wanted = set(centers)
+    root = ET.fromstring(xml_text)
+    incidents = []
+    for dispatch in root.findall(".//Dispatch"):
+        center = dispatch.attrib.get("ID", "")
+        if center not in wanted:
+            continue
+        for log in dispatch.findall("Log"):
+            log_time = parse_media_xml_timestamp(log.findtext("LogTime"))
+            if log_time:
+                incident_date = log_time.date().isoformat()
+                incident_time = format_incident_time(log_time)
+            else:
+                incident_date = dt.datetime.now().date().isoformat()
+                incident_time = clean_xml_text(log.findtext("LogTime"))
+            detail_entries = []
+            for detail in log.findall("./LogDetails/details"):
+                detail_time = parse_media_xml_timestamp(detail.findtext("DetailTime"))
+                text = clean_xml_text(detail.findtext("IncidentDetail"))
+                entry_no_match = re.match(r"\[(\d+)\]\s*(.*)", text)
+                detail_entries.append(
+                    {
+                        "section": "Detail Information",
+                        "time": format_incident_time(detail_time) if detail_time else clean_xml_text(detail.findtext("DetailTime")),
+                        "entry_no": entry_no_match.group(1) if entry_no_match else "",
+                        "text": text,
+                    }
+                )
+            for index, unit in enumerate(log.findall("./LogDetails/units"), start=1):
+                unit_time = parse_media_xml_timestamp(unit.findtext("UnitTime"))
+                detail_entries.append(
+                    {
+                        "section": "Unit Information",
+                        "time": format_incident_time(unit_time) if unit_time else clean_xml_text(unit.findtext("UnitTime")),
+                        "entry_no": str(index),
+                        "text": clean_xml_text(unit.findtext("UnitDetail")),
+                    }
+                )
+            latitude, longitude = parse_media_lat_lon(log.findtext("LATLON"))
+            log_id = log.attrib.get("ID", "")
+            incident_no = media_incident_no(center, incident_date, log_id)
+            incidents.append(
+                {
+                    "center": center,
+                    "incident_no": incident_no,
+                    "incident_time": incident_time,
+                    "type": clean_xml_text(log.findtext("LogType")),
+                    "location": clean_xml_text(log.findtext("Location")),
+                    "location_desc": clean_xml_text(log.findtext("LocationDesc")),
+                    "area": clean_xml_text(log.findtext("Area")),
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "incident_date": incident_date,
+                    "event_key": event_key(center, incident_date, incident_no),
+                    "detail_entries": detail_entries,
+                    "xml_log_id": log_id,
+                }
+            )
+    return incidents
+
+
+def fetch_media_xml_incidents(args, stats):
+    opener = build_opener()
+    xml_text = get_page(
+        opener,
+        args.media_xml_url,
+        args.timeout,
+        args.user_agent,
+        args.retries,
+        args.retry_backoff,
+        stats,
+        "media_xml",
+    )
+    return parse_media_xml_incidents(xml_text, args.center)
+
+
+def filtered_xml_incident_keys(incidents, args):
+    matched = set()
+    mapped = set()
+    region_counts = {region: {"matched": 0, "mapped": 0} for region in REGION_ROAD_KEYWORDS}
+    for incident in incidents:
+        matches = matching_keywords(incident, args.road)
+        if not args.all_roads and not matches:
+            continue
+        region_matches = matching_regions(incident)
+        region = region_for_incident(region_matches)
+        if not region:
+            continue
+        if (
+            incident.get("latitude") is not None
+            and incident.get("longitude") is not None
+            and not coordinates_in_region_bounds(incident.get("latitude"), incident.get("longitude"), region)
+        ):
+            continue
+        matched.add(incident["event_key"])
+        region_counts.setdefault(region, {"matched": 0, "mapped": 0})
+        region_counts[region]["matched"] += 1
+        if incident.get("latitude") is not None and incident.get("longitude") is not None:
+            mapped.add(incident["event_key"])
+            region_counts[region]["mapped"] += 1
+    return matched, mapped, region_counts
+
+
+def log_xml_shadow_comparison(args, observed_at, cad_keys, cad_mapped_keys, stats):
+    try:
+        xml_incidents = fetch_media_xml_incidents(args, stats)
+        xml_keys, xml_mapped_keys, xml_region_counts = filtered_xml_incident_keys(xml_incidents, args)
+    except Exception as exc:
+        log_exception(
+            "CHP XML shadow comparison failed",
+            exc,
+            **{
+                "event.action": "xml_shadow_compare",
+                "event.outcome": "failure",
+                "chp.source": "media_xml",
+                "http.request.header.user_agent": args.user_agent,
+            },
+        )
+        return
+
+    cad_only = sorted(cad_keys - xml_keys)
+    xml_only = sorted(xml_keys - cad_keys)
+    log_event(
+        "info",
+        "CHP XML shadow comparison completed",
+        **{
+            "event.action": "xml_shadow_compare",
+            "event.outcome": "success",
+            "chp.source": "media_xml",
+            "chp.observed_at": observed_at,
+            "chp.centers": args.center,
+            "chp.cad_matched": len(cad_keys),
+            "chp.xml_total_seen": len(xml_incidents),
+            "chp.xml_matched": len(xml_keys),
+            "chp.xml_mapped": len(xml_mapped_keys),
+            "chp.overlap_matched": len(cad_keys & xml_keys),
+            "chp.cad_only": len(cad_only),
+            "chp.xml_only": len(xml_only),
+            "chp.cad_only_sample": cad_only[:5],
+            "chp.xml_only_sample": xml_only[:5],
+            "chp.xml_region_counts": xml_region_counts,
+        },
+    )
 
 
 def normalize_header(value):
@@ -1355,6 +1552,8 @@ def scrape_once(args):
             time.monotonic() - started_at,
             stats["http_status_counts"],
         )
+    if args.xml_shadow_compare:
+        log_xml_shadow_comparison(args, observed_at, seen_keys, seen_with_coords, stats)
     region_counts = {
         region: {
             "matched": len(region_seen_keys.get(region, set())),
@@ -1391,6 +1590,13 @@ def parse_args():
     parser.add_argument("--timeout", type=int, default=30)
     parser.add_argument("--detail-delay", type=float, default=0.2)
     parser.add_argument("--detail-refresh-minutes", type=float, default=3.0)
+    parser.add_argument("--media-xml-url", default=os.environ.get("CHP_MEDIA_XML_URL", CHP_MEDIA_XML_URL))
+    parser.add_argument(
+        "--xml-shadow-compare",
+        action="store_true",
+        default=os.environ.get("CHP_XML_SHADOW_COMPARE", "").lower() in {"1", "true", "yes"},
+        help="Fetch the CHP media XML feed and log comparison stats without writing XML rows.",
+    )
     parser.add_argument("--contact-email", default=os.environ.get("CHP_CONTACT_EMAIL"))
     parser.add_argument("--user-agent", default=os.environ.get("CHP_USER_AGENT"))
     parser.add_argument("--retries", type=int, default=int(os.environ.get("CHP_RETRIES", "2")))

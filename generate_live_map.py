@@ -1722,6 +1722,7 @@ def build_html(
           if (latest.checked_at) {{
             setCheckedAt(latest.checked_at);
           }}
+          updateRegionCounts(latest.region_statuses);
           if (latest.version && latest.version !== currentDataStatus.version) {{
             if (autoRefreshToggle.checked) {{
               await fetchIncidentData({{ force: true, preserveViewport: true, status: latest }});
@@ -2050,7 +2051,26 @@ def build_html(
       }}
     }});
 
-    function updateSummary(status) {{
+    function updateRegionCounts(regionStatuses) {{
+      if (!regionStatuses) {{
+        return;
+      }}
+      document.querySelectorAll(".region-tab").forEach((tab) => {{
+        const region = new URL(tab.href).searchParams.get("region");
+        const countEl = tab.querySelector(".region-active-count");
+        if (!region || !countEl || !regionStatuses[region]) {{
+          return;
+        }}
+        const activeCount = Number(regionStatuses[region].active_count || 0);
+        countEl.textContent = String(activeCount);
+        countEl.setAttribute(
+          "aria-label",
+          `${{activeCount}} active incident${{activeCount === 1 ? "" : "s"}}`
+        );
+      }});
+    }}
+
+    function updateSummary(status, regionStatuses = null) {{
       if (!status) {{
         return;
       }}
@@ -2060,6 +2080,7 @@ def build_html(
       if (meta) {{
         meta.textContent = `${{status.active_count}} active · ${{status.total_count}} in last ${{hoursLabel}}h · ${{status.mapped_count}} mapped`;
       }}
+      updateRegionCounts(regionStatuses || status.region_statuses);
       currentDataStatus = status;
       window.chpLiveMap.status = status;
     }}
@@ -2151,7 +2172,7 @@ def build_html(
       }}
       const payload = await response.json();
       incidents = payload.incidents || [];
-      updateSummary(payload.status || options.status || currentDataStatus);
+      updateSummary(payload.status || options.status || currentDataStatus, payload.region_statuses);
       if (payload.checked_at) {{
         setCheckedAt(payload.checked_at);
       }}

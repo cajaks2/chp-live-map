@@ -136,6 +136,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
 
         with urlopen(f"{base_url}/status.json?hours=24", timeout=5) as response:
             body = response.read().decode("utf-8")
+            payload = json.loads(body)
             assert response.status == 200
             assert response.headers["Content-Type"] == "application/json; charset=utf-8"
             assert response.headers["Cache-Control"] == "private, max-age=15, stale-while-revalidate=30"
@@ -143,6 +144,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert '"region": "forest"' in body
             assert '"total_count": 0' in body
             assert '"version":' in body
+            assert payload["region_statuses"]["forest"]["active_count"] == 0
+            assert payload["region_statuses"]["malibu"]["active_count"] == 0
 
         with urlopen(f"{base_url}/incidents.json?hours=24", timeout=5) as response:
             payload = json.loads(response.read().decode("utf-8"))
@@ -155,6 +158,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert payload["status"]["hours"] == 24.0
             assert payload["region"] == "forest"
             assert payload["status"]["region"] == "forest"
+            assert payload["region_statuses"]["forest"]["active_count"] == 0
+            assert payload["region_statuses"]["malibu"]["active_count"] == 0
             assert "checked_at" in payload
 
         with urlopen(f"{base_url}/incidents.json?hours=24&region=malibu%27%3Bdrop%20table%20events%3B--", timeout=5) as response:
@@ -360,6 +365,8 @@ def test_public_malibu_region_is_available_without_auth(tmp_path):
             assert payload["region"] == "malibu"
             assert payload["status"]["region"] == "malibu"
             assert payload["status"]["total_count"] == 1
+            assert payload["region_statuses"]["forest"]["active_count"] == 0
+            assert payload["region_statuses"]["malibu"]["active_count"] == 1
             assert payload["incidents"][0]["region"] == "malibu"
             assert payload["incidents"][0]["location"] == "Las Virgenes Rd / Piuma Rd"
 

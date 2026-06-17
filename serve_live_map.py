@@ -664,6 +664,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                 payload = {
                     **incident_status(incidents, hours),
                     "region": region,
+                    "region_statuses": self.region_statuses(hours),
                     "checked_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
                 }
                 body = json.dumps(payload, sort_keys=True).encode("utf-8")
@@ -718,6 +719,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                 payload = {
                     "incidents": incidents,
                     "status": {**incident_status(incidents, hours), "region": region},
+                    "region_statuses": self.region_statuses(hours),
                     "region": region,
                     "checked_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
                 }

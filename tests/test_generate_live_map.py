@@ -6,7 +6,9 @@ from generate_live_map import (
     build_history_html,
     build_html,
     build_summary_html,
+    include_linked_incident,
     incident_status,
+    load_incident_by_key,
     load_incidents,
 )
 from scrape_chp_traffic import connect_database, insert_observation, upsert_active_event
@@ -59,6 +61,39 @@ def test_load_incidents_returns_active_first_with_detail_entries(tmp_path):
     assert incidents[0]["status"] == "active"
     assert incidents[0]["detail_entries"] == active["detail_entries"]
     assert incidents[1]["status"] == "cleared"
+
+
+def test_load_incident_by_key_finds_incident_outside_window(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    conn = connect_database(database)
+    old_seen = (dt.datetime.now().astimezone() - dt.timedelta(days=45)).isoformat(timespec="seconds")
+    old = incident_row("LACC|2026-05-31|1883", "cleared", old_seen, "1883")
+
+    upsert_active_event(conn, old)
+    insert_observation(conn, old, "active")
+    conn.execute(
+        """
+        UPDATE events
+        SET status = 'cleared',
+            first_seen = ?,
+            last_seen = ?,
+            cleared_at = ?,
+            latest_observed_at = ?
+        WHERE event_key = ?
+        """,
+        (old_seen, old_seen, old_seen, old_seen, old["event_key"]),
+    )
+    conn.commit()
+    conn.close()
+
+    assert load_incidents(database, 72) == []
+    linked = load_incident_by_key(database, old["event_key"])
+    incidents = include_linked_incident([], linked)
+
+    assert linked["event_key"] == old["event_key"]
+    assert linked["detail_entries"] == old["detail_entries"]
+    assert incidents[0]["_linked_outside_window"] is True
+    assert incident_status(incidents, 72)["total_count"] == 0
 
 
 def test_load_incidents_clears_out_of_bounds_coordinates(tmp_path):
@@ -214,6 +249,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "function scrollIncidentListDown" in html
     assert 'id="details-cue"' in html
     assert "Incident details below" in html
+    assert "data-default-view" in html
+    assert "linked-pill" in html
+    assert "This linked incident is outside the selected" in html
     assert "height: 45svh" in html
     assert "bottom: var(--details-cue-bottom, max(26px, calc(env(safe-area-inset-bottom) + 10px)))" in html
     assert "function updateDetailsCuePosition" in html
@@ -272,7 +310,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "function updateIncidentUrl" in html
     assert "const linkedIncident = incidentFromUrl();" in html
     assert "revealList: Boolean(linkedIncident)" in html
-    assert "updateUrl: true" in html
+    assert "updateUrl: options.updateUrl !== false" in html
     assert "${escapeHtml(formatIncidentWhen(incident))}" in html
     assert "Detail Information" in html
     assert "Unit Information" in html

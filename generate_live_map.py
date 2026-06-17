@@ -112,13 +112,83 @@ def load_incidents(database, hours, database_url=None, region="forest"):
     conn.close()
     incidents = []
     for row in rows:
-        incident = clear_coordinates_outside_region_bounds(dict(row), region)
-        try:
-            incident["detail_entries"] = json.loads(incident.pop("details_json") or "[]")
-        except json.JSONDecodeError:
-            incident["detail_entries"] = []
-        incidents.append(incident)
+        incidents.append(hydrate_incident(row, region))
     return incidents
+
+
+def hydrate_incident(row, region):
+    incident = clear_coordinates_outside_region_bounds(dict(row), region)
+    try:
+        incident["detail_entries"] = json.loads(incident.pop("details_json") or "[]")
+    except json.JSONDecodeError:
+        incident["detail_entries"] = []
+    return incident
+
+
+def load_incident_by_key(database, event_key, database_url=None, region="forest"):
+    region = normalize_region(region)
+    if not event_key or (not database_url and not database.exists()):
+        return None
+    if database_url:
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+        except ImportError as exc:
+            raise RuntimeError("Postgres support requires psycopg. Install requirements.txt.") from exc
+        conn = psycopg.connect(database_url, row_factory=dict_row)
+        row = conn.execute(
+            """
+            SELECT
+                e.*,
+                (
+                    SELECT o.details_json
+                    FROM observations o
+                    WHERE o.event_key = e.event_key
+                      AND o.status = 'active'
+                    ORDER BY o.observed_at DESC, o.id DESC
+                    LIMIT 1
+                ) AS details_json
+            FROM events e
+            WHERE e.region = %s
+              AND e.event_key = %s
+            LIMIT 1
+            """,
+            (region, event_key),
+        ).fetchone()
+    else:
+        conn = sqlite3.connect(database)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            """
+            SELECT
+                e.*,
+                (
+                    SELECT o.details_json
+                    FROM observations o
+                    WHERE o.event_key = e.event_key
+                      AND o.status = 'active'
+                    ORDER BY o.observed_at DESC, o.id DESC
+                    LIMIT 1
+                ) AS details_json
+            FROM events e
+            WHERE e.region = ?
+              AND e.event_key = ?
+            LIMIT 1
+            """,
+            (region, event_key),
+        ).fetchone()
+    conn.close()
+    return hydrate_incident(row, region) if row else None
+
+
+def include_linked_incident(incidents, linked_incident):
+    if not linked_incident:
+        return incidents
+    if any(incident.get("event_key") == linked_incident.get("event_key") for incident in incidents):
+        return incidents
+    linked = dict(linked_incident)
+    linked["_linked_outside_window"] = True
+    return [linked, *incidents]
 
 
 def normalize_base_path(base_path):
@@ -239,14 +309,17 @@ def region_tabs(base_path, current, hours, region="forest"):
 
 
 def incident_status(incidents, hours):
+    window_incidents = [
+        incident for incident in incidents if not incident.get("_linked_outside_window")
+    ]
     mapped_count = len(
-        [i for i in incidents if i.get("latitude") is not None and i.get("longitude") is not None]
+        [i for i in window_incidents if i.get("latitude") is not None and i.get("longitude") is not None]
     )
-    active_count = len([i for i in incidents if i.get("status") == "active"])
+    active_count = len([i for i in window_incidents if i.get("status") == "active"])
     data_updated_at = max(
         [
             i.get("latest_observed_at") or i.get("last_seen") or i.get("first_seen") or ""
-            for i in incidents
+            for i in window_incidents
         ],
         default="",
     )
@@ -264,14 +337,14 @@ def incident_status(incidents, hours):
             "details_hash": i.get("details_hash"),
             "cleared_at": i.get("cleared_at"),
         }
-        for i in incidents
+        for i in window_incidents
     ]
     version = hashlib.sha256(
         json.dumps(version_source, sort_keys=True, ensure_ascii=False).encode("utf-8")
     ).hexdigest()[:16]
     return {
         "active_count": active_count,
-        "total_count": len(incidents),
+        "total_count": len(window_incidents),
         "mapped_count": mapped_count,
         "hours": hours,
         "data_updated_at": data_updated_at,
@@ -1057,13 +1130,22 @@ def build_html(
     .detail-title {{
       min-width: 0;
     }}
+    .detail-actions {{
+      flex: 0 0 auto;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }}
     .detail-panel h2 {{
       margin: 0 0 6px;
       font-size: 18px;
       line-height: 1.25;
       letter-spacing: 0;
     }}
-    .share-incident {{
+    .share-incident,
+    .default-view {{
       flex: 0 0 auto;
       min-height: 30px;
       padding: 5px 9px;
@@ -1076,8 +1158,13 @@ def build_html(
       font-weight: 800;
       cursor: pointer;
     }}
+    .default-view {{
+      color: #4f5b54;
+    }}
     .share-incident:focus,
-    .share-incident:hover {{
+    .share-incident:hover,
+    .default-view:focus,
+    .default-view:hover {{
       border-color: #94b69a;
       background: #edf5ed;
       outline: none;
@@ -1154,6 +1241,16 @@ def build_html(
     .incident .status-pill {{
       display: inline-block;
       flex: 0 1 auto;
+    }}
+    .incident .linked-pill {{
+      display: inline-block;
+      flex: 0 0 auto;
+      margin: 2px 0 0;
+      color: #72510e;
+      background: transparent;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.35;
     }}
     .incident[aria-current="true"] .selected-pill {{
       display: inline-block;
@@ -1663,6 +1760,24 @@ def build_html(
       window.history.replaceState({{ incident: incident.event_key }}, "", url);
     }}
 
+    function defaultViewUrl() {{
+      const url = new URL(window.location.href);
+      url.searchParams.delete("incident");
+      ["nocache", "verify", "align", "details", "tapcheck", "markertouch", "statusapi"].forEach((key) => {{
+        url.searchParams.delete(key);
+      }});
+      return url;
+    }}
+
+    function showDefaultView() {{
+      if (window.history?.replaceState) {{
+        window.history.replaceState({{ region: currentRegion }}, "", defaultViewUrl());
+      }}
+      selectedIncidentKey = null;
+      incidents = incidents.filter((incident) => !incident._linked_outside_window);
+      render({{ updateUrl: false }});
+    }}
+
     function ensureCurrentRegionUrl() {{
       if (!window.history?.replaceState) {{
         return;
@@ -1803,6 +1918,12 @@ def build_html(
       const coordText = incident.latitude == null || incident.longitude == null
         ? '<span class="mapless">No coordinates exposed by CHP for this incident.</span>'
         : `${{escapeHtml(incident.latitude)}}, ${{escapeHtml(incident.longitude)}}`;
+      const linkedNotice = incident._linked_outside_window
+        ? `<div class="empty">This linked incident is outside the selected ${{escapeHtml(currentDataStatus.hours)}}h window.</div>`
+        : "";
+      const defaultButton = new URLSearchParams(window.location.search).get("incident")
+        ? '<button type="button" class="default-view" data-default-view>Current view</button>'
+        : "";
       return `
         <div class="detail-panel">
           <div class="detail-header">
@@ -1811,8 +1932,12 @@ def build_html(
               <h2>${{escapeHtml(incident.type || "CHP Incident")}}</h2>
               <div class="meta">${{escapeHtml(incident.location || "")}}</div>
             </div>
-            <button type="button" class="share-incident" data-share-incident="${{escapeHtml(incident.event_key)}}">Copy link</button>
+            <div class="detail-actions">
+              ${{defaultButton}}
+              <button type="button" class="share-incident" data-share-incident="${{escapeHtml(incident.event_key)}}">Copy link</button>
+            </div>
           </div>
+          ${{linkedNotice}}
           <section class="detail-section">
             <dl class="detail-grid">
               <dt>Incident</dt><dd>${{escapeHtml(incident.incident_no)}}</dd>
@@ -1873,6 +1998,11 @@ def build_html(
     }});
 
     detailsPanel.addEventListener("click", (event) => {{
+      const defaultButton = event.target.closest("[data-default-view]");
+      if (defaultButton) {{
+        showDefaultView();
+        return;
+      }}
       const button = event.target.closest("[data-share-incident]");
       if (!button) {{
         return;
@@ -1917,6 +2047,7 @@ def build_html(
       incidents.forEach((incident) => {{
         const hasCoords = incident.latitude != null && incident.longitude != null;
         const isActive = incident.status === "active";
+        const linkedOutsideWindow = Boolean(incident._linked_outside_window);
         if (hasCoords) {{
           const marker = L.marker([incident.latitude, incident.longitude], {{
             icon: markerIcon(incident),
@@ -1935,6 +2066,7 @@ def build_html(
           <span class="incident-heading">
             <span class="status-pill ${{isActive ? "status-active" : "status-cleared"}}">${{isActive ? "Active" : "Cleared"}}</span>
             <span class="selected-pill">Open</span>
+            ${{linkedOutsideWindow ? '<span class="linked-pill">Linked</span>' : ""}}
           </span>
           <strong>${{escapeHtml(incident.type || "CHP Incident")}}</strong>
           <span>${{escapeHtml(incident.location)}}</span>
@@ -1954,7 +2086,7 @@ def build_html(
       selectIncident(selectedIncident, {{
         pan: Boolean(linkedIncident) && !options.preserveViewport,
         revealList: Boolean(linkedIncident),
-        updateUrl: true
+        updateUrl: options.updateUrl !== false
       }});
     }}
 
@@ -1963,6 +2095,9 @@ def build_html(
       const url = new URL(incidentsEndpoint, window.location.origin);
       url.searchParams.set("hours", hours);
       url.searchParams.set("region", currentRegion);
+      if (selectedIncidentKey) {{
+        url.searchParams.set("incident", selectedIncidentKey);
+      }}
       const version = options.status?.version || currentDataStatus.version;
       if (version) {{
         url.searchParams.set("v", version);

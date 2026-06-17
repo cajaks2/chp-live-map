@@ -17,7 +17,9 @@ from generate_live_map import (
     build_history_html,
     build_html,
     build_summary_html,
+    include_linked_incident,
     incident_status,
+    load_incident_by_key,
     load_incidents,
     normalize_base_path,
     normalize_region,
@@ -381,6 +383,10 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         requested = (params.get("region") or [None])[0]
         return normalize_region(requested)
 
+    def requested_incident_key(self):
+        params = parse_qs(urlsplit(self.path).query)
+        return (params.get("incident") or [""])[0]
+
     def history_filters(self):
         params = parse_qs(urlsplit(self.path).query)
         return {
@@ -690,6 +696,13 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                     self.database_url,
                     region=region,
                 )
+                linked_incident = load_incident_by_key(
+                    self.database,
+                    self.requested_incident_key(),
+                    self.database_url,
+                    region=region,
+                )
+                incidents = include_linked_incident(incidents, linked_incident)
                 payload = {
                     "incidents": incidents,
                     "status": {**incident_status(incidents, hours), "region": region},
@@ -739,6 +752,13 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             generated_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
             hours = self.requested_hours()
             incidents = load_incidents(self.database, hours, self.database_url, region=region)
+            linked_incident = load_incident_by_key(
+                self.database,
+                self.requested_incident_key(),
+                self.database_url,
+                region=region,
+            )
+            incidents = include_linked_incident(incidents, linked_incident)
             if path in summary_paths:
                 body = build_summary_html(
                     incidents,

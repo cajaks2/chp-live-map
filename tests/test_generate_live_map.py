@@ -96,6 +96,18 @@ def test_load_incident_by_key_finds_incident_outside_window(tmp_path):
     assert incident_status(incidents, 72)["total_count"] == 0
 
 
+def test_build_html_does_not_count_linked_incident_in_window_total():
+    current = incident_row("LACC|2026-05-31|0805", "cleared", "2026-05-31T08:00:00-07:00", "0805")
+    linked = incident_row("LACC|2026-05-30|1883", "cleared", "2026-05-30T08:00:00-07:00", "1883")
+    linked["_linked_outside_window"] = True
+
+    html = build_html([linked, current], "2026-05-31T08:05:00-07:00", 72)
+
+    assert "0 active · 1 in last 72h · 1 mapped" in html
+    assert "Linked" in html
+    assert "Current view" in html
+
+
 def test_load_incidents_clears_out_of_bounds_coordinates(tmp_path):
     database = tmp_path / "chp.sqlite"
     conn = connect_database(database)

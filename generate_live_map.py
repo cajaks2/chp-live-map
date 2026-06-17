@@ -1435,7 +1435,7 @@ def build_html(
           <h1>CHP {html.escape(map_label)} Incidents</h1>
           {view_menu(base_path, "map", hours, region)}
         </div>
-        <div class="meta">{active_count} active · {len(incidents)} in last {hours:g}h · {mapped_count} mapped</div>
+        <div class="meta">{active_count} active · {status['total_count']} in last {hours:g}h · {mapped_count} mapped</div>
         <div class="meta checked-meta"><span>Last checked <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span><span aria-hidden="true">·</span>
           <label class="auto-refresh-control" title="Automatically reload when new incident data is available">
             <input type="checkbox" id="auto-refresh-enabled">

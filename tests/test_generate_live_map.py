@@ -105,7 +105,7 @@ def test_build_html_does_not_count_linked_incident_in_window_total():
 
     assert "0 active · 1 in last 72h · 1 mapped" in html
     assert "Linked" in html
-    assert "Current view" in html
+    assert "Back to ${escapeHtml(formatRangeLabel(currentDataStatus.hours))}" in html
 
 
 def test_load_incidents_clears_out_of_bounds_coordinates(tmp_path):

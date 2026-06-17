@@ -1744,6 +1744,20 @@ def build_html(
       return `${{parsed.toLocaleDateString([], {{ month: "short", day: "numeric" }})}}, ${{incident.incident_time || ""}}`.trim();
     }}
 
+    function formatRangeLabel(hours) {{
+      const numericHours = Number(hours);
+      if (numericHours === 168) {{
+        return "7d";
+      }}
+      if (numericHours === 720) {{
+        return "30d";
+      }}
+      if (Number.isFinite(numericHours)) {{
+        return `${{Number.isInteger(numericHours) ? numericHours : hours}}h`;
+      }}
+      return "current range";
+    }}
+
     function incidentFromUrl() {{
       const selectedKey = new URLSearchParams(window.location.search).get("incident");
       if (!selectedKey) {{
@@ -1922,7 +1936,7 @@ def build_html(
         ? `<div class="empty">This linked incident is outside the selected ${{escapeHtml(currentDataStatus.hours)}}h window.</div>`
         : "";
       const defaultButton = new URLSearchParams(window.location.search).get("incident")
-        ? '<button type="button" class="default-view" data-default-view>Current view</button>'
+        ? `<button type="button" class="default-view" data-default-view>Back to ${{escapeHtml(formatRangeLabel(currentDataStatus.hours))}}</button>`
         : "";
       return `
         <div class="detail-panel">

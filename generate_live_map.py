@@ -295,17 +295,24 @@ def view_tabs(base_path, current, hours, region="forest"):
     )
 
 
-def region_tabs(base_path, current, hours, region="forest"):
+def region_tabs(base_path, current, hours, region="forest", region_statuses=None):
     region = normalize_region(region)
-    return "".join(
-        '<a class="region-tab{}" href="{}"{}>{}</a>'.format(
+    region_statuses = region_statuses or {}
+    tabs = []
+    for key, label in REGION_LABELS.items():
+        active_count = int((region_statuses.get(key) or {}).get("active_count", 0))
+        active_label = "active incident" if active_count == 1 else "active incidents"
+        tabs.append(
+            '<a class="region-tab{}" href="{}"{}><span>{}</span><span class="region-active-count" aria-label="{}">{}</span></a>'.format(
             " is-active" if key == region else "",
             html.escape(view_href(base_path, "/", hours, key) if current == "map" else view_href(base_path, f"/{current}", hours, key)),
             ' aria-current="page"' if key == region else "",
             html.escape(label),
+            html.escape(f"{active_count} {active_label}"),
+            active_count,
         )
-        for key, label in REGION_LABELS.items()
-    )
+        )
+    return "".join(tabs)
 
 
 def incident_status(incidents, hours):
@@ -378,6 +385,7 @@ def build_html(
     google_analytics_id=None,
     map_label="Forest",
     region="forest",
+    region_statuses=None,
 ):
     region = normalize_region(region)
     map_label = region_label(region)
@@ -743,6 +751,7 @@ def build_html(
       display: flex;
       align-items: center;
       justify-content: center;
+      gap: 6px;
       min-height: 28px;
       padding: 0 7px;
       border-radius: 5px;
@@ -761,6 +770,20 @@ def build_html(
     .region-tab.is-active {{
       color: #ffffff;
       background: #277447;
+    }}
+    .region-active-count {{
+      min-width: 16px;
+      padding: 2px 5px;
+      border-radius: 999px;
+      color: #3f4a44;
+      background: rgba(255, 255, 255, 0.72);
+      font-size: 10px;
+      font-weight: 900;
+      line-height: 1;
+    }}
+    .region-tab.is-active .region-active-count {{
+      color: #1f6840;
+      background: #ffffff;
     }}
     .secondary-tabs {{
       display: contents;
@@ -1444,7 +1467,7 @@ def build_html(
         </div>
         <nav class="range-tabs" aria-label="History range">{history_controls(hours, region)}</nav>
         <div class="secondary-tabs">
-          <nav class="region-tabs" aria-label="Region">{region_tabs(base_path, "map", hours, region)}</nav>
+          <nav class="region-tabs" aria-label="Region">{region_tabs(base_path, "map", hours, region, region_statuses)}</nav>
           <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, "map", hours, region)}</nav>
         </div>
         <div id="stale-notice" role="status">
@@ -2314,6 +2337,7 @@ def report_shell(
     current="summary",
     status=None,
     region="forest",
+    region_statuses=None,
 ):
     region = normalize_region(region)
     label = region_label(region)
@@ -2519,6 +2543,7 @@ def report_shell(
       display: flex;
       align-items: center;
       justify-content: center;
+      gap: 5px;
       min-height: 23px;
       padding: 0 7px;
       border-radius: 5px;
@@ -2537,6 +2562,20 @@ def report_shell(
     .region-tab.is-active {{
       color: #ffffff;
       background: #277447;
+    }}
+    .region-active-count {{
+      min-width: 14px;
+      padding: 2px 4px;
+      border-radius: 999px;
+      color: #3f4a44;
+      background: rgba(255, 255, 255, 0.72);
+      font-size: 9px;
+      font-weight: 900;
+      line-height: 1;
+    }}
+    .region-tab.is-active .region-active-count {{
+      color: #1f6840;
+      background: #ffffff;
     }}
     .secondary-tabs {{
       display: contents;
@@ -2824,7 +2863,7 @@ def report_shell(
         <div class="report-nav">
           <nav class="range-tabs" aria-label="History range">{history_controls(hours, region)}</nav>
           <div class="secondary-tabs">
-            <nav class="region-tabs" aria-label="Region">{region_tabs(base_path, current, hours, region)}</nav>
+            <nav class="region-tabs" aria-label="Region">{region_tabs(base_path, current, hours, region, region_statuses)}</nav>
             <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, current, hours, region)}</nav>
           </div>
         </div>
@@ -2837,7 +2876,15 @@ def report_shell(
 """
 
 
-def build_summary_html(incidents, generated_at, hours, base_path="/", public_url=None, region="forest"):
+def build_summary_html(
+    incidents,
+    generated_at,
+    hours,
+    base_path="/",
+    public_url=None,
+    region="forest",
+    region_statuses=None,
+):
     region = normalize_region(region)
     label = region_label(region)
     status = {**incident_status(incidents, hours), "region": region}
@@ -2893,10 +2940,30 @@ def build_summary_html(incidents, generated_at, hours, base_path="/", public_url
       </section>
     """
     subtitle = f"{label} CHP activity · updated {generated_at}"
-    return report_shell("Summary", subtitle, body, hours, base_path, public_url, current="summary", status=status, region=region)
+    return report_shell(
+        "Summary",
+        subtitle,
+        body,
+        hours,
+        base_path,
+        public_url,
+        current="summary",
+        status=status,
+        region=region,
+        region_statuses=region_statuses,
+    )
 
 
-def build_history_html(incidents, generated_at, hours, base_path="/", public_url=None, filters=None, region="forest"):
+def build_history_html(
+    incidents,
+    generated_at,
+    hours,
+    base_path="/",
+    public_url=None,
+    filters=None,
+    region="forest",
+    region_statuses=None,
+):
     region = normalize_region(region)
     label = region_label(region)
     status = {**incident_status(incidents, hours), "region": region}
@@ -2958,10 +3025,29 @@ def build_history_html(incidents, generated_at, hours, base_path="/", public_url
       </section>
     """
     subtitle = f"Search stored CHP {label.lower()} incidents · updated {generated_at}"
-    return report_shell("History", subtitle, body, hours, base_path, public_url, current="history", status=status, region=region)
+    return report_shell(
+        "History",
+        subtitle,
+        body,
+        hours,
+        base_path,
+        public_url,
+        current="history",
+        status=status,
+        region=region,
+        region_statuses=region_statuses,
+    )
 
 
-def build_about_html(incidents, generated_at, hours, base_path="/", public_url=None, region="forest"):
+def build_about_html(
+    incidents,
+    generated_at,
+    hours,
+    base_path="/",
+    public_url=None,
+    region="forest",
+    region_statuses=None,
+):
     region = normalize_region(region)
     label = region_label(region)
     status = {**incident_status(incidents, hours), "region": region}
@@ -2993,7 +3079,18 @@ def build_about_html(incidents, generated_at, hours, base_path="/", public_url=N
       </section>
     """
     subtitle = f"{label} source, update cadence, and project context · updated {generated_at}"
-    return report_shell("About", subtitle, body, hours, base_path, public_url, current="about", status=status, region=region)
+    return report_shell(
+        "About",
+        subtitle,
+        body,
+        hours,
+        base_path,
+        public_url,
+        current="about",
+        status=status,
+        region=region,
+        region_statuses=region_statuses,
+    )
 
 
 def parse_args():

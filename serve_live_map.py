@@ -397,6 +397,18 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             "mapped": (params.get("mapped") or ["all"])[0],
         }
 
+    def region_statuses(self, hours):
+        statuses = {}
+        for metric_region in METRIC_REGIONS:
+            incidents = load_incidents(
+                self.database,
+                hours,
+                self.database_url,
+                region=metric_region,
+            )
+            statuses[metric_region] = incident_status(incidents, hours)
+        return statuses
+
     def client_log_fields(self):
         forwarded_for = self.headers.get("X-Forwarded-For", "")
         forwarded_ip = forwarded_for.split(",", 1)[0].strip()
@@ -751,6 +763,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         try:
             generated_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
             hours = self.requested_hours()
+            region_statuses = self.region_statuses(hours)
             incidents = load_incidents(self.database, hours, self.database_url, region=region)
             linked_incident = load_incident_by_key(
                 self.database,
@@ -767,6 +780,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                     base_path=self.base_path,
                     public_url=self.public_url,
                     region=region,
+                    region_statuses=region_statuses,
                 ).encode("utf-8")
             elif path in history_paths:
                 body = build_history_html(
@@ -777,6 +791,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                     public_url=self.public_url,
                     filters=self.history_filters(),
                     region=region,
+                    region_statuses=region_statuses,
                 ).encode("utf-8")
             elif path in about_paths:
                 body = build_about_html(
@@ -786,6 +801,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                     base_path=self.base_path,
                     public_url=self.public_url,
                     region=region,
+                    region_statuses=region_statuses,
                 ).encode("utf-8")
             else:
                 body = build_html(
@@ -797,6 +813,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                     google_analytics_id=self.google_analytics_id,
                     map_label=region_label(region),
                     region=region,
+                    region_statuses=region_statuses,
                 ).encode("utf-8")
         except Exception as exc:
             log_exception(

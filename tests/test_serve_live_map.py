@@ -347,7 +347,10 @@ def test_public_malibu_region_is_available_without_auth(tmp_path):
             assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
             assert "CHP Malibu Incidents" in body
             assert 'href="/?hours=24&amp;region=forest"' in body
-            assert 'href="/?hours=24&amp;region=malibu" aria-current="page">Malibu</a>' in body
+            assert (
+                'href="/?hours=24&amp;region=malibu" aria-current="page"><span>Malibu</span><span class="region-active-count" aria-label="1 active incident">1</span></a>'
+                in body
+            )
             assert 'const currentRegion = "malibu"' in body
 
         with urlopen(f"{base_url}/incidents.json?region=malibu&hours=24", timeout=5) as response:

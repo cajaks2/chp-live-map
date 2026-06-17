@@ -229,6 +229,10 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
         72,
         base_path="/",
         public_url="https://crestmap.us/",
+        region_statuses={
+            "forest": {"active_count": 1},
+            "malibu": {"active_count": 0},
+        },
     )
 
     assert "CHP Forest Incidents (1 active, 2 total)" in html
@@ -290,8 +294,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '<nav class="range-tabs" aria-label="History range">' in html
     assert '<nav class="view-tabs" aria-label="View navigation">' in html
     assert '<nav class="region-tabs" aria-label="Region">' in html
-    assert '<a class="region-tab is-active" href="/?hours=72&amp;region=forest" aria-current="page">Forest</a>' in html
-    assert '<a class="region-tab" href="/?hours=72&amp;region=malibu">Malibu</a>' in html
+    assert '<a class="region-tab is-active" href="/?hours=72&amp;region=forest" aria-current="page"><span>Forest</span><span class="region-active-count" aria-label="1 active incident">1</span></a>' in html
+    assert '<a class="region-tab" href="/?hours=72&amp;region=malibu"><span>Malibu</span><span class="region-active-count" aria-label="0 active incidents">0</span></a>' in html
+    assert "region-active-count" in html
     assert '<a class="view-tab is-active" href="/?hours=72&amp;region=forest" aria-current="page">Map</a>' in html
     assert '<a class="view-tab" href="/summary?hours=72&amp;region=forest">Summary</a>' in html
     assert '<a class="view-tab" href="/history?hours=72&amp;region=forest">History</a>' in html

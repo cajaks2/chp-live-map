@@ -8,6 +8,7 @@ import sys
 import time
 import zlib
 from collections import defaultdict
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -316,22 +317,27 @@ def empty_metric_status(hours):
     }
 
 
-def prometheus_metrics(database, database_url, hours):
+def prometheus_metrics(database, database_url, hours, conn=None):
     if not database_url and not database.exists():
         status = empty_metric_status(hours)
         region_statuses = {region: empty_metric_status(hours) for region in METRIC_REGIONS}
     else:
-        if database_url:
+        should_close = False
+        if conn is not None:
+            placeholder = "%s" if database_url else "?"
+        elif database_url:
             try:
                 import psycopg
                 from psycopg.rows import dict_row
             except ImportError as exc:
                 raise RuntimeError("Postgres support requires psycopg. Install requirements.txt.") from exc
             conn = psycopg.connect(database_url, row_factory=dict_row)
+            should_close = True
             placeholder = "%s"
         else:
             conn = sqlite3.connect(database)
             conn.row_factory = sqlite3.Row
+            should_close = True
             placeholder = "?"
         try:
             status = load_metric_status(conn, hours, region="forest", placeholder=placeholder)
@@ -340,7 +346,8 @@ def prometheus_metrics(database, database_url, hours):
                 for region in METRIC_REGIONS
             }
         finally:
-            conn.close()
+            if should_close:
+                conn.close()
 
     active_count = status["active_count"]
     cleared_count = status["total_count"] - active_count
@@ -422,6 +429,16 @@ class LiveMapHandler(BaseHTTPRequestHandler):
     base_path = "/"
     public_url = None
     google_analytics_id = None
+
+    @contextmanager
+    def database_connection(self):
+        pool = getattr(self.server, "database_pool", None)
+        if pool is None:
+            yield None
+            return
+        with pool.connection() as conn:
+            yield conn
+
     def send_response(self, code, message=None):
         self._last_status_code = int(code)
         super().send_response(code, message)
@@ -464,7 +481,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             "mapped": (params.get("mapped") or ["all"])[0],
         }
 
-    def region_statuses(self, hours):
+    def region_statuses(self, hours, conn=None):
         statuses = {}
         for metric_region in METRIC_REGIONS:
             incidents = load_incidents(
@@ -472,6 +489,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                 hours,
                 self.database_url,
                 region=metric_region,
+                conn=conn,
             )
             statuses[metric_region] = incident_status(incidents, hours)
         return statuses
@@ -653,7 +671,10 @@ class LiveMapHandler(BaseHTTPRequestHandler):
 
         if path in favicon_svg_paths or path in favicon_ico_paths:
             try:
-                active = favicon_active(load_incidents(self.database, self.hours, self.database_url))
+                with self.database_connection() as conn:
+                    active = favicon_active(
+                        load_incidents(self.database, self.hours, self.database_url, conn=conn)
+                    )
             except Exception as exc:
                 log_exception(
                     "Failed to render dynamic favicon",
@@ -719,7 +740,8 @@ class LiveMapHandler(BaseHTTPRequestHandler):
 
         if path in metrics_paths:
             try:
-                body = prometheus_metrics(self.database, self.database_url, self.hours)
+                with self.database_connection() as conn:
+                    body = prometheus_metrics(self.database, self.database_url, self.hours, conn=conn)
             except Exception as exc:
                 log_exception(
                     "Failed to render Prometheus metrics",
@@ -753,18 +775,20 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         if path in status_paths:
             try:
                 hours = self.requested_hours()
-                incidents = load_incidents(
-                    self.database,
-                    hours,
-                    self.database_url,
-                    region=region,
-                )
-                payload = {
-                    **incident_status(incidents, hours),
-                    "region": region,
-                    "region_statuses": self.region_statuses(hours),
-                    "checked_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
-                }
+                with self.database_connection() as conn:
+                    incidents = load_incidents(
+                        self.database,
+                        hours,
+                        self.database_url,
+                        region=region,
+                        conn=conn,
+                    )
+                    payload = {
+                        **incident_status(incidents, hours),
+                        "region": region,
+                        "region_statuses": self.region_statuses(hours, conn=conn),
+                        "checked_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+                    }
                 body = json.dumps(payload, sort_keys=True).encode("utf-8")
             except Exception as exc:
                 log_exception(
@@ -801,23 +825,27 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         if path in incidents_paths:
             try:
                 hours = self.requested_hours()
-                incidents = load_incidents(
-                    self.database,
-                    hours,
-                    self.database_url,
-                    region=region,
-                )
-                linked_incident = load_incident_by_key(
-                    self.database,
-                    self.requested_incident_key(),
-                    self.database_url,
-                    region=region,
-                )
+                with self.database_connection() as conn:
+                    incidents = load_incidents(
+                        self.database,
+                        hours,
+                        self.database_url,
+                        region=region,
+                        conn=conn,
+                    )
+                    linked_incident = load_incident_by_key(
+                        self.database,
+                        self.requested_incident_key(),
+                        self.database_url,
+                        region=region,
+                        conn=conn,
+                    )
+                    region_statuses = self.region_statuses(hours, conn=conn)
                 incidents = include_linked_incident(incidents, linked_incident)
                 payload = {
                     "incidents": incidents,
                     "status": {**incident_status(incidents, hours), "region": region},
-                    "region_statuses": self.region_statuses(hours),
+                    "region_statuses": region_statuses,
                     "region": region,
                     "checked_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
                 }
@@ -863,14 +891,16 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         try:
             generated_at = dt.datetime.now().astimezone().isoformat(timespec="seconds")
             hours = self.requested_hours()
-            region_statuses = self.region_statuses(hours)
-            incidents = load_incidents(self.database, hours, self.database_url, region=region)
-            linked_incident = load_incident_by_key(
-                self.database,
-                self.requested_incident_key(),
-                self.database_url,
-                region=region,
-            )
+            with self.database_connection() as conn:
+                region_statuses = self.region_statuses(hours, conn=conn)
+                incidents = load_incidents(self.database, hours, self.database_url, region=region, conn=conn)
+                linked_incident = load_incident_by_key(
+                    self.database,
+                    self.requested_incident_key(),
+                    self.database_url,
+                    region=region,
+                    conn=conn,
+                )
             incidents = include_linked_incident(incidents, linked_incident)
             if path in summary_paths:
                 body = build_summary_html(
@@ -978,6 +1008,15 @@ class LiveMapHandler(BaseHTTPRequestHandler):
 
 
 class EcsHTTPServer(ThreadingHTTPServer):
+    database_pool = None
+
+    def server_close(self):
+        pool = getattr(self, "database_pool", None)
+        if pool is not None:
+            pool.close()
+            self.database_pool = None
+        super().server_close()
+
     def handle_error(self, request, client_address):
         _exc_type, exc, _tb = sys.exc_info()
         if exc is None:
@@ -1003,6 +1042,18 @@ def parse_args():
     parser.add_argument("--base-path", default=os.environ.get("BASE_PATH", "/"))
     parser.add_argument("--public-url", default=os.environ.get("PUBLIC_URL"))
     parser.add_argument("--google-analytics-id", default=os.environ.get("GOOGLE_ANALYTICS_ID"))
+    parser.add_argument(
+        "--database-pool-min",
+        type=int,
+        default=int(os.environ.get("DATABASE_POOL_MIN", "1")),
+        help="Minimum Postgres connections kept open by the web process.",
+    )
+    parser.add_argument(
+        "--database-pool-max",
+        type=int,
+        default=int(os.environ.get("DATABASE_POOL_MAX", "5")),
+        help="Maximum Postgres connections used by the web process.",
+    )
     return parser.parse_args()
 
 
@@ -1017,6 +1068,22 @@ def main():
     with connect_database(args.database, args.database_url):
         pass
     server = EcsHTTPServer((args.host, args.port), LiveMapHandler)
+    pool_min = max(0, args.database_pool_min)
+    pool_max = max(1, args.database_pool_max)
+    if pool_min > pool_max:
+        pool_min = pool_max
+    if args.database_url:
+        try:
+            from psycopg.rows import dict_row
+            from psycopg_pool import ConnectionPool
+        except ImportError as exc:
+            raise RuntimeError("Postgres pooling requires psycopg_pool. Install requirements.txt.") from exc
+        server.database_pool = ConnectionPool(
+            args.database_url,
+            min_size=pool_min,
+            max_size=pool_max,
+            kwargs={"row_factory": dict_row},
+        )
     log_event(
         "info",
         "Serving CHP live map",
@@ -1027,6 +1094,8 @@ def main():
             "server.port": args.port,
             "url.path": args.base_path,
             "chp.hours": args.hours,
+            "database.pool.min": pool_min if args.database_url else 0,
+            "database.pool.max": pool_max if args.database_url else 0,
         },
     )
     server.serve_forever()

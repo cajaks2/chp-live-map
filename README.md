@@ -226,6 +226,8 @@ Backups are written as compressed custom-format `pg_dump` files under `/opt/chp-
 
 Optional GA4 analytics can be enabled by setting `GOOGLE_ANALYTICS_ID` in `.env` to a Measurement ID such as `G-XXXXXXXXXX`. Leave it blank to omit the Google Analytics script entirely.
 
+For Postgres-backed deployments, the web service uses a small connection pool. Tune `DATABASE_POOL_MIN` and `DATABASE_POOL_MAX` in `.env`; production defaults are `1` and `5`.
+
 Files for that deployment live in `deploy/digitalocean/`.
 
 For app-only updates after changing `VERSION` in `.env`, avoid restarting dependencies:

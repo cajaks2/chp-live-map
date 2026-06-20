@@ -38,78 +38,59 @@ def region_viewport(region):
     return REGION_VIEWPORTS[normalize_region(region)]
 
 
-def load_incidents(database, hours, database_url=None, region="forest"):
+def load_incidents(database, hours, database_url=None, region="forest", conn=None):
     region = normalize_region(region)
-    if not database_url and not database.exists():
+    if conn is None and not database_url and not database.exists():
         return []
     cutoff = (dt.datetime.now().astimezone() - dt.timedelta(hours=hours)).isoformat(
         timespec="seconds"
     )
-    if database_url:
+    should_close = False
+    if conn is not None:
+        placeholder = "%s" if database_url else "?"
+    elif database_url:
         try:
             import psycopg
             from psycopg.rows import dict_row
         except ImportError as exc:
             raise RuntimeError("Postgres support requires psycopg. Install requirements.txt.") from exc
         conn = psycopg.connect(database_url, row_factory=dict_row)
-        rows = conn.execute(
-            """
-            SELECT
-                e.*,
-                (
-                    SELECT o.details_json
-                    FROM observations o
-                    WHERE o.event_key = e.event_key
-                      AND o.status = 'active'
-                    ORDER BY o.observed_at DESC, o.id DESC
-                    LIMIT 1
-                ) AS details_json
-            FROM events e
-            WHERE e.region = %s
-              AND (
-                  e.status = 'active'
-                  OR e.first_seen >= %s
-                  OR e.last_seen >= %s
-                  OR e.cleared_at >= %s
-              )
-            ORDER BY
-                CASE WHEN e.status = 'active' THEN 0 ELSE 1 END,
-                e.latest_observed_at DESC,
-                e.incident_no DESC
-            """,
-            (region, cutoff, cutoff, cutoff),
-        ).fetchall()
+        should_close = True
+        placeholder = "%s"
     else:
         conn = sqlite3.connect(database)
         conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            """
-            SELECT
-                e.*,
-                (
-                    SELECT o.details_json
-                    FROM observations o
-                    WHERE o.event_key = e.event_key
-                      AND o.status = 'active'
-                    ORDER BY o.observed_at DESC, o.id DESC
-                    LIMIT 1
-                ) AS details_json
-            FROM events e
-            WHERE e.region = ?
-              AND (
-                  e.status = 'active'
-                  OR e.first_seen >= ?
-                  OR e.last_seen >= ?
-                  OR e.cleared_at >= ?
-              )
-            ORDER BY
-                CASE WHEN e.status = 'active' THEN 0 ELSE 1 END,
-                e.latest_observed_at DESC,
-                e.incident_no DESC
-            """,
-            (region, cutoff, cutoff, cutoff),
-        ).fetchall()
-    conn.close()
+        should_close = True
+        placeholder = "?"
+    rows = conn.execute(
+        f"""
+        SELECT
+            e.*,
+            (
+                SELECT o.details_json
+                FROM observations o
+                WHERE o.event_key = e.event_key
+                  AND o.status = 'active'
+                ORDER BY o.observed_at DESC, o.id DESC
+                LIMIT 1
+            ) AS details_json
+        FROM events e
+        WHERE e.region = {placeholder}
+          AND (
+              e.status = 'active'
+              OR e.first_seen >= {placeholder}
+              OR e.last_seen >= {placeholder}
+              OR e.cleared_at >= {placeholder}
+          )
+        ORDER BY
+            CASE WHEN e.status = 'active' THEN 0 ELSE 1 END,
+            e.latest_observed_at DESC,
+            e.incident_no DESC
+        """,
+        (region, cutoff, cutoff, cutoff),
+    ).fetchall()
+    if should_close:
+        conn.close()
     incidents = []
     for row in rows:
         incidents.append(hydrate_incident(row, region))
@@ -125,59 +106,48 @@ def hydrate_incident(row, region):
     return incident
 
 
-def load_incident_by_key(database, event_key, database_url=None, region="forest"):
+def load_incident_by_key(database, event_key, database_url=None, region="forest", conn=None):
     region = normalize_region(region)
-    if not event_key or (not database_url and not database.exists()):
+    if not event_key or (conn is None and not database_url and not database.exists()):
         return None
-    if database_url:
+    should_close = False
+    if conn is not None:
+        placeholder = "%s" if database_url else "?"
+    elif database_url:
         try:
             import psycopg
             from psycopg.rows import dict_row
         except ImportError as exc:
             raise RuntimeError("Postgres support requires psycopg. Install requirements.txt.") from exc
         conn = psycopg.connect(database_url, row_factory=dict_row)
-        row = conn.execute(
-            """
-            SELECT
-                e.*,
-                (
-                    SELECT o.details_json
-                    FROM observations o
-                    WHERE o.event_key = e.event_key
-                      AND o.status = 'active'
-                    ORDER BY o.observed_at DESC, o.id DESC
-                    LIMIT 1
-                ) AS details_json
-            FROM events e
-            WHERE e.region = %s
-              AND e.event_key = %s
-            LIMIT 1
-            """,
-            (region, event_key),
-        ).fetchone()
+        should_close = True
+        placeholder = "%s"
     else:
         conn = sqlite3.connect(database)
         conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            """
-            SELECT
-                e.*,
-                (
-                    SELECT o.details_json
-                    FROM observations o
-                    WHERE o.event_key = e.event_key
-                      AND o.status = 'active'
-                    ORDER BY o.observed_at DESC, o.id DESC
-                    LIMIT 1
-                ) AS details_json
-            FROM events e
-            WHERE e.region = ?
-              AND e.event_key = ?
-            LIMIT 1
-            """,
-            (region, event_key),
-        ).fetchone()
-    conn.close()
+        should_close = True
+        placeholder = "?"
+    row = conn.execute(
+        f"""
+        SELECT
+            e.*,
+            (
+                SELECT o.details_json
+                FROM observations o
+                WHERE o.event_key = e.event_key
+                  AND o.status = 'active'
+                ORDER BY o.observed_at DESC, o.id DESC
+                LIMIT 1
+            ) AS details_json
+        FROM events e
+        WHERE e.region = {placeholder}
+          AND e.event_key = {placeholder}
+        LIMIT 1
+        """,
+        (region, event_key),
+    ).fetchone()
+    if should_close:
+        conn.close()
     return hydrate_incident(row, region) if row else None
 
 

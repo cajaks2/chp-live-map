@@ -573,11 +573,40 @@ class LiveMapHandler(BaseHTTPRequestHandler):
 
     def do_HEAD(self):
         self._request_started_at = time.monotonic()
-        self.serve_request(send_body=False)
+        try:
+            self.serve_request(send_body=False)
+        finally:
+            self.log_slow_completed_request()
 
     def do_GET(self):
         self._request_started_at = time.monotonic()
-        self.serve_request(send_body=True)
+        try:
+            self.serve_request(send_body=True)
+        finally:
+            self.log_slow_completed_request()
+
+    def log_slow_completed_request(self):
+        if getattr(self, "_slow_completed_logged", False) or not hasattr(self, "_request_started_at"):
+            return
+        duration_seconds = time.monotonic() - self._request_started_at
+        if duration_seconds < 1.0:
+            return
+        self._slow_completed_logged = True
+        status_code = getattr(self, "_last_status_code", None)
+        log_event(
+            "warning",
+            "Slow HTTP request completed",
+            **{
+                "event.action": "http_request",
+                "event.duration": int(duration_seconds * 1_000_000_000),
+                "event.outcome": "success" if status_code and status_code < 400 else "failure",
+                "http.request.method": self.command,
+                "http.response.status_code": status_code,
+                "url.path": self.path,
+                "chp.route": self.route_label(),
+                **self.client_log_fields(),
+            },
+        )
 
     def serve_request(self, send_body):
         path = urlsplit(self.path).path.rstrip("/") or "/"
@@ -928,24 +957,6 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path.rstrip("/") or "/"
         if status_code:
             HTTP_REQUESTS_TOTAL[(self.command, self.route_label(), str(status_code))] += 1
-        duration_seconds = None
-        if hasattr(self, "_request_started_at"):
-            duration_seconds = time.monotonic() - self._request_started_at
-        if duration_seconds and duration_seconds >= 1.0:
-            log_event(
-                "warning",
-                "Slow HTTP request completed",
-                **{
-                    "event.action": "http_request",
-                    "event.duration": int(duration_seconds * 1_000_000_000),
-                    "event.outcome": "success" if status_code and status_code < 400 else "failure",
-                    "http.request.method": self.command,
-                    "http.response.status_code": status_code,
-                    "url.path": self.path,
-                    "chp.route": self.route_label(),
-                    **self.client_log_fields(),
-                },
-            )
         if path in {"/healthz", "/readyz", "/metrics"} and status_code and status_code < 500:
             return
         log_event(

@@ -1231,6 +1231,7 @@ def init_database_sqlite(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_events_region_first_seen ON events(region, first_seen)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_events_region_last_seen ON events(region, last_seen)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_events_region_cleared_at ON events(region, cleared_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_detail_entries_event_observed ON detail_entries(event_key, observed_at)")
     ensure_column_sqlite(conn, "detail_entries", "section", "TEXT")
     backfill_detail_entry_sections(conn)
 
@@ -1328,6 +1329,7 @@ def init_database_postgres(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_events_region_first_seen ON events(region, first_seen)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_events_region_last_seen ON events(region, last_seen)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_events_region_cleared_at ON events(region, cleared_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_detail_entries_event_observed ON detail_entries(event_key, observed_at)")
     ensure_column_postgres(conn, "detail_entries", "section", "TEXT")
     backfill_detail_entry_sections(conn)
     conn.commit()
@@ -1351,12 +1353,21 @@ def detail_entry_section(entry):
 
 def backfill_detail_entry_sections(conn):
     if is_postgres(conn):
+        missing = conn.execute(
+            "SELECT 1 FROM detail_entries WHERE section IS NULL OR section = '' LIMIT 1"
+        ).fetchone()
+        if not missing:
+            return
         observations = conn.execute(
             """
-            SELECT event_key, observed_at, details_json
-            FROM observations
-            WHERE details_json IS NOT NULL
-              AND details_json <> '[]'
+            SELECT DISTINCT o.event_key, o.observed_at, o.details_json
+            FROM observations o
+            JOIN detail_entries d
+              ON d.event_key = o.event_key
+             AND d.observed_at = o.observed_at
+            WHERE o.details_json IS NOT NULL
+              AND o.details_json <> '[]'
+              AND (d.section IS NULL OR d.section = '')
             """
         ).fetchall()
         update_sql = """
@@ -1368,12 +1379,21 @@ def backfill_detail_entry_sections(conn):
               AND (section IS NULL OR section = '')
         """
     else:
+        missing = conn.execute(
+            "SELECT 1 FROM detail_entries WHERE section IS NULL OR section = '' LIMIT 1"
+        ).fetchone()
+        if not missing:
+            return
         observations = conn.execute(
             """
-            SELECT event_key, observed_at, details_json
-            FROM observations
-            WHERE details_json IS NOT NULL
-              AND details_json <> '[]'
+            SELECT DISTINCT o.event_key, o.observed_at, o.details_json
+            FROM observations o
+            JOIN detail_entries d
+              ON d.event_key = o.event_key
+             AND d.observed_at = o.observed_at
+            WHERE o.details_json IS NOT NULL
+              AND o.details_json <> '[]'
+              AND (d.section IS NULL OR d.section = '')
             """
         ).fetchall()
         update_sql = """

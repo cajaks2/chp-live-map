@@ -13,6 +13,7 @@ from serve_live_map import (
     INCIDENTS_CACHE_CONTROL,
     LiveMapHandler,
     MAP_CACHE_CONTROL,
+    prometheus_metrics,
 )
 from scrape_chp_traffic import connect_database
 from scrape_chp_traffic import store_scrape_run
@@ -242,6 +243,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert "chp_live_map_scrape_last_run_details" not in body
             assert "chp_live_map_scrape_chp_http_requests_total" not in body
             assert "chp_live_map_http_requests_total" in body
+            assert "chp_live_map_db_pool_connections" not in body
 
         head_request = Request(f"{base_url}/", method="HEAD")
         with urlopen(head_request, timeout=5) as response:
@@ -302,6 +304,28 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_prometheus_metrics_include_pool_stats(tmp_path):
+    body = prometheus_metrics(
+        tmp_path / "missing.sqlite",
+        None,
+        72.0,
+        pool_stats={
+            "pool_min": 1,
+            "pool_max": 5,
+            "pool_size": 3,
+            "pool_available": 2,
+            "requests_waiting": 4,
+        },
+    ).decode("utf-8")
+
+    assert 'chp_live_map_db_pool_connections{state="min"} 1' in body
+    assert 'chp_live_map_db_pool_connections{state="max"} 5' in body
+    assert 'chp_live_map_db_pool_connections{state="size"} 3' in body
+    assert 'chp_live_map_db_pool_connections{state="available"} 2' in body
+    assert 'chp_live_map_db_pool_connections{state="in_use"} 1' in body
+    assert "chp_live_map_db_pool_requests_waiting 4" in body
 
 
 def test_public_malibu_region_is_available_without_auth(tmp_path):

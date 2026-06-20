@@ -272,6 +272,8 @@ Prometheus metrics:
 | `chp_live_map_history_window_hours` | gauge | The history-window size used for `/metrics` incident gauges. In production this is `72`, matching the default map view; user-selected `?hours=` values only affect that page/status request, not this process-level metric. |
 | `chp_live_map_data_updated_timestamp_seconds` | gauge | Unix timestamp of the newest observed incident data included in the metrics window. |
 | `chp_live_map_http_requests_total{method,route,status}` | counter | HTTP requests handled by the web process, grouped by method, coarse route, and status code. |
+| `chp_live_map_db_pool_connections{state}` | gauge | Web Postgres pool connections by `min`, `max`, `size`, `available`, and derived `in_use` states. |
+| `chp_live_map_db_pool_requests_waiting` | gauge | Web requests currently waiting for a Postgres pool connection. |
 | `chp_live_map_scrape_last_run_timestamp_seconds` | gauge | Unix timestamp for the latest completed CHP scrape. |
 | `chp_live_map_scrape_last_run_duration_seconds` | gauge | Duration of the latest completed CHP scrape. |
 | `chp_live_map_scrape_last_run_incidents{kind}` | gauge | Latest scrape incident counts: total CHP incidents seen, matched incidents acquired, and mapped matched incidents. |

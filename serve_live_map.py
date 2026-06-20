@@ -317,7 +317,7 @@ def empty_metric_status(hours):
     }
 
 
-def prometheus_metrics(database, database_url, hours, conn=None):
+def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None):
     if not database_url and not database.exists():
         status = empty_metric_status(hours)
         region_statuses = {region: empty_metric_status(hours) for region in METRIC_REGIONS}
@@ -417,6 +417,47 @@ def prometheus_metrics(database, database_url, hours, conn=None):
                 count,
                 {"method": method, "route": route, "status": status_code},
             )
+        )
+    if pool_stats:
+        pool_size = int(pool_stats.get("pool_size", 0))
+        pool_available = int(pool_stats.get("pool_available", 0))
+        pool_in_use = max(0, pool_size - pool_available)
+        lines.extend(
+            [
+                "# HELP chp_live_map_db_pool_connections Postgres connection pool gauges.",
+                "# TYPE chp_live_map_db_pool_connections gauge",
+                metric_line(
+                    "chp_live_map_db_pool_connections",
+                    int(pool_stats.get("pool_min", 0)),
+                    {"state": "min"},
+                ),
+                metric_line(
+                    "chp_live_map_db_pool_connections",
+                    int(pool_stats.get("pool_max", 0)),
+                    {"state": "max"},
+                ),
+                metric_line(
+                    "chp_live_map_db_pool_connections",
+                    pool_size,
+                    {"state": "size"},
+                ),
+                metric_line(
+                    "chp_live_map_db_pool_connections",
+                    pool_available,
+                    {"state": "available"},
+                ),
+                metric_line(
+                    "chp_live_map_db_pool_connections",
+                    pool_in_use,
+                    {"state": "in_use"},
+                ),
+                "# HELP chp_live_map_db_pool_requests_waiting Requests currently waiting for a Postgres pool connection.",
+                "# TYPE chp_live_map_db_pool_requests_waiting gauge",
+                metric_line(
+                    "chp_live_map_db_pool_requests_waiting",
+                    int(pool_stats.get("requests_waiting", 0)),
+                ),
+            ]
         )
     lines.append("")
     return "\n".join(lines).encode("utf-8")
@@ -741,7 +782,15 @@ class LiveMapHandler(BaseHTTPRequestHandler):
         if path in metrics_paths:
             try:
                 with self.database_connection() as conn:
-                    body = prometheus_metrics(self.database, self.database_url, self.hours, conn=conn)
+                    pool = getattr(self.server, "database_pool", None)
+                    pool_stats = pool.get_stats() if pool is not None else None
+                    body = prometheus_metrics(
+                        self.database,
+                        self.database_url,
+                        self.hours,
+                        conn=conn,
+                        pool_stats=pool_stats,
+                    )
             except Exception as exc:
                 log_exception(
                     "Failed to render Prometheus metrics",

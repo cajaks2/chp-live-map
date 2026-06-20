@@ -2,6 +2,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import sqlite3
 import struct
 import sys
 import time
@@ -272,9 +273,64 @@ def metric_line(name, value, labels=None):
     return f"{name} {value}"
 
 
+def load_metric_status(database, hours, database_url=None, region="forest"):
+    region = normalize_region(region)
+    if not database_url and not database.exists():
+        return {
+            "active_count": 0,
+            "total_count": 0,
+            "mapped_count": 0,
+            "hours": hours,
+            "data_updated_at": "",
+        }
+    cutoff = (dt.datetime.now().astimezone() - dt.timedelta(hours=hours)).isoformat(
+        timespec="seconds"
+    )
+    query = """
+        SELECT
+            COUNT(*) AS total_count,
+            COALESCE(SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END), 0) AS active_count,
+            COALESCE(SUM(CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN 1 ELSE 0 END), 0) AS mapped_count,
+            MAX(COALESCE(NULLIF(latest_observed_at, ''), NULLIF(last_seen, ''), NULLIF(first_seen, ''), '')) AS data_updated_at
+        FROM events
+        WHERE region = {placeholder}
+          AND (
+              status = 'active'
+              OR first_seen >= {placeholder}
+              OR last_seen >= {placeholder}
+              OR cleared_at >= {placeholder}
+          )
+    """
+    if database_url:
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+        except ImportError as exc:
+            raise RuntimeError("Postgres support requires psycopg. Install requirements.txt.") from exc
+        conn = psycopg.connect(database_url, row_factory=dict_row)
+        row = conn.execute(
+            query.format(placeholder="%s"),
+            (region, cutoff, cutoff, cutoff),
+        ).fetchone()
+    else:
+        conn = sqlite3.connect(database)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            query.format(placeholder="?"),
+            (region, cutoff, cutoff, cutoff),
+        ).fetchone()
+    conn.close()
+    return {
+        "active_count": int(row["active_count"] or 0),
+        "total_count": int(row["total_count"] or 0),
+        "mapped_count": int(row["mapped_count"] or 0),
+        "hours": hours,
+        "data_updated_at": row["data_updated_at"] or "",
+    }
+
+
 def prometheus_metrics(database, database_url, hours):
-    incidents = load_incidents(database, hours, database_url)
-    status = incident_status(incidents, hours)
+    status = load_metric_status(database, hours, database_url, region="forest")
     active_count = status["active_count"]
     cleared_count = status["total_count"] - active_count
     lines = [
@@ -294,7 +350,7 @@ def prometheus_metrics(database, database_url, hours):
         "# TYPE chp_live_map_region_incidents gauge",
     ]
     for region in METRIC_REGIONS:
-        region_status = incident_status(load_incidents(database, hours, database_url, region=region), hours)
+        region_status = load_metric_status(database, hours, database_url, region=region)
         region_active_count = region_status["active_count"]
         region_cleared_count = region_status["total_count"] - region_active_count
         lines.extend(
@@ -336,7 +392,7 @@ def prometheus_metrics(database, database_url, hours):
         "# TYPE chp_live_map_http_requests_total counter",
         ]
     )
-    for (method, route, status_code), count in sorted(HTTP_REQUESTS_TOTAL.items()):
+    for (method, route, status_code), count in sorted(list(HTTP_REQUESTS_TOTAL.items())):
         lines.append(
             metric_line(
                 "chp_live_map_http_requests_total",

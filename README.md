@@ -2,23 +2,24 @@
 
 Collect CHP CAD traffic incidents for Angeles National Forest roads and render a live map with click-in details, summary reports, searchable history, and source/cadence notes. The map defaults to a rolling 72-hour window: active incidents render red and cleared/non-active incidents render grey.
 
-The CHP CAD site does not expose a documented public API for the detail logs this project needs, so `scrape_chp_traffic.py` follows the same public WebForms flow as the website:
+`scrape_chp_traffic.py` uses the public CHP media XML feed by default:
 
-1. Load `https://cad.chp.ca.gov/Traffic.aspx`.
-2. Select one or more CHP communications centers.
-3. Filter the active incident table to road keywords.
-4. Open each matching incident's Details view.
-5. Store current status and history in SQLite locally or Postgres in production deployments.
+1. Fetch `https://media.chp.ca.gov/sa_xml/sa.xml`.
+2. Filter active incidents to configured CHP centers, road keywords, and coordinate bounds.
+3. Normalize incident, detail, and unit entries from the feed.
+4. Store current status and history in SQLite locally or Postgres in production deployments.
+
+The older CHP CAD WebForms scraper is still available with `--source-mode cad` for fallback/debugging, but production uses `CHP_SOURCE_MODE=xml`.
 
 The scraper is intentionally conservative:
 
 - It defaults to the Los Angeles and Ventura communications centers.
-- It filters the incident list by forest-road keywords before opening detail pages.
+- It filters the incident list by forest/Malibu road keywords and coordinate bounds.
 - It uses a descriptive `User-Agent` with a public project URL.
 - Set `CHP_CONTACT_EMAIL` or pass `--contact-email` to include a contact address in that `User-Agent`.
-- It checks `robots.txt` before scraping unless `--no-respect-robots` is set.
+- In CAD fallback mode, it checks `robots.txt` before scraping unless `--no-respect-robots` is set.
 - It retries transient HTTP failures with exponential backoff.
-- It skips detail-page refetches for unchanged active incidents for 3 minutes by default.
+- In CAD fallback mode, it skips detail-page refetches for unchanged active incidents for 3 minutes by default.
 - It records both total CHP incidents seen and filtered incidents acquired in `scrape_runs`.
 
 Default road keywords:
@@ -44,7 +45,7 @@ The scraper also collects Malibu coast/canyon incidents into `region='malibu'`. 
 ## Requirements
 
 - Python 3.10+
-- Network access to `https://cad.chp.ca.gov`
+- Network access to `https://media.chp.ca.gov`; CAD fallback mode also needs `https://cad.chp.ca.gov`
 - `psycopg` for Postgres deployments; install with `pip install -r requirements.txt`
 
 The generated map uses Leaflet and OpenStreetMap tiles from public CDNs.
@@ -55,6 +56,12 @@ Run once with the default Los Angeles/Ventura centers and Angeles Crest/Forest/M
 
 ```sh
 python3 scrape_chp_traffic.py
+```
+
+Run the legacy CAD WebForms scraper instead:
+
+```sh
+python3 scrape_chp_traffic.py --source-mode cad
 ```
 
 Poll every minute:
@@ -213,7 +220,7 @@ docker compose up -d
 
 The VM needs Docker Compose and `make` installed for the checked-in deployment helpers.
 
-The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, a long-lived scraper service that polls every minute and exposes scraper metrics on `127.0.0.1:8081`, and a Postgres backup sidecar. nginx should remain the TLS front door and proxy `crestmap.us` to `http://127.0.0.1:8080`.
+The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, a long-lived XML-mode scraper service that polls every minute and exposes scraper metrics on `127.0.0.1:8081`, and a Postgres backup sidecar. nginx should remain the TLS front door and proxy `crestmap.us` to `http://127.0.0.1:8080`.
 
 Backups are written as compressed custom-format `pg_dump` files under `/opt/chp-live-map/backups/postgres` every six hours by default. Tune `BACKUP_INTERVAL_SECONDS` and `BACKUP_RETENTION_DAYS` in `.env`.
 
@@ -272,6 +279,9 @@ Prometheus metrics:
 | `chp_live_map_scraper_up` | gauge | `1` when the scraper service metrics endpoint is running. |
 | `chp_live_map_scraper_scrapes_total{outcome}` | counter | Scrape attempts by success/failure from the long-lived scraper process. |
 | `chp_live_map_scraper_last_run_timestamp_seconds{outcome,error_type}` | gauge | Timestamp of the latest scraper run from the scraper service. |
+| `chp_live_map_scraper_last_run_duration_seconds` | gauge | Total duration of the latest scraper-service run. |
+| `chp_live_map_scraper_last_run_source_duration_seconds{source}` | gauge | Latest scraper-service fetch/runtime duration by source, currently `xml` or `cad`. |
+| `chp_live_map_scraper_last_run_source_response_bytes{source}` | gauge | Bytes downloaded by the latest scraper-service run by source. |
 | `chp_live_map_scraper_last_run_incidents{kind}` | gauge | Latest scraper-service incident counts. |
 | `chp_live_map_scraper_chp_http_requests_total{method,route,status}` | counter | Outbound CHP HTTP requests counted in the scraper process. |
 

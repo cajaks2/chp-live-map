@@ -157,6 +157,10 @@ spec:
               value: "0.1.90"
             - name: CHP_USER_AGENT
               value: "chp-live-map/0.1 (+https://crestmap.us/)"
+            - name: CHP_SOURCE_MODE
+              value: xml
+            - name: CHP_XML_SHADOW_COMPARE
+              value: "false"
             - name: SCRAPER_METRICS_HOST
               value: 0.0.0.0
             - name: SCRAPER_METRICS_PORT

@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `scrape_chp_traffic.py` follows the public CHP CAD WebForms flow, filters selected forest-road incidents, stores event history, and exposes scraper metrics when run as a service.
+- `scrape_chp_traffic.py` reads the public CHP media XML feed by default, filters selected forest and Malibu incidents, stores event history, and exposes scraper metrics when run as a service. The older CHP CAD WebForms path remains available with `--source-mode cad` for fallback/debugging.
 - `generate_live_map.py` renders the map, Summary, History, and About HTML views from stored incident rows.
 - `serve_live_map.py` serves the dynamic web app, JSON status/incidents endpoints, health checks, assets, and Prometheus metrics.
 - `ecs_logging.py` centralizes ECS JSON logging helpers.
@@ -44,7 +44,7 @@
 - Do not commit personal contact emails or secrets. Configure `CHP_CONTACT_EMAIL`, `GOOGLE_ANALYTICS_ID`, database URLs, and passwords through environment files or cluster secrets.
 
 ## Data Source & Product Notes
-- The scraper uses the public CHP CAD website because no documented public detail-log API is available.
-- Be conservative with scraping: keep the one-minute list cadence, road filtering before detail fetches, robots.txt checks, retry backoff, and the active-detail refresh throttle.
+- The scraper uses the CHP media XML feed as the normal source. Keep the CAD WebForms scraper available as a manual fallback, but do not make it the hot path without comparing runtime and coverage.
+- Be conservative with scraping: keep the one-minute cadence, road/region filtering, retry backoff, and source metrics.
 - The app stores history indefinitely unless an explicit retention job is added; UI windows such as 72h and 30d only limit what is displayed.
 - Active incidents render red, cleared incidents render grey, and incidents without coordinates remain visible in lists/history even when they cannot be pinned on the map.

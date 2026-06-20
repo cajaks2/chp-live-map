@@ -2027,7 +2027,7 @@ def parse_args():
     parser.add_argument(
         "--source-mode",
         choices=("cad", "xml"),
-        default=os.environ.get("CHP_SOURCE_MODE", "cad"),
+        default=os.environ.get("CHP_SOURCE_MODE", "xml"),
         help="Incident source to write to the database. cad uses the CHP CAD WebForms flow; xml uses the CHP media XML feed.",
     )
     parser.add_argument(

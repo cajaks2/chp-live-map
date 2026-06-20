@@ -273,16 +273,8 @@ def metric_line(name, value, labels=None):
     return f"{name} {value}"
 
 
-def load_metric_status(database, hours, database_url=None, region="forest"):
+def load_metric_status(conn, hours, region="forest", placeholder="?"):
     region = normalize_region(region)
-    if not database_url and not database.exists():
-        return {
-            "active_count": 0,
-            "total_count": 0,
-            "mapped_count": 0,
-            "hours": hours,
-            "data_updated_at": "",
-        }
     cutoff = (dt.datetime.now().astimezone() - dt.timedelta(hours=hours)).isoformat(
         timespec="seconds"
     )
@@ -301,25 +293,10 @@ def load_metric_status(database, hours, database_url=None, region="forest"):
               OR cleared_at >= {placeholder}
           )
     """
-    if database_url:
-        try:
-            import psycopg
-            from psycopg.rows import dict_row
-        except ImportError as exc:
-            raise RuntimeError("Postgres support requires psycopg. Install requirements.txt.") from exc
-        conn = psycopg.connect(database_url, row_factory=dict_row)
-        row = conn.execute(
-            query.format(placeholder="%s"),
-            (region, cutoff, cutoff, cutoff),
-        ).fetchone()
-    else:
-        conn = sqlite3.connect(database)
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            query.format(placeholder="?"),
-            (region, cutoff, cutoff, cutoff),
-        ).fetchone()
-    conn.close()
+    row = conn.execute(
+        query.format(placeholder=placeholder),
+        (region, cutoff, cutoff, cutoff),
+    ).fetchone()
     return {
         "active_count": int(row["active_count"] or 0),
         "total_count": int(row["total_count"] or 0),
@@ -329,8 +306,42 @@ def load_metric_status(database, hours, database_url=None, region="forest"):
     }
 
 
+def empty_metric_status(hours):
+    return {
+        "active_count": 0,
+        "total_count": 0,
+        "mapped_count": 0,
+        "hours": hours,
+        "data_updated_at": "",
+    }
+
+
 def prometheus_metrics(database, database_url, hours):
-    status = load_metric_status(database, hours, database_url, region="forest")
+    if not database_url and not database.exists():
+        status = empty_metric_status(hours)
+        region_statuses = {region: empty_metric_status(hours) for region in METRIC_REGIONS}
+    else:
+        if database_url:
+            try:
+                import psycopg
+                from psycopg.rows import dict_row
+            except ImportError as exc:
+                raise RuntimeError("Postgres support requires psycopg. Install requirements.txt.") from exc
+            conn = psycopg.connect(database_url, row_factory=dict_row)
+            placeholder = "%s"
+        else:
+            conn = sqlite3.connect(database)
+            conn.row_factory = sqlite3.Row
+            placeholder = "?"
+        try:
+            status = load_metric_status(conn, hours, region="forest", placeholder=placeholder)
+            region_statuses = {
+                region: load_metric_status(conn, hours, region=region, placeholder=placeholder)
+                for region in METRIC_REGIONS
+            }
+        finally:
+            conn.close()
+
     active_count = status["active_count"]
     cleared_count = status["total_count"] - active_count
     lines = [
@@ -350,7 +361,7 @@ def prometheus_metrics(database, database_url, hours):
         "# TYPE chp_live_map_region_incidents gauge",
     ]
     for region in METRIC_REGIONS:
-        region_status = load_metric_status(database, hours, database_url, region=region)
+        region_status = region_statuses[region]
         region_active_count = region_status["active_count"]
         region_cleared_count = region_status["total_count"] - region_active_count
         lines.extend(

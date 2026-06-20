@@ -307,6 +307,69 @@ def test_filtered_xml_incident_keys_applies_region_bounds():
     assert region_counts["malibu"] == {"matched": 0, "mapped": 0}
 
 
+def test_scrape_once_xml_writes_matching_incidents(tmp_path, monkeypatch):
+    database = tmp_path / "chp.sqlite"
+
+    class Args:
+        source_mode = "xml"
+        database = None
+        database_url = None
+        center = ["LACC"]
+        timeout = 30
+        user_agent = "test-agent"
+        retries = 0
+        retry_backoff = 0
+        media_xml_url = "https://example.invalid/sa.xml"
+        respect_robots = False
+        all_roads = False
+        road = DEFAULT_ROAD_KEYWORDS
+
+    Args.database = database
+
+    monkeypatch.setattr(
+        scrape_chp_traffic,
+        "fetch_media_xml_incidents",
+        lambda _args, _stats: [
+            {
+                "center": "LACC",
+                "incident_no": "2002",
+                "incident_time": "5:21 PM",
+                "type": "Traffic Hazard",
+                "location": "Angeles Crest Hwy / Mm 30.50",
+                "location_desc": "ANGELES CREST HWY JSO MM30.5",
+                "area": "Altadena",
+                "latitude": 34.260464,
+                "longitude": -118.190693,
+                "incident_date": "2026-06-15",
+                "event_key": "LACC|2026-06-15|2002",
+                "detail_entries": [
+                    {
+                        "section": "Detail Information",
+                        "time": "5:23 PM",
+                        "entry_no": "6",
+                        "text": "[6] VEH OFF RDWAY",
+                    }
+                ],
+            }
+        ],
+    )
+
+    result = scrape_chp_traffic.scrape_once(Args())
+
+    assert result[1] == 1
+    assert result[2] == 1
+    assert result[3] == 1
+    assert result[4]["forest"] == {"matched": 1, "mapped": 1}
+    assert result[8]["cad"] == 0
+    conn = connect_database(database)
+    event = conn.execute("SELECT * FROM events WHERE event_key = ?", ("LACC|2026-06-15|2002",)).fetchone()
+    observation = conn.execute("SELECT * FROM observations WHERE event_key = ?", ("LACC|2026-06-15|2002",)).fetchone()
+    conn.close()
+    assert event["status"] == "active"
+    assert event["region"] == "forest"
+    assert observation["details_json"]
+
+
 def test_parser_keeps_repeated_detail_tables():
     parser = parse_page(
         """

@@ -1673,7 +1673,135 @@ def store_scrape_run(
     )
 
 
+def scrape_once_xml(args):
+    started_at = time.monotonic()
+    now = dt.datetime.now().astimezone()
+    observed_at = now.isoformat(timespec="seconds")
+    seen_keys = set()
+    seen_with_coords = set()
+    region_seen_keys = {region: set() for region in REGION_ROAD_KEYWORDS}
+    region_seen_with_coords = {region: set() for region in REGION_ROAD_KEYWORDS}
+    observations_inserted = 0
+    stats = {"http_status_counts": {}, "source_bytes": {}}
+
+    if args.respect_robots and not robots_allows(args.user_agent, args.timeout):
+        raise RuntimeError(f"robots.txt disallows scraping {CHP_TRAFFIC_URL} for {args.user_agent}")
+
+    xml_started_at = time.monotonic()
+    xml_incidents = fetch_media_xml_incidents(args, stats)
+    xml_duration_seconds = time.monotonic() - xml_started_at
+    total_seen = len(xml_incidents)
+
+    with connect_database(args.database, args.database_url) as conn:
+        for incident in xml_incidents:
+            matches = matching_keywords(incident, args.road)
+            if not args.all_roads and not matches:
+                continue
+            region_matches = matching_regions(incident)
+            region = region_for_incident(region_matches)
+            if not region:
+                continue
+            if (
+                incident.get("latitude") is not None
+                and incident.get("longitude") is not None
+                and not coordinates_in_region_bounds(incident.get("latitude"), incident.get("longitude"), region)
+            ):
+                continue
+            merged = dict(incident)
+            clear_coordinates_outside_region_bounds(merged, region)
+            row = {
+                **merged,
+                "region": region,
+                "observed_at": observed_at,
+                "updated_as_of": observed_at,
+                "matched_keywords": ";".join(region_matches.get(region) or matches or ["*"]),
+                "detail_entries": merged.get("detail_entries", []),
+            }
+            row["details_hash"] = details_hash(row)
+            seen_keys.add(row["event_key"])
+            region_seen_keys.setdefault(region, set()).add(row["event_key"])
+            if row["latitude"] is not None and row["longitude"] is not None:
+                seen_with_coords.add(row["event_key"])
+                region_seen_with_coords.setdefault(region, set()).add(row["event_key"])
+            previous = upsert_active_event(conn, row)
+            if (
+                not previous
+                or previous["status"] != "active"
+                or previous["details_hash"] != row["details_hash"]
+            ):
+                insert_observation(conn, row, "active")
+                observations_inserted += 1
+
+        if is_postgres(conn):
+            active_events = conn.execute(
+                """
+                SELECT * FROM events
+                WHERE status = 'active'
+                  AND center = ANY(%s)
+                """,
+                (args.center,),
+            ).fetchall()
+        else:
+            active_events = conn.execute(
+                """
+                SELECT * FROM events
+                WHERE status = 'active'
+                  AND center IN ({})
+                """.format(",".join("?" for _ in args.center)),
+                tuple(args.center),
+            ).fetchall()
+        for event in active_events:
+            if event["event_key"] not in seen_keys:
+                mark_cleared(conn, event, observed_at)
+                observations_inserted += 1
+
+        store_scrape_run(
+            conn,
+            observed_at,
+            args.center,
+            total_seen,
+            len(seen_keys),
+            observations_inserted,
+            len(seen_with_coords),
+            0,
+            0,
+            time.monotonic() - started_at,
+            stats["http_status_counts"],
+        )
+
+    region_counts = {
+        region: {
+            "matched": len(region_seen_keys.get(region, set())),
+            "mapped": len(region_seen_with_coords.get(region, set())),
+        }
+        for region in sorted(REGION_ROAD_KEYWORDS)
+    }
+    duration_seconds = time.monotonic() - started_at
+    source_bytes = {
+        "cad": 0,
+        "xml": stats.get("source_bytes", {}).get("xml", 0),
+    }
+    source_bytes["total"] = source_bytes["xml"]
+    return (
+        observations_inserted,
+        total_seen,
+        len(seen_keys),
+        len(seen_with_coords),
+        region_counts,
+        0,
+        0,
+        duration_seconds,
+        {"cad": 0, "xml": xml_duration_seconds, "total": duration_seconds},
+        source_bytes,
+        stats["http_status_counts"],
+        observed_at,
+    )
+
+
 def scrape_once(args):
+    if args.source_mode == "xml":
+        return scrape_once_xml(args)
+
     started_at = time.monotonic()
     now = dt.datetime.now().astimezone()
     observed_at = now.isoformat(timespec="seconds")
@@ -1876,6 +2004,12 @@ def parse_args():
     parser.add_argument("--detail-delay", type=float, default=0.2)
     parser.add_argument("--detail-refresh-minutes", type=float, default=3.0)
     parser.add_argument("--media-xml-url", default=os.environ.get("CHP_MEDIA_XML_URL", CHP_MEDIA_XML_URL))
+    parser.add_argument(
+        "--source-mode",
+        choices=("cad", "xml"),
+        default=os.environ.get("CHP_SOURCE_MODE", "cad"),
+        help="Incident source to write to the database. cad uses the CHP CAD WebForms flow; xml uses the CHP media XML feed.",
+    )
     parser.add_argument(
         "--xml-shadow-compare",
         action="store_true",

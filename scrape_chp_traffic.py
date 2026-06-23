@@ -1818,10 +1818,7 @@ def scrape_once_xml(args):
     )
 
 
-def scrape_once(args):
-    if args.source_mode == "xml":
-        return scrape_once_xml(args)
-
+def scrape_once_cad(args):
     started_at = time.monotonic()
     now = dt.datetime.now().astimezone()
     observed_at = now.isoformat(timespec="seconds")
@@ -2006,6 +2003,27 @@ def scrape_once(args):
         stats["http_status_counts"],
         observed_at,
     )
+
+
+def scrape_once(args):
+    if args.source_mode == "cad":
+        return scrape_once_cad(args)
+
+    try:
+        return scrape_once_xml(args)
+    except ET.ParseError as exc:
+        log_exception(
+            "CHP XML scrape returned malformed XML; falling back to CAD",
+            exc,
+            **{
+                "event.action": "scrape_fallback",
+                "event.outcome": "failure",
+                "chp.source": "media_xml",
+                "chp.fallback_source": "cad",
+                "http.request.header.user_agent": args.user_agent,
+            },
+        )
+        return scrape_once_cad(args)
 
 
 def parse_args():

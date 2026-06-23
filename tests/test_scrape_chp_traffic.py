@@ -370,6 +370,51 @@ def test_scrape_once_xml_writes_matching_incidents(tmp_path, monkeypatch):
     assert observation["details_json"]
 
 
+def test_scrape_once_xml_parse_error_falls_back_to_cad(monkeypatch):
+    class Args:
+        source_mode = "xml"
+        user_agent = "test-agent"
+
+    fallback_result = (
+        1,
+        35,
+        2,
+        2,
+        {"forest": {"matched": 2, "mapped": 2}, "malibu": {"matched": 0, "mapped": 0}},
+        2,
+        0,
+        1.25,
+        {"cad": 1.25, "xml": 0, "total": 1.25},
+        {"cad": 12345, "xml": 0, "total": 12345},
+        {"GET:list:200": 1},
+        "2026-06-22T18:22:00-07:00",
+    )
+    fallback_calls = []
+    log_messages = []
+
+    def fail_xml(_args):
+        raise scrape_chp_traffic.ET.ParseError("no element found: line 102, column 3")
+
+    def cad_fallback(args):
+        fallback_calls.append(args)
+        return fallback_result
+
+    monkeypatch.setattr(scrape_chp_traffic, "scrape_once_xml", fail_xml)
+    monkeypatch.setattr(scrape_chp_traffic, "scrape_once_cad", cad_fallback)
+    monkeypatch.setattr(
+        scrape_chp_traffic,
+        "log_exception",
+        lambda message, exc, **fields: log_messages.append((message, exc, fields)),
+    )
+
+    args = Args()
+    assert scrape_chp_traffic.scrape_once(args) == fallback_result
+    assert fallback_calls == [args]
+    assert log_messages
+    assert log_messages[0][0] == "CHP XML scrape returned malformed XML; falling back to CAD"
+    assert log_messages[0][2]["chp.fallback_source"] == "cad"
+
+
 def test_parser_keeps_repeated_detail_tables():
     parser = parse_page(
         """

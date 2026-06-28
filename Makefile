@@ -38,6 +38,7 @@ coverage:
 		--cov=scrape_chp_traffic \
 		--cov=generate_live_map \
 		--cov=serve_live_map \
+		--cov=app \
 		--cov=ecs_logging \
 		--cov-report=term-missing
 

@@ -219,8 +219,9 @@ spec:
           image: cajaks2/chp-live-map:0.1.90
           imagePullPolicy: IfNotPresent
           command:
-            - python3
-            - /app/serve_live_map.py
+            - /bin/sh
+            - -c
+            - exec gunicorn app:app -k uvicorn.workers.UvicornWorker --workers ${WEB_WORKERS:-1} --bind 0.0.0.0:${HTTP_PORT:-8080} --access-logfile /dev/null --error-logfile -
           ports:
             - name: http
               containerPort: 8080
@@ -242,6 +243,8 @@ spec:
               value: https://crestmap.us/
             - name: GOOGLE_ANALYTICS_ID
               value: ""
+            - name: WEB_WORKERS
+              value: "1"
           resources:
             requests:
               cpu: 25m

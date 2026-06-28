@@ -117,8 +117,10 @@ python3 generate_live_map.py --hours 12
 Serve dynamically from SQL instead of a prebuilt HTML file:
 
 ```sh
-python3 serve_live_map.py --port 8080
+DATABASE=chp_traffic.sqlite .venv/bin/uvicorn app:app --host 127.0.0.1 --port 8080
 ```
+
+Production runs the same FastAPI app under gunicorn with a uvicorn worker.
 
 ## Web App Views
 
@@ -150,7 +152,7 @@ python3 -m venv .venv
 Run with statement coverage:
 
 ```sh
-.venv/bin/python -m pytest --cov=scrape_chp_traffic --cov=generate_live_map --cov=serve_live_map --cov=ecs_logging --cov-report=term-missing
+.venv/bin/python -m pytest --cov=scrape_chp_traffic --cov=generate_live_map --cov=serve_live_map --cov=app --cov=ecs_logging --cov-report=term-missing
 ```
 
 ## Container
@@ -165,10 +167,10 @@ Run locally against SQLite:
 
 ```sh
 docker run --rm -p 8080:8080 -v "$PWD:/data" chp-live-map:latest \
-  python3 /app/serve_live_map.py --database /data/chp_traffic.sqlite
+  sh -c 'DATABASE=/data/chp_traffic.sqlite exec gunicorn app:app -k uvicorn.workers.UvicornWorker --workers 1 --bind 0.0.0.0:8080 --access-logfile /dev/null --error-logfile -'
 ```
 
-The default container command serves the dynamic web app on port `8080`. In Kubernetes, scraping is handled by a separate long-lived scraper Deployment that polls every minute and exposes metrics on port `8081`.
+The default container command serves the dynamic FastAPI web app through gunicorn on port `8080`. In Kubernetes, scraping is handled by a separate long-lived scraper Deployment that polls every minute and exposes metrics on port `8081`.
 
 For the pushed Kubernetes image workflow, use the Makefile:
 
@@ -226,7 +228,7 @@ Backups are written as compressed custom-format `pg_dump` files under `/opt/chp-
 
 Optional GA4 analytics can be enabled by setting `GOOGLE_ANALYTICS_ID` in `.env` to a Measurement ID such as `G-XXXXXXXXXX`. Leave it blank to omit the Google Analytics script entirely.
 
-For Postgres-backed deployments, the web service uses a small connection pool. Tune `DATABASE_POOL_MIN` and `DATABASE_POOL_MAX` in `.env`; production defaults are `1` and `5`.
+For Postgres-backed deployments, the web service uses a small connection pool. Tune `DATABASE_POOL_MIN` and `DATABASE_POOL_MAX` in `.env`; production defaults are `1` and `5`. `WEB_WORKERS` controls gunicorn worker count and defaults to `1` so process-local Prometheus counters and DB pool sizing remain predictable. If workers are raised later, total possible Postgres connections become `WEB_WORKERS * DATABASE_POOL_MAX`.
 
 Files for that deployment live in `deploy/digitalocean/`.
 

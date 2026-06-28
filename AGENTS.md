@@ -3,7 +3,8 @@
 ## Project Structure & Module Organization
 - `scrape_chp_traffic.py` reads the public CHP media XML feed by default, filters selected forest and Malibu incidents, stores event history, and exposes scraper metrics when run as a service. The older CHP CAD WebForms path remains available with `--source-mode cad` for fallback/debugging.
 - `generate_live_map.py` renders the map, Summary, History, and About HTML views from stored incident rows.
-- `serve_live_map.py` serves the dynamic web app, JSON status/incidents endpoints, health checks, assets, and Prometheus metrics.
+- `app.py` is the production FastAPI web app for HTML views, JSON status/incidents endpoints, health checks, assets, ECS access logs, security headers, and Prometheus metrics.
+- `serve_live_map.py` keeps shared web constants/helpers and the older stdlib server entry point.
 - `ecs_logging.py` centralizes ECS JSON logging helpers.
 - `tests/` contains pytest unit tests for scraping, rendering, serving, metrics, logging, and schema behavior.
 - `k8s/` and `deploy/digitalocean/` contain production deployment manifests.
@@ -14,7 +15,7 @@
 - `make test` runs the unit suite using `.venv/bin/python`.
 - `make coverage` runs pytest with statement coverage.
 - `python3 scrape_chp_traffic.py --interval 60` runs the scraper loop locally against SQLite by default.
-- `python3 serve_live_map.py --port 8080` serves the dynamic app locally.
+- `.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8080` serves the dynamic app locally.
 - `docker buildx build --platform linux/amd64 -t cajaks2/chp-live-map:<version> --push .` builds the production image.
 
 ## Coding Style & Naming Conventions
@@ -35,6 +36,7 @@
 - Keep `deploy/digitalocean/docker-compose.yml` and `k8s/chp-live-map.yaml` image tags and `SERVICE_VERSION` values in sync when bumping versions.
 - The DigitalOcean Compose deployment serves only `crestmap.us` behind nginx.
 - Compose runs Postgres, the web service, the long-lived scraper service, and a backup sidecar.
+- Production web uses gunicorn with `uvicorn.workers.UvicornWorker`; keep `WEB_WORKERS=1` unless you also account for per-worker Prometheus counters and multiplied Postgres pool connections.
 - For normal DigitalOcean app deploys, use `make -C deploy/digitalocean deploy VERSION=<version>` or `deploy/digitalocean/deploy-compose.sh`. These use `docker compose up -d --no-deps web scrape` so Postgres is not recreated and the public site has less downtime.
 - Kubernetes uses a scraper Deployment with one replica, not a CronJob, so scraper metrics are scrapeable and duplicate scraper loops are avoided.
 

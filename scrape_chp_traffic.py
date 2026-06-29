@@ -994,6 +994,15 @@ def is_malibu_false_positive(incident):
         return True
     if "topanga canyon" in haystack and any(route in haystack for route in ("sr118", "sr 118", "ca118", "ca 118", " 118 ")):
         return True
+    if "topanga canyon" in haystack and any(
+        valley_text in haystack
+        for valley_text in (
+            "canoga park",
+            "west valley",
+            "topanga canyon blvd",
+        )
+    ):
+        return True
     return False
 
 

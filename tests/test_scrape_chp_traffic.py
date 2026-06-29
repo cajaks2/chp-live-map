@@ -624,6 +624,20 @@ def test_matching_regions_excludes_sr118_topanga_false_positive():
     assert matching_regions(incident) == {}
 
 
+def test_matching_regions_excludes_canoga_park_topanga_blvd_false_positive():
+    incident = {
+        "type": "Hit and Run No Injuries",
+        "location": "7438 Topanga Canyon Blvd",
+        "location_desc": "CANOGA PARK ES",
+        "area": "West Valley",
+        "latitude": 34.205661,
+        "longitude": -118.605943,
+    }
+
+    assert matching_keywords(incident, DEFAULT_ROAD_KEYWORDS)
+    assert matching_regions(incident) == {}
+
+
 def test_parse_lat_lon_from_span_and_map_link():
     assert parse_lat_lon("34.30123, -118.11789") == (34.30123, -118.11789)
     assert parse_lat_lon_from_detail_html(

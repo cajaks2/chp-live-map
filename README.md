@@ -284,6 +284,7 @@ Prometheus metrics:
 | `chp_live_map_scrape_chp_http_requests_total{method,route,status}` | counter | Outbound requests made by the scraper to CHP, grouped by method, list/detail route, and response status. |
 | `chp_live_map_scraper_up` | gauge | `1` when the scraper service metrics endpoint is running. |
 | `chp_live_map_scraper_scrapes_total{outcome}` | counter | Scrape attempts by success/failure from the long-lived scraper process. |
+| `chp_live_map_scraper_source_attempts_total{source,mode,outcome}` | counter | Source attempts from the scraper process. `source` is `xml` or `cad`; `mode` is `primary` or `fallback`; `outcome` is `success` or `failure`. |
 | `chp_live_map_scraper_last_run_timestamp_seconds{outcome,error_type}` | gauge | Timestamp of the latest scraper run from the scraper service. |
 | `chp_live_map_scraper_last_run_duration_seconds` | gauge | Total duration of the latest scraper-service run. |
 | `chp_live_map_scraper_last_run_source_duration_seconds{source}` | gauge | Latest scraper-service fetch/runtime duration by source, currently `xml` or `cad`. |

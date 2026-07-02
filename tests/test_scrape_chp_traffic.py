@@ -72,6 +72,8 @@ def test_scraper_metrics_handler_serves_health_without_ecs_access_logs(monkeypat
 
 def test_scraper_metrics_include_region_labels():
     metrics = scrape_chp_traffic.ScraperMetrics()
+    metrics.record_source_attempt("xml", "primary", "failure")
+    metrics.record_source_attempt("cad", "fallback", "success")
     metrics.record_success(
         "2026-06-09T08:00:00-07:00",
         changed_rows=1,
@@ -91,6 +93,14 @@ def test_scraper_metrics_include_region_labels():
 
     body = metrics.render().decode("utf-8")
 
+    assert (
+        'chp_live_map_scraper_source_attempts_total{source="cad",mode="fallback",outcome="success"} 1'
+        in body
+    )
+    assert (
+        'chp_live_map_scraper_source_attempts_total{source="xml",mode="primary",outcome="failure"} 1'
+        in body
+    )
     assert 'chp_live_map_scraper_last_run_source_duration_seconds{source="cad"} 1.1' in body
     assert 'chp_live_map_scraper_last_run_source_duration_seconds{source="xml"} 0.4' in body
     assert 'chp_live_map_scraper_last_run_source_duration_seconds{source="total"} 1.5' in body
@@ -179,6 +189,30 @@ def test_scraper_metrics_include_source_compare_failures():
         'chp_live_map_scraper_source_compare_last_run_timestamp_seconds{outcome="failure",error_type="TimeoutError"}'
         in body
     )
+
+
+def test_source_attempts_for_result_tracks_primary_and_fallback_sources():
+    class XmlArgs:
+        source_mode = "xml"
+
+    class CadArgs:
+        source_mode = "cad"
+
+    assert scrape_chp_traffic.source_attempts_for_result(
+        XmlArgs(),
+        source_durations={"xml": 0.42, "cad": 0, "total": 0.42},
+        source_bytes={"xml": 123456, "cad": 0, "total": 123456},
+    ) == [("xml", "primary", "success")]
+    assert scrape_chp_traffic.source_attempts_for_result(
+        XmlArgs(),
+        source_durations={"xml": 0, "cad": 1.25, "total": 1.25},
+        source_bytes={"xml": 0, "cad": 23456, "total": 23456},
+    ) == [("xml", "primary", "failure"), ("cad", "fallback", "success")]
+    assert scrape_chp_traffic.source_attempts_for_result(
+        CadArgs(),
+        source_durations={"xml": 0, "cad": 1.25, "total": 1.25},
+        source_bytes={"xml": 0, "cad": 23456, "total": 23456},
+    ) == [("cad", "primary", "success")]
 
 
 def test_parse_incidents_from_cad_table():

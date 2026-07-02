@@ -124,6 +124,7 @@ class ScraperMetrics:
     def __init__(self):
         self.lock = threading.Lock()
         self.scrapes = {"success": 0, "failure": 0}
+        self.source_attempts = {}
         self.source_compares = {"success": 0, "failure": 0, "mismatch": 0}
         self.http_status_counts = {}
         self.last = {}
@@ -133,6 +134,11 @@ class ScraperMetrics:
         key = (str(method), str(route), str(status))
         with self.lock:
             self.http_status_counts[key] = self.http_status_counts.get(key, 0) + 1
+
+    def record_source_attempt(self, source, mode, outcome):
+        key = (str(source), str(mode), str(outcome))
+        with self.lock:
+            self.source_attempts[key] = self.source_attempts.get(key, 0) + 1
 
     def record_success(
         self,
@@ -250,6 +256,7 @@ class ScraperMetrics:
     def render(self):
         with self.lock:
             scrapes = dict(self.scrapes)
+            source_attempts = dict(self.source_attempts)
             source_compares = dict(self.source_compares)
             http_counts = dict(self.http_status_counts)
             last = dict(self.last)
@@ -266,6 +273,20 @@ class ScraperMetrics:
         ]
         for outcome, count in sorted(scrapes.items()):
             lines.append(metric_line("chp_live_map_scraper_scrapes_total", count, {"outcome": outcome}))
+        lines.extend(
+            [
+                "# HELP chp_live_map_scraper_source_attempts_total Scraper source attempts by source, mode, and outcome.",
+                "# TYPE chp_live_map_scraper_source_attempts_total counter",
+            ]
+        )
+        for (source, mode, outcome), count in sorted(source_attempts.items()):
+            lines.append(
+                metric_line(
+                    "chp_live_map_scraper_source_attempts_total",
+                    count,
+                    {"source": source, "mode": mode, "outcome": outcome},
+                )
+            )
         lines.extend(
             [
                 "# HELP chp_live_map_scraper_source_compare_runs_total Source comparison runs by outcome.",
@@ -2035,6 +2056,22 @@ def scrape_once(args):
         return scrape_once_cad(args)
 
 
+def source_attempts_for_result(args, source_durations=None, source_bytes=None):
+    source_mode = getattr(args, "source_mode", "xml")
+    if source_mode == "cad":
+        return [("cad", "primary", "success")]
+
+    durations = source_durations or {}
+    byte_counts = source_bytes or {}
+    cad_used = durations.get("cad", 0) > 0 or byte_counts.get("cad", 0) > 0
+    if cad_used:
+        return [
+            ("xml", "primary", "failure"),
+            ("cad", "fallback", "success"),
+        ]
+    return [("xml", "primary", "success")]
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Scrape public CHP CAD active incidents into SQLite."
@@ -2100,6 +2137,8 @@ def main():
                 http_status_counts,
                 scrape_observed_at,
             ) = scrape_once(args)
+            for source, mode, outcome in source_attempts_for_result(args, source_durations, source_bytes):
+                SCRAPER_METRICS.record_source_attempt(source, mode, outcome)
             SCRAPER_METRICS.record_success(
                 scrape_observed_at,
                 changed_rows,
@@ -2138,6 +2177,7 @@ def main():
             )
         except Exception as exc:
             duration_seconds = time.monotonic() - started_at
+            SCRAPER_METRICS.record_source_attempt(args.source_mode, "primary", "failure")
             SCRAPER_METRICS.record_failure(observed_at, duration_seconds, exc)
             log_exception(
                 "CHP scrape failed",

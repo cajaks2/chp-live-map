@@ -688,9 +688,11 @@ def test_coordinate_bounds_keep_forest_points_and_reject_city_points():
 def test_malibu_bounds_include_point_mugu_to_santa_monica_pch_and_reject_outside_points():
     assert coordinates_in_region_bounds(34.1114, -119.0676, "malibu")
     assert coordinates_in_region_bounds(34.0379, -118.6775, "malibu")
+    assert coordinates_in_region_bounds(34.0810, -118.8150, "malibu")
     assert coordinates_in_region_bounds(34.0122, -118.4996, "malibu")
     assert not coordinates_in_region_bounds(34.166762, -119.141349, "malibu")
     assert not coordinates_in_region_bounds(33.7903, -118.2815, "malibu")
+    assert not coordinates_in_region_bounds(34.176435, -118.759842, "malibu")
 
 
 def test_out_of_bounds_coordinates_are_cleared():

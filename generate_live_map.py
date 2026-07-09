@@ -2704,9 +2704,10 @@ def report_shell(
     .bar-chart {{
       display: grid;
       grid-auto-flow: column;
-      grid-auto-columns: minmax(54px, 1fr);
-      gap: 8px;
+      grid-auto-columns: 58px;
+      gap: 10px;
       align-items: end;
+      justify-content: start;
       min-height: 190px;
       overflow-x: auto;
       padding: 2px 2px 8px;
@@ -2717,7 +2718,7 @@ def report_shell(
       grid-template-rows: 28px 120px auto;
       gap: 6px;
       align-items: end;
-      min-width: 54px;
+      min-width: 58px;
       color: #405047;
       font-size: 12px;
       text-align: center;
@@ -2742,6 +2743,8 @@ def report_shell(
       align-items: end;
       justify-content: center;
       height: 120px;
+      width: 32px;
+      margin: 0 auto;
       overflow: hidden;
       border-radius: 6px 6px 3px 3px;
       background: #e5eae3;

@@ -14,7 +14,7 @@ services:
       retries: 5
 
   web:
-    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.121}
+    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.122}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -27,7 +27,7 @@ services:
       HTTP_PORT: "8080"
       BASE_PATH: /
       PUBLIC_URL: https://crestmap.us/
-      SERVICE_VERSION: ${VERSION:-0.1.121}
+      SERVICE_VERSION: ${VERSION:-0.1.122}
       GOOGLE_ANALYTICS_ID: ${GOOGLE_ANALYTICS_ID:-}
       DATABASE_POOL_MIN: ${DATABASE_POOL_MIN:-1}
       DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-5}
@@ -36,7 +36,7 @@ services:
       - "127.0.0.1:8080:8080"
 
   scrape:
-    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.121}
+    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.122}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -44,7 +44,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      SERVICE_VERSION: ${VERSION:-0.1.121}
+      SERVICE_VERSION: ${VERSION:-0.1.122}
       CHP_SOURCE_MODE: ${CHP_SOURCE_MODE:-xml}
       CHP_XML_SHADOW_COMPARE: ${CHP_XML_SHADOW_COMPARE:-false}
       CHP_CONTACT_EMAIL: ${CHP_CONTACT_EMAIL:-}

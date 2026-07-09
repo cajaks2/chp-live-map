@@ -2183,6 +2183,39 @@ def build_html(
 
 def incident_road(incident):
     text = f"{incident.get('location') or ''} {incident.get('location_desc') or ''}".lower()
+    region = normalize_region(incident.get("region"))
+    if region == "malibu":
+        if "pacific coast" in text or " pch" in f" {text}" or "sr1" in text or "sr 1" in text:
+            return "Pacific Coast Hwy"
+        if "malibu canyon" in text:
+            return "Malibu Canyon"
+        if "topanga canyon" in text:
+            return "Topanga Canyon"
+        if "las virgenes" in text:
+            return "Las Virgenes"
+        if "kanan" in text:
+            return "Kanan"
+        if "mulholland" in text:
+            return "Mulholland"
+        if "decker" in text:
+            return "Decker"
+        if "latigo" in text:
+            return "Latigo Canyon"
+        if "encinal" in text:
+            return "Encinal Canyon"
+        if "tuna canyon" in text:
+            return "Tuna Canyon"
+        if "piuma" in text:
+            return "Piuma"
+        if "stunt" in text:
+            return "Stunt"
+        if "old topanga" in text:
+            return "Old Topanga"
+        if "carbon canyon" in text:
+            return "Carbon Canyon"
+        if "trancas" in text:
+            return "Trancas Canyon"
+        return "Other Malibu roads"
     if "angeles crest" in text or "red box" in text:
         return "Angeles Crest"
     if "angeles forest" in text:

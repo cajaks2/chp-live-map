@@ -174,6 +174,44 @@ def test_load_incidents_filters_to_forest_region_by_default(tmp_path):
     assert malibu_incidents[0]["longitude"] == -118.68
 
 
+def test_summary_uses_malibu_road_buckets_for_malibu_region():
+    incidents = [
+        {
+            **incident_row("LACC|2026-05-31|0805", "cleared", "2026-05-31T08:00:00-07:00", "0805"),
+            "region": "malibu",
+            "type": "Trfc Collision-No Inj",
+            "location": "Pacific Coast Hwy / Malibu Canyon Rd",
+            "location_desc": "",
+            "area": "West Valley",
+            "latitude": 34.035,
+            "longitude": -118.68,
+        },
+        {
+            **incident_row("LACC|2026-05-31|0806", "cleared", "2026-05-31T08:00:00-07:00", "0806"),
+            "region": "malibu",
+            "type": "Trfc Collision-Unkn Inj",
+            "location": "Topanga Canyon Blvd / Piuma Rd",
+            "location_desc": "",
+            "area": "West Valley",
+            "latitude": 34.09,
+            "longitude": -118.62,
+        },
+    ]
+
+    summary_html = build_summary_html(
+        incidents,
+        "2026-05-31T08:05:00-07:00",
+        72,
+        region="malibu",
+        filters={"type": "family:collision"},
+    )
+
+    assert "CHP Malibu Incidents" in summary_html
+    assert "Pacific Coast Hwy" in summary_html
+    assert "Topanga Canyon" in summary_html
+    assert "Other forest roads" not in summary_html
+
+
 def test_build_html_embeds_counts_and_escaped_incident_data():
     incidents = [
         {

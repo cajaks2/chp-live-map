@@ -3,6 +3,7 @@ import datetime as dt
 import hashlib
 import html
 import json
+import math
 import os
 import sqlite3
 from pathlib import Path
@@ -2360,11 +2361,14 @@ def report_rows(counts, limit=5, compact=False):
         else:
             escaped_display_label = escaped_label
         title = html.escape(f"{label}: {count}")
+        percent = 0 if count == 0 else max(8, round((count / max_count) * 100))
+        zero_class = " is-zero" if count == 0 else ""
         rows.append(
-            '<div class="bar-column" title="{}" aria-label="{}"><div class="bar" aria-hidden="true"><i style="height: {}%;"></i></div><strong>{}</strong></div>'.format(
+            '<div class="bar-column{}" title="{}" aria-label="{}"><div class="bar" aria-hidden="true"><i style="height: {}%;"></i></div><strong>{}</strong></div>'.format(
+                zero_class,
                 title,
                 title,
-                max(8, round((count / max_count) * 100)),
+                percent,
                 escaped_display_label,
             )
         )
@@ -2412,13 +2416,32 @@ def time_bucket_for_incident(incident):
     return "Evening"
 
 
-def daily_incident_counts(incidents):
+def daily_window_dates(generated_at, hours):
+    try:
+        end = dt.datetime.fromisoformat(generated_at)
+    except (TypeError, ValueError):
+        end = dt.datetime.now().astimezone()
+    day_count = max(1, math.ceil(float(hours) / 24))
+    start_date = end.date() - dt.timedelta(days=day_count - 1)
+    return [start_date + dt.timedelta(days=offset) for offset in range(day_count)]
+
+
+def daily_label_for_date(date_value):
+    return f"{date_value.strftime('%a')}, {date_value.strftime('%b')} {date_value.day}"
+
+
+def daily_incident_counts(incidents, generated_at=None, hours=None):
     counts = {}
     labels = {}
     for incident in incidents:
         key, label = incident_day_key(incident)
         counts[key] = counts.get(key, 0) + 1
         labels[key] = label
+    if generated_at is not None and hours is not None:
+        for date_value in daily_window_dates(generated_at, hours):
+            key = date_value.isoformat()
+            counts.setdefault(key, 0)
+            labels.setdefault(key, daily_label_for_date(date_value))
     return [(labels[key], counts[key]) for key in sorted(counts)]
 
 
@@ -2795,6 +2818,9 @@ def report_shell(
       border-radius: inherit;
       background: #277447;
     }}
+    .bar-column.is-zero .bar i {{
+      min-height: 0;
+    }}
     .bar-chart-wrap-compact {{
       grid-template-columns: 18px minmax(0, 1fr);
       gap: 5px;
@@ -3086,7 +3112,7 @@ def build_summary_html(
     cleared_count = status["total_count"] - active_count
     road_rows = report_rows(count_by(filtered_incidents, incident_road))
     type_rows = report_rows(count_by(filtered_incidents, lambda incident: incident.get("type") or "Unknown"))
-    day_rows = report_rows(daily_incident_counts(filtered_incidents), limit=None, compact=True)
+    day_rows = report_rows(daily_incident_counts(filtered_incidents, generated_at, hours), limit=None, compact=True)
     time_rows = report_rows(time_bucket_counts(filtered_incidents), limit=None)
     recent = sorted(
         filtered_incidents,

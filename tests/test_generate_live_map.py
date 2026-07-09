@@ -457,7 +457,10 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "Incident Types" in summary_html
     assert "Incidents by Day" in summary_html
     assert "Time of Day" in summary_html
+    assert "Fri, May 29: 0" in summary_html
+    assert "Sat, May 30: 0" in summary_html
     assert "Sun, May 31" in summary_html
+    assert 'class="bar-column is-zero"' in summary_html
     assert "Morning" in summary_html
     assert "2</strong><span>Incidents in window" in summary_html
     assert 'class="bar-chart"' in summary_html

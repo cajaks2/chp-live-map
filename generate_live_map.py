@@ -2346,11 +2346,13 @@ def report_rows(counts, limit=5):
     rows = []
     visible_counts = counts if limit is None else counts[:limit]
     for label, count in visible_counts:
+        escaped_label = html.escape(label)
         rows.append(
-            '<div class="bar-column"><strong>{}</strong><div class="bar" aria-hidden="true"><i style="height: {}%;"></i></div><span>{}</span></div>'.format(
-                html.escape(label),
+            '<div class="bar-column" title="{}"><div class="bar" aria-hidden="true"><i style="height: {}%;"></i></div><span>{}</span><strong>{}</strong></div>'.format(
+                escaped_label,
                 max(8, round((count / max_count) * 100)),
                 count,
+                escaped_label,
             )
         )
     return '<div class="bar-chart">' + "".join(rows) + "</div>"
@@ -2715,7 +2717,7 @@ def report_shell(
     }}
     .bar-column {{
       display: grid;
-      grid-template-rows: 28px 120px auto;
+      grid-template-rows: 120px auto auto;
       gap: 6px;
       align-items: end;
       min-width: 58px;
@@ -2725,12 +2727,11 @@ def report_shell(
     }}
     .bar-column strong {{
       align-self: start;
-      overflow: hidden;
       color: #182026;
       font-size: 11px;
       font-weight: 800;
       line-height: 1.15;
-      text-overflow: ellipsis;
+      overflow-wrap: anywhere;
     }}
     .bar-column span {{
       color: #405047;

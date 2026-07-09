@@ -104,6 +104,13 @@ def history_filters(request):
     }
 
 
+def summary_filters(request):
+    params = _query(request)
+    return {
+        "type": (params.get("type") or ["all"])[0],
+    }
+
+
 def route_label(path, settings):
     path = path.rstrip("/") or "/"
     base_path = normalize_base_path(settings.base_path)
@@ -455,6 +462,7 @@ def dispatch_request(request, send_body=True):
                 public_url=settings.public_url,
                 region=region,
                 region_statuses=current_region_statuses,
+                filters=summary_filters(request),
             ).encode("utf-8")
         elif path in history_paths:
             body = build_history_html(

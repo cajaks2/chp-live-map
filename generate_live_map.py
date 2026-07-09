@@ -182,15 +182,23 @@ def metadata_urls(base_path, public_url, favicon_params=None):
     }
 
 
-def history_controls(hours, region="forest"):
+def history_controls(hours, region="forest", extra_params=None):
     current = int(hours)
+    extra_params = extra_params or {}
     links = []
     for preset_hours, label in HISTORY_PRESETS:
         selected = preset_hours == current
         links.append(
             '<a class="range-tab{}" href="{}"{}>{}</a>'.format(
                 " is-active" if selected else "",
-                html.escape(href_with_query("", hours=f"{preset_hours:g}", region=normalize_region(region))),
+                html.escape(
+                    href_with_query(
+                        "",
+                        hours=f"{preset_hours:g}",
+                        region=normalize_region(region),
+                        **extra_params,
+                    )
+                ),
                 ' aria-current="page"' if selected else "",
                 html.escape(label),
             )
@@ -2212,6 +2220,52 @@ def slugify_filter(value):
     return str(value or "").strip().lower().replace("&", "and").replace("/", "-").replace(" ", "-")
 
 
+def incident_type_family(incident):
+    incident_type = (incident.get("type") or "").casefold()
+    if "collision" in incident_type:
+        return "collision"
+    if "traffic hazard" in incident_type:
+        return "traffic_hazard"
+    if "animal" in incident_type:
+        return "animal"
+    if "fire" in incident_type:
+        return "fire"
+    return "other"
+
+
+TYPE_FAMILY_OPTIONS = [
+    ("family:collision", "Traffic collisions / accidents"),
+    ("family:traffic_hazard", "Traffic hazards"),
+    ("family:animal", "Animal hazards"),
+    ("family:fire", "Fire incidents"),
+    ("family:other", "Other incident types"),
+]
+
+
+def incident_matches_type_filter(incident, selected_type):
+    selected_type = selected_type or "all"
+    if selected_type == "all":
+        return True
+    if selected_type.startswith("family:"):
+        return incident_type_family(incident) == selected_type.split(":", 1)[1]
+    if selected_type.startswith("type:"):
+        selected_type = selected_type.split(":", 1)[1]
+    return slugify_filter(incident.get("type") or "Unknown") == selected_type
+
+
+def filtered_summary_incidents(incidents, filters):
+    selected_type = (filters or {}).get("type") or "all"
+    return [incident for incident in incidents if incident_matches_type_filter(incident, selected_type)]
+
+
+def summary_type_options(incidents):
+    exact_options = [
+        (f"type:{slugify_filter(label)}", label)
+        for label, _count in count_by(incidents, lambda incident: incident.get("type") or "Unknown")
+    ]
+    return [("all", "All incident types"), *TYPE_FAMILY_OPTIONS, *exact_options]
+
+
 def option_tags(options, selected):
     return "".join(
         '<option value="{}"{}>{}</option>'.format(
@@ -2329,6 +2383,7 @@ def report_shell(
     status=None,
     region="forest",
     region_statuses=None,
+    extra_params=None,
 ):
     region = normalize_region(region)
     label = region_label(region)
@@ -2852,7 +2907,7 @@ def report_shell(
           {view_menu(base_path, current, hours, region)}
         </div>
         <div class="report-nav">
-          <nav class="range-tabs" aria-label="History range">{history_controls(hours, region)}</nav>
+          <nav class="range-tabs" aria-label="History range">{history_controls(hours, region, extra_params)}</nav>
           <div class="secondary-tabs">
             <nav class="region-tabs" aria-label="Region">{region_tabs(base_path, current, hours, region, region_statuses)}</nav>
             <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, current, hours, region)}</nav>
@@ -2875,19 +2930,24 @@ def build_summary_html(
     public_url=None,
     region="forest",
     region_statuses=None,
+    filters=None,
 ):
     region = normalize_region(region)
     label = region_label(region)
-    status = {**incident_status(incidents, hours), "region": region}
+    filters = filters or {}
+    selected_type = filters.get("type") or "all"
+    filtered_incidents = filtered_summary_incidents(incidents, filters)
+    active_filter_params = {} if selected_type == "all" else {"type": selected_type}
+    status = {**incident_status(filtered_incidents, hours), "region": region}
     active_count = status["active_count"]
     mapped_count = status["mapped_count"]
     cleared_count = status["total_count"] - active_count
-    road_rows = report_rows(count_by(incidents, incident_road))
-    type_rows = report_rows(count_by(incidents, lambda incident: incident.get("type") or "Unknown"))
-    day_rows = report_rows(daily_incident_counts(incidents), limit=None)
-    time_rows = report_rows(time_bucket_counts(incidents), limit=None)
+    road_rows = report_rows(count_by(filtered_incidents, incident_road))
+    type_rows = report_rows(count_by(filtered_incidents, lambda incident: incident.get("type") or "Unknown"))
+    day_rows = report_rows(daily_incident_counts(filtered_incidents), limit=None)
+    time_rows = report_rows(time_bucket_counts(filtered_incidents), limit=None)
     recent = sorted(
-        incidents,
+        filtered_incidents,
         key=lambda incident: incident.get("latest_observed_at") or incident.get("last_seen") or "",
         reverse=True,
     )[:5]
@@ -2902,7 +2962,25 @@ def build_summary_html(
         )
         for incident in recent
     ) or '<div class="empty-report">No recent incidents in this window.</div>'
+    filter_summary = (
+        f"{len(filtered_incidents)} of {len(incidents)} incidents"
+        if selected_type != "all"
+        else f"{len(incidents)} incidents"
+    )
+    reset_href = href_with_query(app_path(base_path, "/summary"), hours=f"{hours:g}", region=region)
     body = f"""
+      <form method="get" action="{html.escape(app_path(base_path, "/summary"))}" aria-label="Summary filters">
+        <input type="hidden" name="hours" value="{hours:g}">
+        <input type="hidden" name="region" value="{html.escape(region)}">
+        <div class="filter-grid filter-grid-summary">
+          <select class="filter" name="type" aria-label="Incident type filter">{option_tags(summary_type_options(incidents), selected_type)}</select>
+        </div>
+        <div class="filter-actions">
+          <button type="submit">Apply filter</button>
+          <a href="{html.escape(reset_href)}">Reset</a>
+        </div>
+        <div class="meta">{html.escape(filter_summary)} shown in the selected window.</div>
+      </form>
       <section class="kpi-grid" aria-label="Incident summary">
         <div class="kpi"><strong>{status["total_count"]}</strong><span>Incidents in window</span></div>
         <div class="kpi"><strong>{active_count}</strong><span>Currently active</span></div>
@@ -2942,6 +3020,7 @@ def build_summary_html(
         status=status,
         region=region,
         region_statuses=region_statuses,
+        extra_params=active_filter_params,
     )
 
 

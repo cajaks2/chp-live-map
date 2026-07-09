@@ -422,9 +422,27 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "Sun, May 31" in summary_html
     assert "Morning" in summary_html
     assert "2</strong><span>Incidents in window" in summary_html
+    assert '<select class="filter" name="type" aria-label="Incident type filter">' in summary_html
+    assert '<option value="family:collision">Traffic collisions / accidents</option>' in summary_html
     assert '<nav class="range-tabs" aria-label="History range">' in summary_html
     assert '<a class="range-tab is-active" href="?hours=72&amp;region=forest" aria-current="page">72h</a>' in summary_html
     assert 'class="view-tab is-active" href="/summary?hours=72&amp;region=forest" aria-current="page">Summary</a>' in summary_html
+
+    collision_incidents = [
+        {**incidents[0], "type": "Trfc Collision-Unkn Inj", "event_key": "LACC|2026-05-31|0810"},
+        {**incidents[1], "type": "Traffic Hazard", "event_key": "LACC|2026-05-31|0811"},
+    ]
+    filtered_summary_html = build_summary_html(
+        collision_incidents,
+        "2026-05-31T08:05:00-07:00",
+        72,
+        filters={"type": "family:collision"},
+    )
+    assert "1 of 2 incidents shown" in filtered_summary_html
+    assert '<option value="family:collision" selected>Traffic collisions / accidents</option>' in filtered_summary_html
+    assert "Trfc Collision-Unkn Inj" in filtered_summary_html
+    assert "<strong>Traffic Hazard</strong>" not in filtered_summary_html
+    assert '<a class="range-tab is-active" href="?hours=72&amp;region=forest&amp;type=family%3Acollision" aria-current="page">72h</a>' in filtered_summary_html
 
     history_html = build_history_html(incidents, "2026-05-31T08:05:00-07:00", 72)
     assert "History - CHP Forest Incidents" in history_html

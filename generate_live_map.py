@@ -2339,7 +2339,15 @@ def filtered_history_incidents(incidents, filters):
     return filtered
 
 
-def report_rows(counts, limit=5):
+def compact_chart_label_parts(label):
+    parts = label.replace(",", "").split()
+    if len(parts) >= 3 and parts[0][:3] in {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}:
+        day_name = {"Mon": "M", "Tue": "Tu", "Wed": "W", "Thu": "Th", "Fri": "F", "Sat": "Sa", "Sun": "Su"}[parts[0][:3]]
+        return [day_name, parts[-1]]
+    return [label]
+
+
+def report_rows(counts, limit=5, compact=False):
     if not counts:
         return '<div class="empty-report">No incidents in this window.</div>'
     max_count = max(count for _label, count in counts) or 1
@@ -2347,15 +2355,20 @@ def report_rows(counts, limit=5):
     visible_counts = counts if limit is None else counts[:limit]
     for label, count in visible_counts:
         escaped_label = html.escape(label)
+        if compact:
+            escaped_display_label = "".join(f"<span>{html.escape(part)}</span>" for part in compact_chart_label_parts(label))
+        else:
+            escaped_display_label = escaped_label
         rows.append(
             '<div class="bar-column" title="{}"><div class="bar" aria-hidden="true"><i style="height: {}%;"></i></div><span>{}</span><strong>{}</strong></div>'.format(
                 escaped_label,
                 max(8, round((count / max_count) * 100)),
                 count,
-                escaped_label,
+                escaped_display_label,
             )
         )
-    return '<div class="bar-chart">' + "".join(rows) + "</div>"
+    class_name = "bar-chart bar-chart-compact" if compact else "bar-chart"
+    return f'<div class="{class_name}">' + "".join(rows) + "</div>"
 
 
 def incident_day_key(incident):
@@ -2757,6 +2770,38 @@ def report_shell(
       border-radius: inherit;
       background: #277447;
     }}
+    .bar-chart-compact {{
+      grid-auto-columns: minmax(14px, 1fr);
+      gap: 1px;
+      min-height: 138px;
+      overflow-x: visible;
+      padding-bottom: 2px;
+    }}
+    .bar-chart-compact .bar-column {{
+      grid-template-rows: 86px auto auto;
+      min-width: 14px;
+      gap: 3px;
+    }}
+    .bar-chart-compact .bar {{
+      width: 10px;
+      height: 86px;
+      border-radius: 3px 3px 2px 2px;
+    }}
+    .bar-chart-compact .bar-column span {{
+      font-size: 9px;
+      line-height: 1;
+    }}
+    .bar-chart-compact .bar-column strong {{
+      font-size: 8px;
+      line-height: 1.05;
+      overflow-wrap: normal;
+      word-break: normal;
+    }}
+    .bar-chart-compact .bar-column strong span {{
+      display: block;
+      font-size: inherit;
+      line-height: inherit;
+    }}
     .search-box {{
       display: flex;
       align-items: center;
@@ -3012,7 +3057,7 @@ def build_summary_html(
     cleared_count = status["total_count"] - active_count
     road_rows = report_rows(count_by(filtered_incidents, incident_road))
     type_rows = report_rows(count_by(filtered_incidents, lambda incident: incident.get("type") or "Unknown"))
-    day_rows = report_rows(daily_incident_counts(filtered_incidents), limit=None)
+    day_rows = report_rows(daily_incident_counts(filtered_incidents), limit=None, compact=True)
     time_rows = report_rows(time_bucket_counts(filtered_incidents), limit=None)
     recent = sorted(
         filtered_incidents,

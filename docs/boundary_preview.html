@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crestmap Boundary Preview</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    html,
+    body,
+    #map {
+      height: 100%;
+      margin: 0;
+    }
+
+    .legend {
+      background: rgba(255, 255, 255, 0.94);
+      border: 1px solid #cbd5c8;
+      border-radius: 6px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+      color: #1f2a24;
+      font: 14px/1.35 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 10px 12px;
+      max-width: 320px;
+    }
+
+    .legend h1 {
+      font-size: 16px;
+      margin: 0 0 8px;
+    }
+
+    .legend p {
+      margin: 6px 0;
+    }
+
+    .swatch {
+      display: inline-block;
+      width: 18px;
+      height: 3px;
+      margin-right: 7px;
+      vertical-align: middle;
+    }
+
+    .forest-fill {
+      background: #2f7d46;
+    }
+
+    .forest-line {
+      background: #0f5c2a;
+    }
+
+    .malibu-fill {
+      background: #1f77b4;
+    }
+
+    .rejected {
+      background: #d83232;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const forestBounds = {
+      latMin: 34.15,
+      latMax: 34.56,
+      lonMin: -118.36,
+      lonMax: -117.58,
+    };
+
+    const forestFoothillBoundary = [
+      [-118.36, 34.205],
+      [-118.24, 34.205],
+      [-118.14, 34.180],
+      [-118.04, 34.165],
+      [-117.90, 34.150],
+      [-117.58, 34.150],
+    ];
+
+    const malibuBounds = {
+      latMin: 33.99,
+      latMax: 34.34,
+      lonMin: -119.10,
+      lonMax: -118.45,
+    };
+
+    const malibu101Boundary = [
+      [-119.10, 34.225],
+      [-118.95, 34.190],
+      [-118.82, 34.155],
+      [-118.75, 34.145],
+      [-118.64, 34.145],
+      [-118.55, 34.155],
+      [-118.45, 34.160],
+    ];
+
+    const rejectedPoints = [
+      {
+        name: "Rejected forest false positive: LACC|2026-07-08|1337",
+        lat: 34.161532,
+        lon: -118.141539,
+        details: "N Los Robles Ave / E Mountain St; EB 210 JEO ANGELES CREST",
+      },
+      {
+        name: "Rejected Malibu false positive: VTCC|2026-07-05|0446",
+        lat: 34.176435,
+        lon: -118.759842,
+        details: "Kanan Rd / Sunnycrest Dr; Moorpark; north of 101",
+      },
+    ];
+
+    const referencePoints = [
+      {
+        name: "Known forest point",
+        lat: 34.260464,
+        lon: -118.190693,
+        details: "Angeles Crest Hwy / Mm 30.50",
+      },
+      {
+        name: "Known forest point",
+        lat: 34.378926,
+        lon: -117.690678,
+        details: "Eastern forest boundary area",
+      },
+      {
+        name: "Lower eastern forest point kept",
+        lat: 34.151,
+        lon: -117.84,
+        details: "Preserves lower eastern mountain approaches",
+      },
+      {
+        name: "Known Malibu coast point",
+        lat: 34.0379,
+        lon: -118.6775,
+        details: "Coastal Malibu corridor",
+      },
+    ];
+
+    const map = L.map("map", {
+      preferCanvas: true,
+    }).setView([34.20, -118.35], 10);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors",
+    }).addTo(map);
+
+    function bboxPolygon(bounds) {
+      return [
+        [bounds.latMin, bounds.lonMin],
+        [bounds.latMin, bounds.lonMax],
+        [bounds.latMax, bounds.lonMax],
+        [bounds.latMax, bounds.lonMin],
+      ];
+    }
+
+    function lonLatToLatLon(points) {
+      return points.map(([lon, lat]) => [lat, lon]);
+    }
+
+    function forestAcceptedPolygon() {
+      return [
+        ...lonLatToLatLon(forestFoothillBoundary),
+        [forestBounds.latMax, forestBounds.lonMax],
+        [forestBounds.latMax, forestBounds.lonMin],
+      ];
+    }
+
+    function malibuAcceptedPolygon() {
+      return [
+        [malibuBounds.latMin, malibuBounds.lonMin],
+        [malibuBounds.latMin, malibuBounds.lonMax],
+        ...lonLatToLatLon([...malibu101Boundary].reverse()),
+      ];
+    }
+
+    L.polygon(bboxPolygon(forestBounds), {
+      color: "#2f7d46",
+      weight: 1,
+      fill: false,
+      dashArray: "6 5",
+    }).addTo(map).bindPopup("Raw forest bbox");
+
+    L.polygon(forestAcceptedPolygon(), {
+      color: "#0f5c2a",
+      weight: 2,
+      fillColor: "#2f7d46",
+      fillOpacity: 0.14,
+    }).addTo(map).bindPopup("Effective accepted forest area");
+
+    L.polyline(lonLatToLatLon(forestFoothillBoundary), {
+      color: "#0f5c2a",
+      weight: 5,
+    }).addTo(map).bindPopup("Forest foothill cutoff. Points south of this line are rejected.");
+
+    L.polygon(bboxPolygon(malibuBounds), {
+      color: "#1f77b4",
+      weight: 1,
+      fill: false,
+      dashArray: "6 5",
+    }).addTo(map).bindPopup("Raw Malibu bbox");
+
+    L.polygon(malibuAcceptedPolygon(), {
+      color: "#1f77b4",
+      weight: 2,
+      fillColor: "#1f77b4",
+      fillOpacity: 0.11,
+    }).addTo(map).bindPopup("Effective accepted Malibu area");
+
+    L.polyline(lonLatToLatLon(malibu101Boundary), {
+      color: "#1f77b4",
+      weight: 5,
+    }).addTo(map).bindPopup("Malibu 101 cutoff. Points north of this line are rejected.");
+
+    rejectedPoints.forEach((point) => {
+      L.circleMarker([point.lat, point.lon], {
+        radius: 8,
+        color: "#8f1717",
+        weight: 3,
+        fillColor: "#d83232",
+        fillOpacity: 0.85,
+      }).addTo(map).bindPopup(`<strong>${point.name}</strong><br>${point.details}<br>${point.lat}, ${point.lon}`);
+    });
+
+    referencePoints.forEach((point) => {
+      L.circleMarker([point.lat, point.lon], {
+        radius: 7,
+        color: "#0f5c2a",
+        weight: 3,
+        fillColor: "#ffffff",
+        fillOpacity: 0.9,
+      }).addTo(map).bindPopup(`<strong>${point.name}</strong><br>${point.details}<br>${point.lat}, ${point.lon}`);
+    });
+
+    const legend = L.control({ position: "topright" });
+    legend.onAdd = function () {
+      const div = L.DomUtil.create("div", "legend");
+      div.innerHTML = `
+        <h1>Boundary Preview</h1>
+        <p><span class="swatch forest-fill"></span>Effective accepted forest area</p>
+        <p><span class="swatch forest-line"></span>Forest foothill cutoff</p>
+        <p><span class="swatch malibu-fill"></span>Effective accepted Malibu area / 101 cutoff</p>
+        <p><span class="swatch rejected"></span>Known rejected false positives</p>
+        <p>Dashed outlines are the old raw rectangular bboxes.</p>
+      `;
+      return div;
+    };
+    legend.addTo(map);
+
+    const allPoints = [
+      ...forestAcceptedPolygon(),
+      ...malibuAcceptedPolygon(),
+      ...rejectedPoints.map((point) => [point.lat, point.lon]),
+      ...referencePoints.map((point) => [point.lat, point.lon]),
+    ];
+    map.fitBounds(L.latLngBounds(allPoints), { padding: [24, 24] });
+  </script>
+</body>
+</html>

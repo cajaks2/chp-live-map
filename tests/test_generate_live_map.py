@@ -460,6 +460,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "Sun, May 31" in summary_html
     assert "Morning" in summary_html
     assert "2</strong><span>Incidents in window" in summary_html
+    assert 'class="bar-chart"' in summary_html
+    assert 'class="bar-column"' in summary_html
+    assert "bar-row" not in summary_html
     assert '<select class="filter" name="type" aria-label="Incident type filter">' in summary_html
     assert '<option value="family:collision">Traffic collisions / accidents</option>' in summary_html
     assert '<nav class="range-tabs" aria-label="History range">' in summary_html

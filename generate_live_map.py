@@ -2347,13 +2347,13 @@ def report_rows(counts, limit=5):
     visible_counts = counts if limit is None else counts[:limit]
     for label, count in visible_counts:
         rows.append(
-            '<div class="bar-row"><span>{}</span><div class="bar"><i style="width: {}%;"></i></div><span>{}</span></div>'.format(
+            '<div class="bar-column"><strong>{}</strong><div class="bar" aria-hidden="true"><i style="height: {}%;"></i></div><span>{}</span></div>'.format(
                 html.escape(label),
                 max(8, round((count / max_count) * 100)),
                 count,
             )
         )
-    return "".join(rows)
+    return '<div class="bar-chart">' + "".join(rows) + "</div>"
 
 
 def incident_day_key(incident):
@@ -2701,24 +2701,55 @@ def report_shell(
       font-size: 20px;
       line-height: 1.2;
     }}
-    .bar-row {{
+    .bar-chart {{
       display: grid;
-      grid-template-columns: minmax(96px, 150px) 1fr 32px;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(54px, 1fr);
       gap: 8px;
-      align-items: center;
-      min-height: 31px;
+      align-items: end;
+      min-height: 190px;
+      overflow-x: auto;
+      padding: 2px 2px 8px;
+      scrollbar-width: thin;
+    }}
+    .bar-column {{
+      display: grid;
+      grid-template-rows: 28px 120px auto;
+      gap: 6px;
+      align-items: end;
+      min-width: 54px;
       color: #405047;
-      font-size: 13px;
+      font-size: 12px;
+      text-align: center;
+    }}
+    .bar-column strong {{
+      align-self: start;
+      overflow: hidden;
+      color: #182026;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1.15;
+      text-overflow: ellipsis;
+    }}
+    .bar-column span {{
+      color: #405047;
+      font-size: 12px;
+      font-weight: 850;
+      line-height: 1;
     }}
     .bar {{
-      height: 9px;
+      display: flex;
+      align-items: end;
+      justify-content: center;
+      height: 120px;
       overflow: hidden;
-      border-radius: 999px;
+      border-radius: 6px 6px 3px 3px;
       background: #e5eae3;
     }}
     .bar i {{
       display: block;
-      height: 100%;
+      width: 100%;
+      min-height: 3px;
       border-radius: inherit;
       background: #277447;
     }}

@@ -2359,16 +2359,25 @@ def report_rows(counts, limit=5, compact=False):
             escaped_display_label = "".join(f"<span>{html.escape(part)}</span>" for part in compact_chart_label_parts(label))
         else:
             escaped_display_label = escaped_label
+        title = html.escape(f"{label}: {count}")
         rows.append(
-            '<div class="bar-column" title="{}"><div class="bar" aria-hidden="true"><i style="height: {}%;"></i></div><span>{}</span><strong>{}</strong></div>'.format(
-                escaped_label,
+            '<div class="bar-column" title="{}" aria-label="{}"><div class="bar" aria-hidden="true"><i style="height: {}%;"></i></div><strong>{}</strong></div>'.format(
+                title,
+                title,
                 max(8, round((count / max_count) * 100)),
-                count,
                 escaped_display_label,
             )
         )
-    class_name = "bar-chart bar-chart-compact" if compact else "bar-chart"
-    return f'<div class="{class_name}">' + "".join(rows) + "</div>"
+    chart_class_name = "bar-chart bar-chart-compact" if compact else "bar-chart"
+    wrap_class_name = "bar-chart-wrap bar-chart-wrap-compact" if compact else "bar-chart-wrap"
+    mid_count = max_count // 2 if max_count > 1 else 0
+    return (
+        f'<div class="{wrap_class_name}">'
+        f'<div class="bar-axis" aria-hidden="true"><span>{max_count}</span><span>{mid_count}</span><span>0</span></div>'
+        f'<div class="{chart_class_name}">'
+        + "".join(rows)
+        + "</div></div>"
+    )
 
 
 def incident_day_key(incident):
@@ -2716,23 +2725,45 @@ def report_shell(
       font-size: 20px;
       line-height: 1.2;
     }}
+    .bar-chart-wrap {{
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr);
+      gap: 8px;
+      align-items: start;
+      min-height: 190px;
+    }}
+    .bar-axis {{
+      display: grid;
+      grid-template-rows: auto 1fr auto 1fr auto;
+      height: 120px;
+      color: #58645d;
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1;
+      text-align: right;
+    }}
+    .bar-axis span:nth-child(2) {{
+      grid-row: 3;
+    }}
+    .bar-axis span:nth-child(3) {{
+      grid-row: 5;
+    }}
     .bar-chart {{
       display: grid;
       grid-auto-flow: column;
       grid-auto-columns: 58px;
       gap: 10px;
-      align-items: end;
+      align-items: start;
       justify-content: start;
-      min-height: 190px;
       overflow-x: auto;
       padding: 2px 2px 8px;
       scrollbar-width: thin;
     }}
     .bar-column {{
       display: grid;
-      grid-template-rows: 120px auto auto;
+      grid-template-rows: 120px auto;
       gap: 6px;
-      align-items: end;
+      align-items: start;
       min-width: 58px;
       color: #405047;
       font-size: 12px;
@@ -2745,12 +2776,6 @@ def report_shell(
       font-weight: 800;
       line-height: 1.15;
       overflow-wrap: anywhere;
-    }}
-    .bar-column span {{
-      color: #405047;
-      font-size: 12px;
-      font-weight: 850;
-      line-height: 1;
     }}
     .bar {{
       display: flex;
@@ -2770,15 +2795,23 @@ def report_shell(
       border-radius: inherit;
       background: #277447;
     }}
+    .bar-chart-wrap-compact {{
+      grid-template-columns: 18px minmax(0, 1fr);
+      gap: 5px;
+      min-height: 138px;
+    }}
+    .bar-chart-wrap-compact .bar-axis {{
+      height: 86px;
+      font-size: 8px;
+    }}
     .bar-chart-compact {{
       grid-auto-columns: minmax(14px, 1fr);
       gap: 1px;
-      min-height: 138px;
       overflow-x: visible;
       padding-bottom: 2px;
     }}
     .bar-chart-compact .bar-column {{
-      grid-template-rows: 86px auto auto;
+      grid-template-rows: 86px auto;
       min-width: 14px;
       gap: 3px;
     }}
@@ -2786,10 +2819,6 @@ def report_shell(
       width: 10px;
       height: 86px;
       border-radius: 3px 3px 2px 2px;
-    }}
-    .bar-chart-compact .bar-column span {{
-      font-size: 9px;
-      line-height: 1;
     }}
     .bar-chart-compact .bar-column strong {{
       font-size: 8px;

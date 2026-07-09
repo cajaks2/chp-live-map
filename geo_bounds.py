@@ -3,6 +3,17 @@ FOREST_LAT_MAX = 34.56
 FOREST_LON_MIN = -118.36
 FOREST_LON_MAX = -117.58
 
+# Approximate foothill edge across the forest collection box, west to east.
+# This keeps city/210 incidents out while preserving lower eastern mountain roads.
+FOREST_FOOTHILL_BOUNDARY = [
+    (-118.36, 34.205),
+    (-118.24, 34.205),
+    (-118.14, 34.180),
+    (-118.04, 34.165),
+    (-117.90, 34.150),
+    (-117.58, 34.150),
+]
+
 # Malibu collection includes the Point Mugu-to-Santa Monica coastal corridor.
 MALIBU_LAT_MIN = 33.99
 MALIBU_LAT_MAX = 34.34
@@ -39,20 +50,27 @@ def coordinates_in_region_bounds(latitude, longitude, region="forest"):
     return (
         lat_min <= lat <= lat_max
         and lon_min <= lon <= lon_max
+        and (region != "forest" or coordinates_north_of_forest_foothills(lat, lon))
         and (region != "malibu" or coordinates_south_of_malibu_101(lat, lon))
     )
 
 
+def coordinates_north_of_forest_foothills(latitude, longitude):
+    boundary_lat = interpolated_boundary_latitude(float(longitude), FOREST_FOOTHILL_BOUNDARY)
+    if boundary_lat is None:
+        return True
+    return float(latitude) >= boundary_lat
+
+
 def coordinates_south_of_malibu_101(latitude, longitude):
-    boundary_lat = interpolated_malibu_101_latitude(float(longitude))
+    boundary_lat = interpolated_boundary_latitude(float(longitude), MALIBU_101_BOUNDARY)
     if boundary_lat is None:
         return True
     return float(latitude) <= boundary_lat
 
 
-def interpolated_malibu_101_latitude(longitude):
+def interpolated_boundary_latitude(longitude, points):
     lon = float(longitude)
-    points = MALIBU_101_BOUNDARY
     if lon < points[0][0] or lon > points[-1][0]:
         return None
     for (left_lon, left_lat), (right_lon, right_lat) in zip(points, points[1:]):

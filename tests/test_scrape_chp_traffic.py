@@ -682,7 +682,9 @@ def test_parse_lat_lon_from_span_and_map_link():
 def test_coordinate_bounds_keep_forest_points_and_reject_city_points():
     assert coordinates_in_forest_bounds(34.260464, -118.190693)
     assert coordinates_in_forest_bounds(34.378926, -117.690678)
+    assert coordinates_in_forest_bounds(34.151, -117.84)
     assert not coordinates_in_forest_bounds(34.129, -117.91)
+    assert not coordinates_in_forest_bounds(34.161532, -118.141539)
 
 
 def test_malibu_bounds_include_point_mugu_to_santa_monica_pch_and_reject_outside_points():

@@ -81,6 +81,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert '<meta property="og:image" content="https://crestmap.us/og-image.png">' in body
         assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
         assert response.headers["Content-Security-Policy"] == CONTENT_SECURITY_POLICY
+        assert "form-action 'self'" in response.headers["Content-Security-Policy"]
         assert response.headers["X-Content-Type-Options"] == "nosniff"
         assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
         assert response.headers["Permissions-Policy"] == "camera=(), geolocation=(), microphone=(), payment=(), usb=()"

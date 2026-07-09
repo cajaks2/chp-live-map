@@ -45,7 +45,7 @@ CONTENT_SECURITY_POLICY = (
     "font-src 'self' data:; "
     "frame-ancestors 'none'; "
     "base-uri 'self'; "
-    "form-action 'none'"
+    "form-action 'self'"
 )
 MIN_HISTORY_HOURS = 1.0
 MAX_HISTORY_HOURS = 720.0

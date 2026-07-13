@@ -74,6 +74,12 @@ def test_scraper_metrics_include_region_labels():
     metrics = scrape_chp_traffic.ScraperMetrics()
     metrics.record_source_attempt("xml", "primary", "failure")
     metrics.record_source_attempt("cad", "fallback", "success")
+    metrics.record_xml_feed_freshness(
+        "2026-06-09T08:00:00-07:00",
+        dt.datetime.fromisoformat("2026-06-09T07:59:30-07:00"),
+        30,
+        "http_last_modified",
+    )
     metrics.record_success(
         "2026-06-09T08:00:00-07:00",
         changed_rows=1,
@@ -99,6 +105,11 @@ def test_scraper_metrics_include_region_labels():
     )
     assert (
         'chp_live_map_scraper_source_attempts_total{source="xml",mode="primary",outcome="failure"} 1'
+        in body
+    )
+    assert 'chp_live_map_scraper_xml_feed_age_seconds{timestamp_source="http_last_modified"} 30' in body
+    assert (
+        'chp_live_map_scraper_xml_feed_timestamp_seconds{timestamp_source="http_last_modified"}'
         in body
     )
     assert 'chp_live_map_scraper_last_run_source_duration_seconds{source="cad"} 1.1' in body
@@ -317,6 +328,35 @@ def test_validate_media_xml_freshness_rejects_stale_feed(monkeypatch):
         assert "above 30 minute limit" in str(exc)
     else:
         raise AssertionError("stale XML feed was accepted")
+
+
+def test_validate_media_xml_freshness_prefers_http_last_modified(monkeypatch):
+    class Args:
+        center = ["LACC"]
+        xml_max_age_minutes = 5
+
+    class FixedDateTime(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 6, 15, 18, 0, tzinfo=tz)
+
+    monkeypatch.setattr(scrape_chp_traffic.dt, "datetime", FixedDateTime)
+
+    xml_text = """
+    <State><Center ID="LAHB"><Dispatch ID="LACC">
+      <Log ID="260615LA2002">
+        <LogTime>"Jun 15 2026  5:00PM"</LogTime>
+      </Log>
+    </Dispatch></Center></State>
+    """
+
+    latest = scrape_chp_traffic.validate_media_xml_freshness(
+        xml_text,
+        Args(),
+        {"xml_last_modified": "Tue, 16 Jun 2026 00:58:00 GMT"},
+    )
+
+    assert latest == dt.datetime(2026, 6, 15, 17, 58)
 
 
 def test_parse_media_xml_incidents_normalizes_fsp_log_ids_to_cad_event_key():

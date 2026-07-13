@@ -1,5 +1,6 @@
 import argparse
 import datetime as dt
+import email.utils
 import hashlib
 import html
 import json
@@ -131,6 +132,7 @@ class ScraperMetrics:
         self.http_status_counts = {}
         self.last = {}
         self.last_source_compare = {}
+        self.xml_feed = {}
 
     def record_chp_http(self, method, route, status):
         key = (str(method), str(route), str(status))
@@ -141,6 +143,15 @@ class ScraperMetrics:
         key = (str(source), str(mode), str(outcome))
         with self.lock:
             self.source_attempts[key] = self.source_attempts.get(key, 0) + 1
+
+    def record_xml_feed_freshness(self, observed_at, feed_timestamp, age_seconds, timestamp_source):
+        with self.lock:
+            self.xml_feed = {
+                "observed_at": observed_at,
+                "feed_timestamp": feed_timestamp.isoformat() if hasattr(feed_timestamp, "isoformat") else str(feed_timestamp),
+                "age_seconds": max(0, age_seconds),
+                "timestamp_source": timestamp_source,
+            }
 
     def record_success(
         self,
@@ -263,6 +274,7 @@ class ScraperMetrics:
             http_counts = dict(self.http_status_counts)
             last = dict(self.last)
             last_source_compare = dict(self.last_source_compare)
+            xml_feed = dict(self.xml_feed)
         lines = [
             "# HELP chp_live_map_scraper_up Whether the scraper metrics service is running.",
             "# TYPE chp_live_map_scraper_up gauge",
@@ -289,6 +301,24 @@ class ScraperMetrics:
                     {"source": source, "mode": mode, "outcome": outcome},
                 )
             )
+        lines.extend(
+            [
+                "# HELP chp_live_map_scraper_xml_feed_age_seconds Age of the CHP media XML feed timestamp at the last XML freshness check.",
+                "# TYPE chp_live_map_scraper_xml_feed_age_seconds gauge",
+                metric_line(
+                    "chp_live_map_scraper_xml_feed_age_seconds",
+                    xml_feed.get("age_seconds", 0),
+                    {"timestamp_source": xml_feed.get("timestamp_source", "none")},
+                ),
+                "# HELP chp_live_map_scraper_xml_feed_timestamp_seconds Unix timestamp of the CHP media XML feed timestamp from the last XML freshness check.",
+                "# TYPE chp_live_map_scraper_xml_feed_timestamp_seconds gauge",
+                metric_line(
+                    "chp_live_map_scraper_xml_feed_timestamp_seconds",
+                    f"{parse_metric_timestamp(xml_feed.get('feed_timestamp')):.3f}",
+                    {"timestamp_source": xml_feed.get("timestamp_source", "none")},
+                ),
+            ]
+        )
         lines.extend(
             [
                 "# HELP chp_live_map_scraper_source_compare_runs_total Source comparison runs by outcome.",
@@ -577,11 +607,20 @@ def record_response_bytes(stats, route, byte_count):
     stats["source_bytes"][source] = stats["source_bytes"].get(source, 0) + byte_count
 
 
+def record_response_headers(stats, route, headers):
+    if stats is None or route != "media_xml":
+        return
+    last_modified = headers.get("Last-Modified")
+    if last_modified:
+        stats["xml_last_modified"] = last_modified
+
+
 def request_text(opener, req, timeout, retries, backoff, stats=None, route="traffic"):
     for attempt in range(retries + 1):
         try:
             with opener.open(req, timeout=timeout) as response:
                 record_response_status(stats, req.get_method(), route, response.status)
+                record_response_headers(stats, route, response.headers)
                 body = response.read()
                 record_response_bytes(stats, route, len(body))
                 return body.decode("utf-8", errors="replace")
@@ -756,18 +795,40 @@ def latest_media_xml_timestamp(xml_text, centers):
     return latest
 
 
-def validate_media_xml_freshness(xml_text, args):
+def parse_http_datetime(value):
+    if not value:
+        return None
+    try:
+        parsed = email.utils.parsedate_to_datetime(value)
+    except (TypeError, ValueError, IndexError, OverflowError):
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone.utc)
+    return parsed.astimezone(PACIFIC_TZ).replace(tzinfo=None)
+
+
+def media_xml_freshness_timestamp(xml_text, args, stats=None):
+    last_modified = (stats or {}).get("xml_last_modified")
+    header_timestamp = parse_http_datetime(last_modified)
+    if header_timestamp:
+        return header_timestamp, "http_last_modified"
+    return latest_media_xml_timestamp(xml_text, args.center), "incident_timestamp"
+
+
+def validate_media_xml_freshness(xml_text, args, stats=None):
     max_age_minutes = getattr(args, "xml_max_age_minutes", None)
     if max_age_minutes is None or max_age_minutes <= 0:
         return None
-    latest = latest_media_xml_timestamp(xml_text, args.center)
+    latest, timestamp_source = media_xml_freshness_timestamp(xml_text, args, stats)
     if latest is None:
         raise StaleMediaXmlError("CHP media XML has no parseable incident timestamps")
     now = dt.datetime.now(PACIFIC_TZ).replace(tzinfo=None)
-    age_minutes = (now - latest).total_seconds() / 60
+    age_seconds = (now - latest).total_seconds()
+    SCRAPER_METRICS.record_xml_feed_freshness(now.isoformat(timespec="seconds"), latest, age_seconds, timestamp_source)
+    age_minutes = age_seconds / 60
     if age_minutes > max_age_minutes:
         raise StaleMediaXmlError(
-            f"CHP media XML latest timestamp is {age_minutes:.1f} minutes old, above {max_age_minutes:g} minute limit"
+            f"CHP media XML {timestamp_source} timestamp is {age_minutes:.1f} minutes old, above {max_age_minutes:g} minute limit"
         )
     return latest
 
@@ -878,7 +939,7 @@ def fetch_media_xml_incidents(args, stats):
         stats,
         "media_xml",
     )
-    validate_media_xml_freshness(xml_text, args)
+    validate_media_xml_freshness(xml_text, args, stats)
     return parse_media_xml_incidents(xml_text, args.center)
 
 
@@ -2143,7 +2204,7 @@ def parse_args():
     parser.add_argument(
         "--xml-max-age-minutes",
         type=float,
-        default=float(os.environ.get("CHP_XML_MAX_AGE_MINUTES", "30")),
+        default=float(os.environ.get("CHP_XML_MAX_AGE_MINUTES", "5")),
         help="Treat the media XML feed as stale and fall back to CAD when its newest timestamp is older than this many minutes. Set 0 to disable.",
     )
     parser.add_argument(

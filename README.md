@@ -285,6 +285,8 @@ Prometheus metrics:
 | `chp_live_map_scraper_up` | gauge | `1` when the scraper service metrics endpoint is running. |
 | `chp_live_map_scraper_scrapes_total{outcome}` | counter | Scrape attempts by success/failure from the long-lived scraper process. |
 | `chp_live_map_scraper_source_attempts_total{source,mode,outcome}` | counter | Source attempts from the scraper process. `source` is `xml` or `cad`; `mode` is `primary` or `fallback`; `outcome` is `success` or `failure`. |
+| `chp_live_map_scraper_xml_feed_age_seconds{timestamp_source}` | gauge | Age in seconds of the media XML feed timestamp from the latest XML freshness check. `timestamp_source` is usually `http_last_modified`; it falls back to `incident_timestamp` if the header is absent. XML is treated as stale after `CHP_XML_MAX_AGE_MINUTES`, default `5`, and CAD is used as fallback. |
+| `chp_live_map_scraper_xml_feed_timestamp_seconds{timestamp_source}` | gauge | Unix timestamp for the media XML feed timestamp used by the latest XML freshness check. |
 | `chp_live_map_scraper_last_run_timestamp_seconds{outcome,error_type}` | gauge | Timestamp of the latest scraper run from the scraper service. |
 | `chp_live_map_scraper_last_run_duration_seconds` | gauge | Total duration of the latest scraper-service run. |
 | `chp_live_map_scraper_last_run_source_duration_seconds{source}` | gauge | Latest scraper-service fetch/runtime duration by source, currently `xml` or `cad`. |

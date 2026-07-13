@@ -135,7 +135,7 @@ spec:
     spec:
       containers:
         - name: scrape
-          image: cajaks2/chp-live-map:0.1.130
+          image: cajaks2/chp-live-map:0.1.131
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -154,13 +154,13 @@ spec:
                   name: chp-live-map-db
                   key: DATABASE_URL
             - name: SERVICE_VERSION
-              value: "0.1.130"
+              value: "0.1.131"
             - name: CHP_USER_AGENT
               value: "chp-live-map/0.1 (+https://crestmap.us/)"
             - name: CHP_SOURCE_MODE
               value: xml
             - name: CHP_XML_MAX_AGE_MINUTES
-              value: "30"
+              value: "5"
             - name: CHP_XML_SHADOW_COMPARE
               value: "false"
             - name: SCRAPER_METRICS_HOST
@@ -218,7 +218,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: cajaks2/chp-live-map:0.1.130
+          image: cajaks2/chp-live-map:0.1.131
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -238,7 +238,7 @@ spec:
             - name: HTTP_PORT
               value: "8080"
             - name: SERVICE_VERSION
-              value: "0.1.130"
+              value: "0.1.131"
             - name: BASE_PATH
               value: /
             - name: PUBLIC_URL

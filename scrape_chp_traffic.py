@@ -1371,7 +1371,19 @@ def init_database_sqlite(conn):
     backfill_detail_entry_sections(conn)
 
 
+POSTGRES_SCHEMA_INIT_LOCK_ID = 710610921
+
+
 def init_database_postgres(conn):
+    conn.execute("SELECT pg_advisory_lock(%s)", (POSTGRES_SCHEMA_INIT_LOCK_ID,))
+    try:
+        init_database_postgres_locked(conn)
+    finally:
+        conn.execute("SELECT pg_advisory_unlock(%s)", (POSTGRES_SCHEMA_INIT_LOCK_ID,))
+    conn.commit()
+
+
+def init_database_postgres_locked(conn):
     statements = [
         """
         CREATE TABLE IF NOT EXISTS events (
@@ -1469,7 +1481,6 @@ def init_database_postgres(conn):
     conn.execute("CREATE INDEX IF NOT EXISTS idx_detail_entries_event_observed ON detail_entries(event_key, observed_at)")
     ensure_column_postgres(conn, "detail_entries", "section", "TEXT")
     backfill_detail_entry_sections(conn)
-    conn.commit()
 
 
 def ensure_column_sqlite(conn, table, column, definition):
@@ -1479,6 +1490,19 @@ def ensure_column_sqlite(conn, table, column, definition):
 
 
 def ensure_column_postgres(conn, table, column, definition):
+    existing = conn.execute(
+        """
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = %s
+          AND column_name = %s
+        LIMIT 1
+        """,
+        (table, column),
+    ).fetchone()
+    if existing:
+        return
     conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {definition}")
 
 

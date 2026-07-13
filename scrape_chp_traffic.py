@@ -2101,7 +2101,7 @@ def scrape_once(args):
                 "event.outcome": "failure",
                 "chp.source": "media_xml",
                 "chp.fallback_source": "cad",
-                "error.type": type(exc).__name__,
+                "chp.xml_error_type": type(exc).__name__,
                 "http.request.header.user_agent": args.user_agent,
             },
         )

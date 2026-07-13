@@ -519,7 +519,7 @@ def test_scrape_once_stale_xml_falls_back_to_cad(monkeypatch):
     assert scrape_chp_traffic.scrape_once(args) == fallback_result
     assert fallback_calls == [args]
     assert log_messages[0][0] == "CHP XML scrape is stale; falling back to CAD"
-    assert log_messages[0][2]["error.type"] == "StaleMediaXmlError"
+    assert log_messages[0][2]["chp.xml_error_type"] == "StaleMediaXmlError"
 
 
 def test_parser_keeps_repeated_detail_tables():

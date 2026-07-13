@@ -1,0 +1,1900 @@
+{
+  "dashboard": {
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": {
+            "type": "grafana",
+            "uid": "-- Grafana --"
+          },
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "id": 1140755745607680,
+    "panels": [
+      {
+        "id": 1001,
+        "type": "row",
+        "title": "Freshness & Source Health",
+        "collapsed": false,
+        "gridPos": {
+          "x": 0,
+          "y": 0,
+          "w": 24,
+          "h": 1
+        },
+        "panels": []
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "1 means the public FastAPI/Gunicorn web service is up and exporting metrics.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": null,
+                  "value": "red"
+                },
+                {
+                  "color": 1,
+                  "value": "green"
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 1,
+          "w": 4,
+          "h": 4
+        },
+        "id": 2,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_up{site=~\"$site\"}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Web up",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "1 means the long-lived scraper service is up and exporting metrics.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": null,
+                  "value": "red"
+                },
+                {
+                  "color": 1,
+                  "value": "green"
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 4,
+          "y": 1,
+          "w": 4,
+          "h": 4
+        },
+        "id": 4,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_scraper_up{site=~\"$site\"}",
+            "range": true,
+            "refId": "C"
+          }
+        ],
+        "title": "Scraper up",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Seconds since the scraper last completed successfully. Yellow after 3 minutes, red after 10 minutes.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": null,
+                  "value": "green"
+                },
+                {
+                  "color": 180,
+                  "value": "yellow"
+                },
+                {
+                  "color": 600,
+                  "value": "red"
+                }
+              ]
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 8,
+          "y": 1,
+          "w": 4,
+          "h": 4
+        },
+        "id": 12,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "time() - max(chp_live_map_scraper_last_run_timestamp_seconds{site=~\"$site\"})",
+            "range": true,
+            "refId": "K"
+          }
+        ],
+        "title": "Scrape age",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Age of the media.chp.ca.gov XML feed timestamp. Green under 5 minutes, yellow after 5 minutes, red after 15. Red means CAD fallback should be active.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": null,
+                  "value": "green"
+                },
+                {
+                  "color": 300,
+                  "value": "yellow"
+                },
+                {
+                  "color": 900,
+                  "value": "red"
+                }
+              ]
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 1,
+          "w": 4,
+          "h": 4
+        },
+        "id": 55,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "max(chp_live_map_scraper_xml_feed_age_seconds{site=~\"$site\"})",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "XML feed age",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Seconds since the newest incident observation in the map database. This can be older than scrape age when CHP has no matching incidents.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": null,
+                  "value": "green"
+                },
+                {
+                  "color": 900,
+                  "value": "yellow"
+                },
+                {
+                  "color": 3600,
+                  "value": "red"
+                }
+              ]
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 16,
+          "y": 1,
+          "w": 4,
+          "h": 4
+        },
+        "id": 10,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "time() - chp_live_map_data_updated_timestamp_seconds{site=~\"$site\"}",
+            "range": true,
+            "refId": "I"
+          }
+        ],
+        "title": "Incident data age",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Currently active incidents in the selected region filter.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": null,
+                  "value": "green"
+                },
+                {
+                  "color": 1,
+                  "value": "yellow"
+                },
+                {
+                  "color": 3,
+                  "value": "red"
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 20,
+          "y": 1,
+          "w": 4,
+          "h": 4
+        },
+        "id": 6,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "sum(chp_live_map_region_incidents{site=~\"$site\",region=~\"$region\",status=\"active\"})",
+            "range": true,
+            "refId": "E"
+          }
+        ],
+        "title": "Active incidents",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Shows when the XML feed timestamp is fresh or stale. timestamp_source=http_last_modified means the HTTP Last-Modified header was used.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": null,
+                  "value": "green"
+                },
+                {
+                  "color": 300,
+                  "value": "yellow"
+                },
+                {
+                  "color": 900,
+                  "value": "red"
+                }
+              ]
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 5,
+          "w": 12,
+          "h": 7
+        },
+        "id": 57,
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_scraper_xml_feed_age_seconds{site=~\"$site\"}",
+            "legendFormat": "{{timestamp_source}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "XML feed age over time",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Primary XML failures paired with CAD fallback successes mean the stale/malformed XML protection is working.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "ops"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 5,
+          "w": 12,
+          "h": 7
+        },
+        "id": 53,
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "sum by (source,mode,outcome) (rate(chp_live_map_scraper_source_attempts_total{site=~\"$site\",source=~\"$source\"}[$__rate_interval]))",
+            "legendFormat": "{{source}} {{mode}} {{outcome}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Source attempts and fallback",
+        "type": "timeseries"
+      },
+      {
+        "id": 1002,
+        "type": "row",
+        "title": "Scraper Runtime & CHP Source Behavior",
+        "collapsed": false,
+        "gridPos": {
+          "x": 0,
+          "y": 12,
+          "w": 24,
+          "h": 1
+        },
+        "panels": []
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Latest scraper runtime split by XML, CAD, and total. CAD should dominate when XML is stale.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 13,
+          "w": 8,
+          "h": 7
+        },
+        "id": 23,
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_scraper_last_run_source_duration_seconds{site=~\"$site\",source=~\"$source\"}",
+            "legendFormat": "{{source}}",
+            "range": true,
+            "refId": "V"
+          }
+        ],
+        "title": "Latest scrape duration by source",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Bytes downloaded in the latest run by source. XML/cad byte size helps explain runtime and source behavior.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "bytes"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 8,
+          "y": 13,
+          "w": 8,
+          "h": 7
+        },
+        "id": 25,
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_scraper_last_run_source_response_bytes{site=~\"$site\",source=~\"$source\"}",
+            "legendFormat": "{{source}}",
+            "range": true,
+            "refId": "X"
+          }
+        ],
+        "title": "Latest response bytes by source",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Rate of HTTP requests the scraper sends to CHP, grouped by list/detail route and status.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "reqps"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 16,
+          "y": 13,
+          "w": 8,
+          "h": 7
+        },
+        "id": 33,
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "sum by (method,route,status) (rate(chp_live_map_scraper_chp_http_requests_total{site=~\"$site\"}[$__rate_interval]))",
+            "legendFormat": "{{method}} {{route}} {{status}}",
+            "range": true,
+            "refId": "`"
+          }
+        ],
+        "title": "Outbound CHP request rate",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Overall scrape attempt outcomes from the scraper service.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "ops"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 20,
+          "w": 8,
+          "h": 6
+        },
+        "id": 27,
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "sum by (outcome) (rate(chp_live_map_scraper_scrapes_total{site=~\"$site\"}[$__rate_interval]))",
+            "legendFormat": "{{outcome}}",
+            "range": true,
+            "refId": "Z"
+          }
+        ],
+        "title": "Scrape success/failure rate",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Observation rows inserted by the latest scrape. Zero is normal when nothing changed.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 8,
+          "y": 20,
+          "w": 4,
+          "h": 4
+        },
+        "id": 47,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_scraper_last_run_observations_inserted{site=~\"$site\"}",
+            "range": true,
+            "refId": "n"
+          }
+        ],
+        "title": "Rows inserted last run",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Latest run detail refresh counts. Requested means incident detail pages were fetched; skipped means cached detail data was reused.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 20,
+          "w": 12,
+          "h": 6
+        },
+        "id": 49,
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_scraper_last_run_details{site=~\"$site\"}",
+            "legendFormat": "{{result}}",
+            "range": true,
+            "refId": "p"
+          }
+        ],
+        "title": "Detail refresh behavior",
+        "type": "timeseries"
+      },
+      {
+        "id": 1003,
+        "type": "row",
+        "title": "Site Traffic & Errors",
+        "collapsed": false,
+        "gridPos": {
+          "x": 0,
+          "y": 26,
+          "w": 24,
+          "h": 1
+        },
+        "panels": []
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Public web traffic rate grouped by coarse route and HTTP status.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "reqps"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 27,
+          "w": 12,
+          "h": 7
+        },
+        "id": 16,
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "sum by (route,status) (rate(chp_live_map_http_requests_total{site=~\"$site\",route=~\"$route\"}[$__rate_interval]))",
+            "legendFormat": "{{route}} {{status}}",
+            "range": true,
+            "refId": "O"
+          }
+        ],
+        "title": "Web request rate by route/status",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Non-2xx/3xx public web responses. This should normally stay near zero.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "reqps"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 27,
+          "w": 12,
+          "h": 7
+        },
+        "id": 18,
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "sum by (route,status) (rate(chp_live_map_http_requests_total{site=~\"$site\",status!~\"2..|3..\"}[$__rate_interval]))",
+            "legendFormat": "{{route}} {{status}}",
+            "range": true,
+            "refId": "Q"
+          }
+        ],
+        "title": "Web error rate",
+        "type": "timeseries"
+      },
+      {
+        "id": 1004,
+        "type": "row",
+        "title": "Application & Database",
+        "collapsed": false,
+        "gridPos": {
+          "x": 0,
+          "y": 34,
+          "w": 24,
+          "h": 1
+        },
+        "panels": []
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Web process connection pool size, available connections, in-use connections, and waiting requests.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 35,
+          "w": 12,
+          "h": 7
+        },
+        "id": 21,
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_db_pool_connections{site=~\"$site\"}",
+            "legendFormat": "{{state}}",
+            "range": true,
+            "refId": "S"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_db_pool_requests_waiting{site=~\"$site\"}",
+            "legendFormat": "requests waiting",
+            "range": true,
+            "refId": "T"
+          }
+        ],
+        "title": "Postgres pool usage",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "How long the current web process has been running.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 35,
+          "w": 4,
+          "h": 4
+        },
+        "id": 41,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "time() - chp_live_map_process_start_time_seconds{site=~\"$site\"}",
+            "range": true,
+            "refId": "h"
+          }
+        ],
+        "title": "Web process age",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "How long the current scraper process has been running.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 16,
+          "y": 35,
+          "w": 4,
+          "h": 4
+        },
+        "id": 43,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "time() - chp_live_map_scraper_process_start_time_seconds{site=~\"$site\"}",
+            "range": true,
+            "refId": "j"
+          }
+        ],
+        "title": "Scraper process age",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "History-window hours used for process-level incident metrics.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "h"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 20,
+          "y": 35,
+          "w": 4,
+          "h": 4
+        },
+        "id": 45,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_history_window_hours{site=~\"$site\"}",
+            "range": true,
+            "refId": "l"
+          }
+        ],
+        "title": "Metrics window",
+        "type": "stat"
+      },
+      {
+        "id": 1005,
+        "type": "row",
+        "title": "Incident Data",
+        "collapsed": false,
+        "gridPos": {
+          "x": 0,
+          "y": 42,
+          "w": 24,
+          "h": 1
+        },
+        "panels": []
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Total incidents in the selected region and default metrics window.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 43,
+          "w": 4,
+          "h": 4
+        },
+        "id": 8,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "sum(chp_live_map_region_incidents{site=~\"$site\",region=~\"$region\",status=\"total\"})",
+            "range": true,
+            "refId": "G"
+          }
+        ],
+        "title": "Total incidents",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Latest run totals: all CHP incidents seen, matched incidents acquired, and mapped matched incidents.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 4,
+          "y": 43,
+          "w": 8,
+          "h": 6
+        },
+        "id": 29,
+        "options": {
+          "displayMode": "gradient",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "showUnfilled": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_scraper_last_run_incidents{site=~\"$site\"}",
+            "legendFormat": "{{kind}}",
+            "range": true,
+            "refId": "\\"
+          }
+        ],
+        "title": "Latest scraper incident counts",
+        "type": "bargauge"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Latest run matched and mapped incidents split by hidden collection region.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 43,
+          "w": 12,
+          "h": 6
+        },
+        "id": 31,
+        "options": {
+          "displayMode": "gradient",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "showUnfilled": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_scraper_last_run_region_incidents{site=~\"$site\",region=~\"$region\"}",
+            "legendFormat": "{{region}} {{kind}}",
+            "range": true,
+            "refId": "^"
+          }
+        ],
+        "title": "Latest matched/mapped by region",
+        "type": "bargauge"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Current database incident counts in the metrics window by region and active/cleared/mapped status.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 49,
+          "w": 12,
+          "h": 7
+        },
+        "id": 14,
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_region_incidents{site=~\"$site\",region=~\"$region\"}",
+            "legendFormat": "{{region}} {{status}}",
+            "range": true,
+            "refId": "M"
+          }
+        ],
+        "title": "Stored incidents by region/status",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Latest scrape counts over time. Useful for spotting sudden drops or source regressions.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 49,
+          "w": 12,
+          "h": 7
+        },
+        "id": 51,
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_scraper_last_run_incidents{site=~\"$site\"}",
+            "legendFormat": "{{kind}}",
+            "range": true,
+            "refId": "r"
+          }
+        ],
+        "title": "Latest run incident totals over time",
+        "type": "timeseries"
+      },
+      {
+        "id": 1006,
+        "type": "row",
+        "title": "CAD vs XML Comparison",
+        "collapsed": false,
+        "gridPos": {
+          "x": 0,
+          "y": 56,
+          "w": 24,
+          "h": 1
+        },
+        "panels": []
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Shadow comparison run outcomes when CAD and XML are compared side by side.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "ops"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 57,
+          "w": 8,
+          "h": 7
+        },
+        "id": 35,
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "bottom",
+            "calcs": [
+              "lastNotNull",
+              "max"
+            ]
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "sum by (outcome) (rate(chp_live_map_scraper_source_compare_runs_total{site=~\"$site\"}[$__rate_interval]))",
+            "legendFormat": "{{outcome}}",
+            "range": true,
+            "refId": "b"
+          }
+        ],
+        "title": "Source comparison run rate",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Last comparison counts: overlap, CAD-only, XML-only, and mismatches.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 8,
+          "y": 57,
+          "w": 8,
+          "h": 7
+        },
+        "id": 37,
+        "options": {
+          "displayMode": "gradient",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "showUnfilled": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_scraper_source_compare_last_run_incidents{site=~\"$site\"}",
+            "legendFormat": "{{source}} {{kind}}",
+            "range": true,
+            "refId": "d"
+          }
+        ],
+        "title": "Last source comparison counts",
+        "type": "bargauge"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Last comparison matched/mapped counts split by source and hidden region.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 16,
+          "y": 57,
+          "w": 8,
+          "h": 7
+        },
+        "id": 39,
+        "options": {
+          "displayMode": "gradient",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "showUnfilled": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_scraper_source_compare_last_run_region_incidents{site=~\"$site\",region=~\"$region\"}",
+            "legendFormat": "{{source}} {{region}} {{kind}}",
+            "range": true,
+            "refId": "f"
+          }
+        ],
+        "title": "Last source comparison by region",
+        "type": "bargauge"
+      }
+    ],
+    "refresh": "30s",
+    "schemaVersion": 41,
+    "tags": [
+      "chp",
+      "crestmap",
+      "prometheus",
+      "scraper",
+      "traffic"
+    ],
+    "templating": {
+      "list": [
+        {
+          "current": {
+            "selected": true,
+            "text": "crestmap.us",
+            "value": "crestmap.us"
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mkJbCvK4z"
+          },
+          "includeAll": false,
+          "name": "site",
+          "query": "label_values(chp_live_map_up, site)",
+          "refresh": 1,
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "allValue": ".*",
+          "current": {
+            "selected": true,
+            "text": "All",
+            "value": ".*"
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mkJbCvK4z"
+          },
+          "includeAll": true,
+          "name": "region",
+          "query": "label_values(chp_live_map_region_incidents, region)",
+          "refresh": 1,
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "allValue": ".*",
+          "current": {
+            "selected": true,
+            "text": "All",
+            "value": ".*"
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mkJbCvK4z"
+          },
+          "includeAll": true,
+          "name": "route",
+          "query": "label_values(chp_live_map_http_requests_total, route)",
+          "refresh": 1,
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "allValue": ".*",
+          "current": {
+            "selected": true,
+            "text": "All",
+            "value": ".*"
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mkJbCvK4z"
+          },
+          "includeAll": true,
+          "name": "source",
+          "query": "label_values(chp_live_map_scraper_last_run_source_duration_seconds, source)",
+          "refresh": 1,
+          "sort": 1,
+          "type": "query"
+        }
+      ]
+    },
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "timezone": "browser",
+    "title": "Crestmap CHP Live Map",
+    "uid": "crestmap-chp-live-map",
+    "version": 5,
+    "description": "Operational dashboard for crestmap.us: scraper freshness, XML/CAD source behavior, public web traffic, Postgres pool health, and incident data quality."
+  },
+  "folderUid": "bfo1wv4abcd1cd",
+  "overwrite": true,
+  "message": "Reorganize Crestmap CHP dashboard layout"
+}

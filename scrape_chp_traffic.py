@@ -17,6 +17,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
+from zoneinfo import ZoneInfo
 
 from ecs_logging import log_event, log_exception, run_main
 from geo_bounds import clear_coordinates_outside_region_bounds, coordinates_in_region_bounds
@@ -26,6 +27,7 @@ CHP_TRAFFIC_URL = "https://cad.chp.ca.gov/Traffic.aspx"
 CHP_MEDIA_XML_URL = "https://media.chp.ca.gov/sa_xml/sa.xml"
 CHP_ROBOTS_URL = "https://cad.chp.ca.gov/robots.txt"
 DEFAULT_USER_AGENT = "chp-live-map/0.1 (+https://crestmap.us/)"
+PACIFIC_TZ = ZoneInfo("America/Los_Angeles")
 DEFAULT_CENTERS = ["LACC", "VTCC"]
 FOREST_ROAD_KEYWORDS = [
     "angeles crest",
@@ -731,6 +733,45 @@ def parse_media_xml_timestamp(value):
     return None
 
 
+class StaleMediaXmlError(RuntimeError):
+    pass
+
+
+def latest_media_xml_timestamp(xml_text, centers):
+    wanted = set(centers)
+    root = ET.fromstring(xml_text)
+    latest = None
+    for dispatch in root.findall(".//Dispatch"):
+        center = dispatch.attrib.get("ID", "")
+        if center not in wanted:
+            continue
+        for log in dispatch.findall("Log"):
+            values = [log.findtext("LogTime")]
+            values.extend(detail.findtext("DetailTime") for detail in log.findall("./LogDetails/details"))
+            values.extend(unit.findtext("UnitTime") for unit in log.findall("./LogDetails/units"))
+            for value in values:
+                parsed = parse_media_xml_timestamp(value)
+                if parsed and (latest is None or parsed > latest):
+                    latest = parsed
+    return latest
+
+
+def validate_media_xml_freshness(xml_text, args):
+    max_age_minutes = getattr(args, "xml_max_age_minutes", None)
+    if max_age_minutes is None or max_age_minutes <= 0:
+        return None
+    latest = latest_media_xml_timestamp(xml_text, args.center)
+    if latest is None:
+        raise StaleMediaXmlError("CHP media XML has no parseable incident timestamps")
+    now = dt.datetime.now(PACIFIC_TZ).replace(tzinfo=None)
+    age_minutes = (now - latest).total_seconds() / 60
+    if age_minutes > max_age_minutes:
+        raise StaleMediaXmlError(
+            f"CHP media XML latest timestamp is {age_minutes:.1f} minutes old, above {max_age_minutes:g} minute limit"
+        )
+    return latest
+
+
 def format_incident_time(value):
     if not value:
         return ""
@@ -837,6 +878,7 @@ def fetch_media_xml_incidents(args, stats):
         stats,
         "media_xml",
     )
+    validate_media_xml_freshness(xml_text, args)
     return parse_media_xml_incidents(xml_text, args.center)
 
 
@@ -1232,6 +1274,7 @@ def init_database_sqlite(conn):
         CREATE TABLE IF NOT EXISTS scrape_runs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             observed_at TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'unknown',
             centers TEXT NOT NULL,
             total_seen INTEGER NOT NULL DEFAULT 0,
             active_seen INTEGER NOT NULL,
@@ -1249,6 +1292,7 @@ def init_database_sqlite(conn):
         """
     )
     ensure_column_sqlite(conn, "scrape_runs", "total_seen", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column_sqlite(conn, "scrape_runs", "source", "TEXT NOT NULL DEFAULT 'unknown'")
     ensure_column_sqlite(conn, "scrape_runs", "active_with_coords", "INTEGER NOT NULL DEFAULT 0")
     ensure_column_sqlite(conn, "scrape_runs", "details_requested", "INTEGER NOT NULL DEFAULT 0")
     ensure_column_sqlite(conn, "scrape_runs", "details_skipped", "INTEGER NOT NULL DEFAULT 0")
@@ -1329,6 +1373,7 @@ def init_database_postgres(conn):
         CREATE TABLE IF NOT EXISTS scrape_runs (
             id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             observed_at TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'unknown',
             centers TEXT NOT NULL,
             total_seen INTEGER NOT NULL DEFAULT 0,
             active_seen INTEGER NOT NULL,
@@ -1347,6 +1392,7 @@ def init_database_postgres(conn):
     for statement in statements:
         conn.execute(statement)
     ensure_column_postgres(conn, "scrape_runs", "total_seen", "INTEGER NOT NULL DEFAULT 0")
+    ensure_column_postgres(conn, "scrape_runs", "source", "TEXT NOT NULL DEFAULT 'unknown'")
     ensure_column_postgres(conn, "scrape_runs", "active_with_coords", "INTEGER NOT NULL DEFAULT 0")
     ensure_column_postgres(conn, "scrape_runs", "details_requested", "INTEGER NOT NULL DEFAULT 0")
     ensure_column_postgres(conn, "scrape_runs", "details_skipped", "INTEGER NOT NULL DEFAULT 0")
@@ -1694,22 +1740,24 @@ def store_scrape_run(
     details_skipped,
     duration_seconds,
     http_status_counts,
+    source="unknown",
 ):
     placeholder = (
-        "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s"
+        "%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s"
         if is_postgres(conn)
-        else "?, ?, ?, ?, ?, ?, ?, ?, ?, ?"
+        else "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?"
     )
     conn.execute(
         f"""
         INSERT INTO scrape_runs (
-            observed_at, centers, total_seen, active_seen, observations_inserted,
+            observed_at, source, centers, total_seen, active_seen, observations_inserted,
             active_with_coords, details_requested, details_skipped, duration_seconds,
             http_status_counts
         ) VALUES ({placeholder})
         """,
         (
             observed_at,
+            source,
             ",".join(centers),
             total_seen,
             active_seen,
@@ -1817,6 +1865,7 @@ def scrape_once_xml(args):
             0,
             time.monotonic() - started_at,
             stats["http_status_counts"],
+            source="xml",
         )
 
     region_counts = {
@@ -1988,6 +2037,7 @@ def scrape_once_cad(args):
             details_skipped,
             time.monotonic() - started_at,
             stats["http_status_counts"],
+            source="cad",
         )
     region_counts = {
         region: {
@@ -2041,15 +2091,17 @@ def scrape_once(args):
 
     try:
         return scrape_once_xml(args)
-    except ET.ParseError as exc:
+    except (ET.ParseError, StaleMediaXmlError) as exc:
+        is_stale = isinstance(exc, StaleMediaXmlError)
         log_exception(
-            "CHP XML scrape returned malformed XML; falling back to CAD",
+            "CHP XML scrape is stale; falling back to CAD" if is_stale else "CHP XML scrape returned malformed XML; falling back to CAD",
             exc,
             **{
                 "event.action": "scrape_fallback",
                 "event.outcome": "failure",
                 "chp.source": "media_xml",
                 "chp.fallback_source": "cad",
+                "error.type": type(exc).__name__,
                 "http.request.header.user_agent": args.user_agent,
             },
         )
@@ -2088,6 +2140,12 @@ def parse_args():
     parser.add_argument("--detail-delay", type=float, default=0.2)
     parser.add_argument("--detail-refresh-minutes", type=float, default=3.0)
     parser.add_argument("--media-xml-url", default=os.environ.get("CHP_MEDIA_XML_URL", CHP_MEDIA_XML_URL))
+    parser.add_argument(
+        "--xml-max-age-minutes",
+        type=float,
+        default=float(os.environ.get("CHP_XML_MAX_AGE_MINUTES", "30")),
+        help="Treat the media XML feed as stale and fall back to CAD when its newest timestamp is older than this many minutes. Set 0 to disable.",
+    )
     parser.add_argument(
         "--source-mode",
         choices=("cad", "xml"),

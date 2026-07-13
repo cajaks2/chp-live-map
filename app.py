@@ -20,6 +20,7 @@ from generate_live_map import (
     incident_status,
     load_incident_by_key,
     load_incidents,
+    load_last_scrape_run,
     normalize_base_path,
     normalize_region,
     region_label,
@@ -363,11 +364,13 @@ def dispatch_request(request, send_body=True):
             hours = requested_hours(request, settings)
             with database_connection(request.app) as conn:
                 incidents = load_incidents(settings.database, hours, settings.database_url, region=region, conn=conn)
+                last_scrape = load_last_scrape_run(settings.database, settings.database_url, conn=conn)
                 payload = {
                     **incident_status(incidents, hours),
                     "region": region,
                     "region_statuses": region_statuses(settings, hours, conn=conn),
                     "checked_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+                    "last_scrape": last_scrape,
                 }
         except Exception as exc:
             web.log_exception(
@@ -399,6 +402,7 @@ def dispatch_request(request, send_body=True):
             hours = requested_hours(request, settings)
             with database_connection(request.app) as conn:
                 incidents = load_incidents(settings.database, hours, settings.database_url, region=region, conn=conn)
+                last_scrape = load_last_scrape_run(settings.database, settings.database_url, conn=conn)
                 linked_incident = load_incident_by_key(
                     settings.database,
                     requested_incident_key(request),
@@ -414,6 +418,7 @@ def dispatch_request(request, send_body=True):
                 "region_statuses": current_region_statuses,
                 "region": region,
                 "checked_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+                "last_scrape": last_scrape,
             }
         except Exception as exc:
             web.log_exception(
@@ -445,6 +450,7 @@ def dispatch_request(request, send_body=True):
         with database_connection(request.app) as conn:
             current_region_statuses = region_statuses(settings, hours, conn=conn)
             incidents = load_incidents(settings.database, hours, settings.database_url, region=region, conn=conn)
+            last_scrape = load_last_scrape_run(settings.database, settings.database_url, conn=conn)
             linked_incident = load_incident_by_key(
                 settings.database,
                 requested_incident_key(request),
@@ -496,6 +502,7 @@ def dispatch_request(request, send_body=True):
                 map_label=region_label(region),
                 region=region,
                 region_statuses=current_region_statuses,
+                last_scrape=last_scrape,
             ).encode("utf-8")
     except Exception as exc:
         web.log_exception(

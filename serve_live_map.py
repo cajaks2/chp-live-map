@@ -23,6 +23,7 @@ from generate_live_map import (
     incident_status,
     load_incident_by_key,
     load_incidents,
+    load_last_scrape_run,
     normalize_base_path,
     normalize_region,
     region_label,
@@ -832,11 +833,13 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                         region=region,
                         conn=conn,
                     )
+                    last_scrape = load_last_scrape_run(self.database, self.database_url, conn=conn)
                     payload = {
                         **incident_status(incidents, hours),
                         "region": region,
                         "region_statuses": self.region_statuses(hours, conn=conn),
                         "checked_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+                        "last_scrape": last_scrape,
                     }
                 body = json.dumps(payload, sort_keys=True).encode("utf-8")
             except Exception as exc:
@@ -882,6 +885,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                         region=region,
                         conn=conn,
                     )
+                    last_scrape = load_last_scrape_run(self.database, self.database_url, conn=conn)
                     linked_incident = load_incident_by_key(
                         self.database,
                         self.requested_incident_key(),
@@ -897,6 +901,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                     "region_statuses": region_statuses,
                     "region": region,
                     "checked_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+                    "last_scrape": last_scrape,
                 }
                 body = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
             except Exception as exc:
@@ -943,6 +948,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
             with self.database_connection() as conn:
                 region_statuses = self.region_statuses(hours, conn=conn)
                 incidents = load_incidents(self.database, hours, self.database_url, region=region, conn=conn)
+                last_scrape = load_last_scrape_run(self.database, self.database_url, conn=conn)
                 linked_incident = load_incident_by_key(
                     self.database,
                     self.requested_incident_key(),
@@ -993,6 +999,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                     map_label=region_label(region),
                     region=region,
                     region_statuses=region_statuses,
+                    last_scrape=last_scrape,
                 ).encode("utf-8")
         except Exception as exc:
             log_exception(

@@ -46,6 +46,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         details_skipped=3,
         duration_seconds=1.25,
         http_status_counts={"GET:list:200": 1, "POST:detail:200": 2},
+        source="cad",
     )
     conn.commit()
     conn.close()
@@ -77,6 +78,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert response.status_code == 200
         assert "CHP Forest Incidents" in body
         assert "in last 72h" in body
+        assert 'Last scrape <time id="last-scrape-at" datetime="2026-05-31T08:00:00-07:00">' in body
+        assert '<span class="source-label">(CAD)</span>' in body
         assert '<link rel="icon" href="https://crestmap.us/favicon.svg?active=0&amp;v=' in body
         assert '<meta property="og:image" content="https://crestmap.us/og-image.png">' in body
         assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
@@ -143,6 +146,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert '"version":' in body
         assert payload["region_statuses"]["forest"]["active_count"] == 0
         assert payload["region_statuses"]["malibu"]["active_count"] == 0
+        assert payload["last_scrape"]["observed_at"] == "2026-05-31T08:00:00-07:00"
+        assert payload["last_scrape"]["source"] == "cad"
 
         response = client.get("/incidents.json?hours=24")
         payload = response.json()

@@ -290,6 +290,35 @@ def test_parse_media_xml_incidents_preserves_details_units_and_event_key():
     ]
 
 
+def test_validate_media_xml_freshness_rejects_stale_feed(monkeypatch):
+    class Args:
+        center = ["LACC"]
+        xml_max_age_minutes = 30
+
+    class FixedDateTime(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 6, 15, 18, 0, tzinfo=tz)
+
+    monkeypatch.setattr(scrape_chp_traffic.dt, "datetime", FixedDateTime)
+
+    xml_text = """
+    <State><Center ID="LAHB"><Dispatch ID="LACC">
+      <Log ID="260615LA2002">
+        <LogTime>"Jun 15 2026  5:00PM"</LogTime>
+        <LogDetails><details><DetailTime>"Jun 15 2026  5:10PM"</DetailTime></details></LogDetails>
+      </Log>
+    </Dispatch></Center></State>
+    """
+
+    try:
+        scrape_chp_traffic.validate_media_xml_freshness(xml_text, Args())
+    except scrape_chp_traffic.StaleMediaXmlError as exc:
+        assert "above 30 minute limit" in str(exc)
+    else:
+        raise AssertionError("stale XML feed was accepted")
+
+
 def test_parse_media_xml_incidents_normalizes_fsp_log_ids_to_cad_event_key():
     incidents = parse_media_xml_incidents(
         """
@@ -447,6 +476,50 @@ def test_scrape_once_xml_parse_error_falls_back_to_cad(monkeypatch):
     assert log_messages
     assert log_messages[0][0] == "CHP XML scrape returned malformed XML; falling back to CAD"
     assert log_messages[0][2]["chp.fallback_source"] == "cad"
+
+
+def test_scrape_once_stale_xml_falls_back_to_cad(monkeypatch):
+    class Args:
+        source_mode = "xml"
+        user_agent = "test-agent"
+
+    fallback_result = (
+        1,
+        35,
+        2,
+        2,
+        {"forest": {"matched": 2, "mapped": 2}, "malibu": {"matched": 0, "mapped": 0}},
+        2,
+        0,
+        1.25,
+        {"cad": 1.25, "xml": 0, "total": 1.25},
+        {"cad": 12345, "xml": 0, "total": 12345},
+        {"GET:list:200": 1},
+        "2026-06-22T18:22:00-07:00",
+    )
+    fallback_calls = []
+    log_messages = []
+
+    def fail_xml(_args):
+        raise scrape_chp_traffic.StaleMediaXmlError("latest timestamp too old")
+
+    def cad_fallback(args):
+        fallback_calls.append(args)
+        return fallback_result
+
+    monkeypatch.setattr(scrape_chp_traffic, "scrape_once_xml", fail_xml)
+    monkeypatch.setattr(scrape_chp_traffic, "scrape_once_cad", cad_fallback)
+    monkeypatch.setattr(
+        scrape_chp_traffic,
+        "log_exception",
+        lambda message, exc, **fields: log_messages.append((message, exc, fields)),
+    )
+
+    args = Args()
+    assert scrape_chp_traffic.scrape_once(args) == fallback_result
+    assert fallback_calls == [args]
+    assert log_messages[0][0] == "CHP XML scrape is stale; falling back to CAD"
+    assert log_messages[0][2]["error.type"] == "StaleMediaXmlError"
 
 
 def test_parser_keeps_repeated_detail_tables():
@@ -890,13 +963,16 @@ def test_sqlite_scrape_runs_store_total_seen_and_migrate_existing_table(tmp_path
         details_skipped=3,
         duration_seconds=1.25,
         http_status_counts={"GET:list:200": 1, "POST:detail:200": 2},
+        source="xml",
     )
     conn.commit()
 
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(scrape_runs)")}
     run = conn.execute("SELECT * FROM scrape_runs").fetchone()
     assert "total_seen" in columns
+    assert "source" in columns
     assert "http_status_counts" in columns
+    assert run["source"] == "xml"
     assert run["total_seen"] == 12
     assert run["active_seen"] == 2
     assert run["observations_inserted"] == 1

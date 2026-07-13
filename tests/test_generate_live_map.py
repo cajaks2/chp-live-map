@@ -355,7 +355,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "Traffic <Hazard>" not in html
     assert "Traffic \\u003cHazard" not in html
     assert "function formatGeneratedAt" in html
-    assert 'generatedAt.getAttribute("datetime")' in html
+    assert 'element.getAttribute("datetime")' in html
+    assert "function setLastScrape" in html
     assert "function formatIncidentWhen" in html
     assert 'new URLSearchParams(window.location.search).get("incident")' in html
     assert 'url.searchParams.set("incident", incident.event_key)' in html

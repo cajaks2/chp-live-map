@@ -107,6 +107,42 @@ def hydrate_incident(row, region):
     return incident
 
 
+def load_last_scrape_run(database, database_url=None, conn=None):
+    if conn is None and not database_url and not database.exists():
+        return None
+    should_close = False
+    if conn is not None:
+        placeholder = "%s" if database_url else "?"
+    elif database_url:
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+        except ImportError as exc:
+            raise RuntimeError("Postgres support requires psycopg. Install requirements.txt.") from exc
+        conn = psycopg.connect(database_url, row_factory=dict_row)
+        should_close = True
+        placeholder = "%s"
+    else:
+        conn = sqlite3.connect(database)
+        conn.row_factory = sqlite3.Row
+        should_close = True
+        placeholder = "?"
+    try:
+        row = conn.execute(
+            """
+            SELECT observed_at, source, total_seen, active_seen, active_with_coords, duration_seconds
+            FROM scrape_runs
+            ORDER BY observed_at DESC, id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+    except Exception:
+        row = None
+    if should_close:
+        conn.close()
+    return dict(row) if row else None
+
+
 def load_incident_by_key(database, event_key, database_url=None, region="forest", conn=None):
     region = normalize_region(region)
     if not event_key or (conn is None and not database_url and not database.exists()):
@@ -355,6 +391,22 @@ def analytics_script(google_analytics_id=None):
 """
 
 
+def scrape_source_label(source):
+    labels = {"xml": "XML", "cad": "CAD", "unknown": "unknown"}
+    return labels.get((source or "unknown").casefold(), source or "unknown")
+
+
+def scrape_meta_html(last_scrape):
+    if not last_scrape or not last_scrape.get("observed_at"):
+        return '<span>Last scrape unavailable</span>'
+    observed_at = html.escape(str(last_scrape.get("observed_at")))
+    source = html.escape(scrape_source_label(last_scrape.get("source")))
+    return (
+        f'<span>Last scrape <time id="last-scrape-at" datetime="{observed_at}">{observed_at}</time>'
+        f' <span class="source-label">({source})</span></span>'
+    )
+
+
 def build_html(
     incidents,
     generated_at,
@@ -365,6 +417,7 @@ def build_html(
     map_label="Forest",
     region="forest",
     region_statuses=None,
+    last_scrape=None,
 ):
     region = normalize_region(region)
     map_label = region_label(region)
@@ -1438,7 +1491,7 @@ def build_html(
           {view_menu(base_path, "map", hours, region)}
         </div>
         <div class="meta">{active_count} active · {status['total_count']} in last {hours:g}h · {mapped_count} mapped</div>
-        <div class="meta checked-meta"><span>Last checked <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span><span aria-hidden="true">·</span>
+        <div class="meta checked-meta"><span>Last checked <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span><span aria-hidden="true">·</span>{scrape_meta_html(last_scrape)}<span aria-hidden="true">·</span>
           <label class="auto-refresh-control" title="Automatically reload when new incident data is available">
             <input type="checkbox" id="auto-refresh-enabled">
             Auto refresh
@@ -1611,23 +1664,27 @@ def build_html(
       }}[char]));
     }}
 
-    function formatGeneratedAt() {{
-      const generatedAt = document.getElementById("generated-at");
-      if (!generatedAt) {{
+    function formatTimeElement(element) {{
+      if (!element) {{
         return;
       }}
-      const dateTime = generatedAt.getAttribute("datetime");
+      const dateTime = element.getAttribute("datetime");
       const date = new Date(dateTime);
       if (Number.isNaN(date.getTime())) {{
         return;
       }}
-      generatedAt.textContent = date.toLocaleString([], {{
+      element.textContent = date.toLocaleString([], {{
         month: "short",
         day: "numeric",
         hour: "numeric",
         minute: "2-digit"
       }});
-      generatedAt.title = dateTime;
+      element.title = dateTime;
+    }}
+
+    function formatGeneratedAt() {{
+      formatTimeElement(document.getElementById("generated-at"));
+      formatTimeElement(document.getElementById("last-scrape-at"));
     }}
 
     function setCheckedAt(value) {{
@@ -1637,6 +1694,20 @@ def build_html(
       }}
       generatedAt.setAttribute("datetime", value);
       formatGeneratedAt();
+    }}
+
+    function setLastScrape(scrape) {{
+      const lastScrapeAt = document.getElementById("last-scrape-at");
+      if (!lastScrapeAt || !scrape || !scrape.observed_at) {{
+        return;
+      }}
+      lastScrapeAt.setAttribute("datetime", scrape.observed_at);
+      lastScrapeAt.textContent = scrape.observed_at;
+      const sourceLabel = lastScrapeAt.parentElement?.querySelector(".source-label");
+      if (sourceLabel && scrape.source) {{
+        sourceLabel.textContent = `(${{String(scrape.source).toUpperCase()}})`;
+      }}
+      formatTimeElement(lastScrapeAt);
     }}
 
     function setupStaleRefresh() {{
@@ -1701,6 +1772,7 @@ def build_html(
           if (latest.checked_at) {{
             setCheckedAt(latest.checked_at);
           }}
+          setLastScrape(latest.last_scrape);
           updateRegionCounts(latest.region_statuses);
           if (latest.version && latest.version !== currentDataStatus.version) {{
             if (autoRefreshToggle.checked) {{
@@ -2155,6 +2227,7 @@ def build_html(
       if (payload.checked_at) {{
         setCheckedAt(payload.checked_at);
       }}
+      setLastScrape(payload.last_scrape);
       render({{ preserveViewport: Boolean(options.preserveViewport) }});
       document.getElementById("stale-notice")?.classList.remove("is-visible");
       return payload;

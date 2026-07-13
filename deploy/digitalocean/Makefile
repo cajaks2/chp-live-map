@@ -81,7 +81,7 @@ health:
 
 verify: health
 	curl -fsS "$(PUBLIC_URL)" -o /tmp/chp-live-map-do-verify.html
-	grep -E 'CHP Forest Incidents|Last checked|rel="icon"' /tmp/chp-live-map-do-verify.html
+	grep -E 'CHP Forest Incidents|View last updated|rel="icon"' /tmp/chp-live-map-do-verify.html
 
 metrics:
 	curl -fsS http://127.0.0.1:8080/metrics | head -40

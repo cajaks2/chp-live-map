@@ -342,7 +342,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '<a class="range-tab is-active" href="?hours=72&amp;region=forest" aria-current="page">72h</a>' in html
     assert '<a class="range-tab" href="?hours=720&amp;region=forest">30d</a>' in html
     assert "1 active · 2 in last 72h · 1 mapped" in html
-    assert 'Last checked <time id="generated-at" datetime="2026-05-31T08:05:00-07:00">' in html
+    assert 'View last updated <time id="generated-at" datetime="2026-05-31T08:05:00-07:00">' in html
     assert "const initialDataStatus" in html
     assert '"region": "forest"' in html
     assert 'const statusEndpoint = "/status.json"' in html

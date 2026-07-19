@@ -209,16 +209,33 @@ def moderation_rows(conn, status="pending", limit=50):
     ph = placeholder(conn)
     rows = conn.execute(
         f"""
-        SELECT id, event_key, status, display_name, body, category, contact, created_at,
-               cf_country, user_agent
-        FROM incident_comments
-        WHERE status = {ph}
-        ORDER BY created_at ASC, id ASC
+        SELECT c.id, c.event_key, c.status, c.display_name, c.body, c.category, c.contact,
+               c.created_at, c.cf_country, c.user_agent, c.cf_connecting_ip,
+               e.type, e.location, e.area, e.incident_no, e.region
+        FROM incident_comments c
+        LEFT JOIN events e ON e.event_key = c.event_key
+        WHERE c.status = {ph}
+        ORDER BY c.created_at ASC, c.id ASC
         LIMIT {int(limit)}
         """,
         (status,),
     ).fetchall()
     return [dict(row) for row in rows]
+
+
+def comment_status_counts(conn):
+    rows = conn.execute(
+        """
+        SELECT status, COUNT(*) AS count
+        FROM incident_comments
+        GROUP BY status
+        """
+    ).fetchall()
+    counts = {"pending": 0, "approved": 0, "rejected": 0}
+    for row in rows:
+        data = dict(row)
+        counts[data["status"]] = int(data["count"])
+    return counts
 
 
 def pending_count(conn):

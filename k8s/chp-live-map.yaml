@@ -14,6 +14,8 @@ stringData:
   POSTGRES_USER: chp_map
   POSTGRES_PASSWORD: change-me
   DATABASE_URL: postgresql://chp_map:change-me@chp-live-map-postgres:5432/chp_map
+  ADMIN_USERNAME: admin
+  ADMIN_PASSWORD: change-me
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -135,7 +137,7 @@ spec:
     spec:
       containers:
         - name: scrape
-          image: cajaks2/chp-live-map:0.1.134
+          image: cajaks2/chp-live-map:0.1.135
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -154,7 +156,7 @@ spec:
                   name: chp-live-map-db
                   key: DATABASE_URL
             - name: SERVICE_VERSION
-              value: "0.1.134"
+              value: "0.1.135"
             - name: CHP_USER_AGENT
               value: "chp-live-map/0.1 (+https://crestmap.us/)"
             - name: CHP_SOURCE_MODE
@@ -218,7 +220,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: cajaks2/chp-live-map:0.1.134
+          image: cajaks2/chp-live-map:0.1.135
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -238,7 +240,7 @@ spec:
             - name: HTTP_PORT
               value: "8080"
             - name: SERVICE_VERSION
-              value: "0.1.134"
+              value: "0.1.135"
             - name: BASE_PATH
               value: /
             - name: PUBLIC_URL
@@ -247,6 +249,18 @@ spec:
               value: ""
             - name: WEB_WORKERS
               value: "1"
+            - name: ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: chp-live-map-db
+                  key: ADMIN_USERNAME
+                  optional: true
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: chp-live-map-db
+                  key: ADMIN_PASSWORD
+                  optional: true
           resources:
             requests:
               cpu: 25m

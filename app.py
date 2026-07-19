@@ -1,6 +1,9 @@
+import base64
 import datetime as dt
+import html
 import json
 import os
+import secrets
 import time
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
@@ -10,7 +13,15 @@ from urllib.parse import parse_qs, unquote
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 
-from comments import CommentValidationError, list_approved_comments, submit_comment
+from comments import (
+    CommentValidationError,
+    comment_status_counts,
+    delete_comment,
+    list_approved_comments,
+    moderation_rows,
+    set_comment_status,
+    submit_comment,
+)
 import serve_live_map as web
 from generate_live_map import (
     build_about_html,
@@ -39,6 +50,8 @@ class WebSettings:
     google_analytics_id: str | None = None
     database_pool_min: int = 1
     database_pool_max: int = 5
+    admin_username: str | None = None
+    admin_password: str | None = None
 
     @classmethod
     def from_env(cls):
@@ -51,6 +64,8 @@ class WebSettings:
             google_analytics_id=os.environ.get("GOOGLE_ANALYTICS_ID") or None,
             database_pool_min=int(os.environ.get("DATABASE_POOL_MIN", "1")),
             database_pool_max=int(os.environ.get("DATABASE_POOL_MAX", "5")),
+            admin_username=os.environ.get("ADMIN_USERNAME") or None,
+            admin_password=os.environ.get("ADMIN_PASSWORD") or None,
         )
 
 
@@ -129,6 +144,8 @@ def route_label(path, settings):
         return "status"
     if path in {"/incidents.json", f"{asset_base}/incidents.json"}:
         return "incidents"
+    if path in {"/admin/comments", f"{asset_base}/admin/comments"}:
+        return "admin_comments"
     if path.startswith("/api/v1/incidents/") and path.endswith("/comments"):
         return "comments"
     if path in {"/metrics", f"{asset_base}/metrics"}:
@@ -246,6 +263,19 @@ def json_response(payload, status_code=200, cache_control=None, send_body=True):
     )
 
 
+def html_response(body, status_code=200, cache_control="no-store", send_body=True, headers=None):
+    response = byte_response(
+        body.encode("utf-8"),
+        "text/html; charset=utf-8",
+        status_code=status_code,
+        cache_control=cache_control,
+        send_body=send_body,
+    )
+    for key, value in (headers or {}).items():
+        response.headers[key] = value
+    return response
+
+
 def api_error(message, code="error", status_code=400, send_body=True):
     return json_response(
         {"error": {"code": code, "message": message}},
@@ -261,6 +291,58 @@ def comment_event_key_from_path(path):
     if not path.startswith(prefix) or not path.endswith(suffix):
         return None
     return unquote(path[len(prefix) : -len(suffix)])
+
+
+def admin_enabled(settings):
+    return bool(settings.admin_username and settings.admin_password)
+
+
+def admin_unauthorized(send_body=True):
+    return html_response(
+        "<!doctype html><title>Unauthorized</title><h1>Unauthorized</h1>",
+        status_code=401,
+        send_body=send_body,
+        headers={"WWW-Authenticate": 'Basic realm="Crestmap comments", charset="UTF-8"'},
+    )
+
+
+def admin_authorized(request):
+    settings = request.app.state.settings
+    if not admin_enabled(settings):
+        return False
+    auth = request.headers.get("authorization", "")
+    if not auth.startswith("Basic "):
+        return False
+    try:
+        decoded = base64.b64decode(auth.split(" ", 1)[1], validate=True).decode("utf-8")
+    except Exception:
+        return False
+    username, separator, password = decoded.partition(":")
+    return bool(
+        separator
+        and secrets.compare_digest(username, settings.admin_username or "")
+        and secrets.compare_digest(password, settings.admin_password or "")
+    )
+
+
+def admin_path(settings):
+    base = normalize_base_path(settings.base_path)
+    return "/admin/comments" if base == "/" else f"{base}/admin/comments"
+
+
+def admin_status_from_request(request):
+    status = (_query(request).get("status") or ["pending"])[0]
+    return status if status in {"pending", "approved", "rejected"} else "pending"
+
+
+def same_origin_admin_post(request):
+    origin = request.headers.get("origin")
+    referer = request.headers.get("referer")
+    expected = f"{request.url.scheme}://{request.headers.get('host', request.url.netloc)}"
+    for value in (origin, referer):
+        if value and not value.startswith(expected):
+            return False
+    return True
 
 
 def dispatch_request(request, send_body=True):
@@ -562,6 +644,230 @@ def dispatch_request(request, send_body=True):
     return byte_response(body, "text/html; charset=utf-8", cache_control=web.MAP_CACHE_CONTROL, send_body=send_body)
 
 
+def build_admin_comments_html(rows, counts, status, message="", admin_url="/admin/comments"):
+    tabs = []
+    for tab_status, label in (("pending", "Pending"), ("approved", "Approved"), ("rejected", "Rejected")):
+        count = counts.get(tab_status, 0)
+        selected = tab_status == status
+        tabs.append(
+            '<a class="tab{}" href="{}?status={}">{} <span>{}</span></a>'.format(
+                " is-active" if selected else "",
+                html.escape(admin_url),
+                html.escape(tab_status),
+                html.escape(label),
+                count,
+            )
+        )
+    cards = []
+    for row in rows:
+        incident_url = f"/?region={html.escape(row.get('region') or 'forest')}&incident={html.escape(row['event_key'])}"
+        actions = []
+        if row["status"] != "approved":
+            actions.append(("approve", "Approve"))
+        if row["status"] != "rejected":
+            actions.append(("reject", "Reject"))
+        actions.append(("delete", "Delete"))
+        action_html = "".join(
+            f"""
+            <form method="post" action="{html.escape(admin_url)}">
+              <input type="hidden" name="id" value="{int(row['id'])}">
+              <input type="hidden" name="status" value="{html.escape(status)}">
+              <button class="action {html.escape(action)}" name="action" value="{html.escape(action)}">{html.escape(label)}</button>
+            </form>
+            """
+            for action, label in actions
+        )
+        meta = " · ".join(
+            part
+            for part in [
+                row.get("created_at") or "",
+                row.get("display_name") or "Anonymous",
+                row.get("cf_country") or "",
+                row.get("cf_connecting_ip") or "",
+            ]
+            if part
+        )
+        incident_title = " · ".join(
+            part
+            for part in [
+                row.get("type") or "Unknown incident",
+                row.get("location") or "",
+                f"#{row.get('incident_no')}" if row.get("incident_no") else "",
+            ]
+            if part
+        )
+        contact = (
+            f'<div class="contact">Contact: {html.escape(row["contact"])}</div>'
+            if row.get("contact")
+            else ""
+        )
+        cards.append(
+            f"""
+            <article class="comment-card">
+              <div class="comment-top">
+                <div>
+                  <div class="comment-id">#{int(row['id'])} · {html.escape(row['status'])}</div>
+                  <h2>{html.escape(incident_title)}</h2>
+                  <a class="incident-link" href="{incident_url}" target="_blank" rel="noreferrer">{html.escape(row['event_key'])}</a>
+                </div>
+                <div class="actions">{action_html}</div>
+              </div>
+              <div class="meta">{html.escape(meta)}</div>
+              {contact}
+              <p>{html.escape(row.get("body") or "")}</p>
+              <details>
+                <summary>User agent</summary>
+                <code>{html.escape(row.get("user_agent") or "")}</code>
+              </details>
+            </article>
+            """
+        )
+    if not cards:
+        cards.append('<div class="empty-admin">No comments in this queue.</div>')
+    message_html = f'<div class="notice">{html.escape(message)}</div>' if message else ""
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crestmap Comment Moderation</title>
+  <style>
+    body {{ margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1d252a; background: #f6f8f3; }}
+    header, main {{ max-width: 1040px; margin: 0 auto; padding: 18px; }}
+    header {{ display: flex; justify-content: space-between; gap: 16px; align-items: flex-end; }}
+    h1 {{ margin: 0; font-size: 28px; letter-spacing: 0; }}
+    h2 {{ margin: 4px 0; font-size: 18px; letter-spacing: 0; }}
+    .tabs {{ display: flex; gap: 8px; flex-wrap: wrap; }}
+    .tab {{ padding: 8px 12px; border: 1px solid #d7ded2; border-radius: 8px; color: #35413a; text-decoration: none; font-weight: 800; background: #fff; }}
+    .tab.is-active {{ color: #fff; border-color: #2b7c4a; background: #2b7c4a; }}
+    .tab span {{ opacity: 0.8; }}
+    .notice {{ margin-bottom: 12px; padding: 10px 12px; border: 1px solid #bdd4c0; border-radius: 8px; background: #edf7ee; color: #1f6840; font-weight: 700; }}
+    .comment-card, .empty-admin {{ margin-bottom: 12px; padding: 14px; border: 1px solid #dce3d7; border-radius: 10px; background: #fff; box-shadow: 0 1px 2px rgba(21, 35, 25, 0.04); }}
+    .comment-top {{ display: flex; justify-content: space-between; gap: 12px; }}
+    .comment-id, .meta, .contact {{ color: #58645d; font-size: 13px; line-height: 1.35; }}
+    .incident-link {{ color: #1f6840; overflow-wrap: anywhere; }}
+    p {{ white-space: pre-wrap; line-height: 1.45; }}
+    .actions {{ display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; align-content: flex-start; }}
+    form {{ margin: 0; }}
+    .action {{ min-height: 32px; padding: 6px 10px; border: 1px solid #ccd8cc; border-radius: 7px; font: inherit; font-weight: 800; cursor: pointer; background: #f8faf6; }}
+    .approve {{ color: #fff; border-color: #2b7c4a; background: #2b7c4a; }}
+    .reject {{ color: #72510e; border-color: #dfc06c; background: #fff7d8; }}
+    .delete {{ color: #9f2525; border-color: #e2b9b9; background: #fff1f1; }}
+    details {{ margin-top: 10px; color: #58645d; }}
+    code {{ display: block; margin-top: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }}
+    @media (max-width: 720px) {{
+      header, .comment-top {{ display: block; }}
+      .actions {{ justify-content: flex-start; margin-top: 10px; }}
+    }}
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Comment Moderation</h1>
+      <div class="meta">Only approved comments are shown publicly.</div>
+    </div>
+    <nav class="tabs">{"".join(tabs)}</nav>
+  </header>
+  <main>
+    {message_html}
+    {"".join(cards)}
+  </main>
+</body>
+</html>"""
+
+
+def handle_admin_comments_get(request, send_body=True, message=""):
+    settings = request.app.state.settings
+    if not admin_enabled(settings):
+        return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404, send_body=send_body)
+    if not admin_authorized(request):
+        return admin_unauthorized(send_body=send_body)
+    status = admin_status_from_request(request)
+    try:
+        with writable_database_connection(request.app) as conn:
+            rows = moderation_rows(conn, status=status, limit=100)
+            counts = comment_status_counts(conn)
+        body = build_admin_comments_html(
+            rows,
+            counts,
+            status,
+            message=message,
+            admin_url=admin_path(settings),
+        )
+        return html_response(body, cache_control="no-store", send_body=send_body)
+    except Exception as exc:
+        web.log_exception(
+            "Failed to render comment moderation",
+            exc,
+            **{
+                "event.action": "admin_comments",
+                "event.outcome": "failure",
+                "http.request.method": request.method,
+                "url.path": request_target(request),
+                "http.response.status_code": 500,
+                **client_log_fields(request),
+            },
+        )
+        return byte_response(b"failed to render admin comments\n", "text/plain; charset=utf-8", status_code=500)
+
+
+async def handle_admin_comments_post(request):
+    settings = request.app.state.settings
+    if not admin_enabled(settings):
+        return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404)
+    if not admin_authorized(request):
+        return admin_unauthorized()
+    if not same_origin_admin_post(request):
+        return byte_response(b"Forbidden\n", "text/plain; charset=utf-8", status_code=403)
+    raw_body = (await request.body()).decode("utf-8", errors="replace")
+    fields = {key: values[-1] for key, values in parse_qs(raw_body).items()}
+    action = fields.get("action")
+    status = fields.get("status") if fields.get("status") in {"pending", "approved", "rejected"} else "pending"
+    try:
+        comment_id = int(fields.get("id", ""))
+    except ValueError:
+        return byte_response(b"Bad Request\n", "text/plain; charset=utf-8", status_code=400)
+    if action not in {"approve", "reject", "delete"}:
+        return byte_response(b"Bad Request\n", "text/plain; charset=utf-8", status_code=400)
+    try:
+        with writable_database_connection(request.app) as conn:
+            if action == "approve":
+                set_comment_status(conn, comment_id, "approved")
+            elif action == "reject":
+                set_comment_status(conn, comment_id, "rejected")
+            else:
+                delete_comment(conn, comment_id)
+            conn.commit()
+        web.log_event(
+            "info",
+            "Moderated incident comment",
+            **{
+                "event.action": "admin_comments",
+                "event.outcome": "success",
+                "chp.comment.id": comment_id,
+                "chp.comment.action": action,
+                **client_log_fields(request),
+            },
+        )
+    except Exception as exc:
+        web.log_exception(
+            "Failed to moderate incident comment",
+            exc,
+            **{
+                "event.action": "admin_comments",
+                "event.outcome": "failure",
+                "chp.comment.id": comment_id,
+                "chp.comment.action": action,
+                "http.response.status_code": 500,
+                **client_log_fields(request),
+            },
+        )
+        return byte_response(b"failed to moderate comment\n", "text/plain; charset=utf-8", status_code=500)
+    action_label = {"approve": "approved", "reject": "rejected", "delete": "deleted"}[action]
+    return handle_admin_comments_get(request, message=f"Comment #{comment_id} {action_label}.")
+
+
 def handle_comments_get(request, event_key, send_body=True):
     try:
         with writable_database_connection(request.app) as conn:
@@ -753,6 +1059,8 @@ def create_app(settings=None):
 
     @app.get("/{full_path:path}")
     def get_anything(request: Request, full_path: str):
+        if _path(request) == admin_path(settings):
+            return handle_admin_comments_get(request, send_body=True)
         event_key = comment_event_key_from_path(_path(request))
         if event_key is not None:
             return handle_comments_get(request, event_key, send_body=True)
@@ -760,6 +1068,8 @@ def create_app(settings=None):
 
     @app.head("/{full_path:path}")
     def head_anything(request: Request, full_path: str):
+        if _path(request) == admin_path(settings):
+            return handle_admin_comments_get(request, send_body=False)
         event_key = comment_event_key_from_path(_path(request))
         if event_key is not None:
             return handle_comments_get(request, event_key, send_body=False)
@@ -767,6 +1077,8 @@ def create_app(settings=None):
 
     @app.post("/{full_path:path}")
     async def post_anything(request: Request, full_path: str):
+        if _path(request) == admin_path(settings):
+            return await handle_admin_comments_post(request)
         event_key = comment_event_key_from_path(_path(request))
         if event_key is not None:
             return await handle_comments_post(request, event_key)

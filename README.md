@@ -276,6 +276,22 @@ python manage_comments.py reject 123
 python manage_comments.py delete 123
 ```
 
+Or enable the web moderation GUI by setting both `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
+When either value is unset, `/admin/comments` returns 404. When enabled, it is protected
+with HTTP Basic auth and supports approving, rejecting, and deleting comments:
+
+```text
+GET  /admin/comments
+```
+
+On the DigitalOcean compose host, store the credentials in `/opt/chp-live-map/.env`
+instead of committing them:
+
+```bash
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=replace-with-a-long-random-password
+```
+
 Prometheus metrics:
 
 | Metric | Type | Meaning |

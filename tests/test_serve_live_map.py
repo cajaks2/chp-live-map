@@ -1,4 +1,5 @@
 import json
+import base64
 
 from fastapi.testclient import TestClient
 
@@ -28,6 +29,11 @@ def make_client(database, **overrides):
         **overrides,
     )
     return TestClient(create_app(settings))
+
+
+def basic_auth(username="admin", password="secret"):
+    token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
+    return {"Authorization": f"Basic {token}"}
 
 
 def sample_event(event_key="LACC|2026-06-08|1234", region="forest"):
@@ -528,3 +534,86 @@ def test_comment_for_missing_incident_returns_404(tmp_path):
         )
         assert response.status_code == 404
         assert response.json()["error"]["code"] == "not_found"
+
+
+def test_admin_comments_disabled_without_credentials(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    conn = connect_database(database)
+    conn.close()
+
+    with make_client(database) as client:
+        response = client.get("/admin/comments")
+        assert response.status_code == 404
+
+
+def test_admin_comments_requires_basic_auth(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    conn = connect_database(database)
+    conn.close()
+
+    with make_client(database, admin_username="admin", admin_password="secret") as client:
+        response = client.get("/admin/comments")
+        assert response.status_code == 401
+        assert response.headers["WWW-Authenticate"].startswith("Basic ")
+
+        response = client.get("/admin/comments", headers=basic_auth("admin", "wrong"))
+        assert response.status_code == 401
+
+
+def test_admin_comments_approves_pending_comment(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    event_key = "LACC|2026-06-08|1234"
+    conn = connect_database(database)
+    upsert_active_event(conn, sample_event(event_key))
+    conn.commit()
+    conn.close()
+
+    with make_client(database, admin_username="admin", admin_password="secret") as client:
+        response = client.post(
+            f"/api/v1/incidents/{event_key}/comments",
+            json={"display_name": "Bob", "body": "Chains required at the top."},
+            headers={"CF-Connecting-IP": "198.51.100.50", "User-Agent": "admin-test/1.0"},
+        )
+        assert response.status_code == 202
+
+        response = client.get("/admin/comments", headers=basic_auth())
+        assert response.status_code == 200
+        body = response.text
+        assert "Comment Moderation" in body
+        assert "Chains required at the top." in body
+        assert "Approve" in body
+        assert "Reject" in body
+        assert "Delete" in body
+
+        conn = connect_database(database)
+        row = conn.execute("SELECT id FROM incident_comments").fetchone()
+        conn.close()
+
+        response = client.post(
+            "/admin/comments",
+            data={"id": str(row["id"]), "action": "approve", "status": "pending"},
+            headers={**basic_auth(), "Origin": "http://testserver"},
+        )
+        assert response.status_code == 200
+        assert f"Comment #{row['id']} approved." in response.text
+
+        response = client.get(f"/api/v1/incidents/{event_key}/comments")
+        assert response.status_code == 200
+        comments = response.json()["data"]
+        assert len(comments) == 1
+        assert comments[0]["display_name"] == "Bob"
+        assert comments[0]["body"] == "Chains required at the top."
+
+
+def test_admin_comments_rejects_cross_origin_post(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    conn = connect_database(database)
+    conn.close()
+
+    with make_client(database, admin_username="admin", admin_password="secret") as client:
+        response = client.post(
+            "/admin/comments",
+            data={"id": "1", "action": "delete", "status": "pending"},
+            headers={**basic_auth(), "Origin": "https://evil.example"},
+        )
+        assert response.status_code == 403

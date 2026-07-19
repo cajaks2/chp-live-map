@@ -2143,7 +2143,7 @@ def build_html(
         }}
         groupedDetails.get(section).push(entry);
       }});
-      const details = Array.from(groupedDetails.entries()).map(([section, entries]) => `
+      const renderDetailSections = (sections) => sections.map(([section, entries]) => `
         <div class="detail-subsection">
           <h3>${{escapeHtml(section)}}</h3>
           <ol class="detail-log">
@@ -2156,6 +2156,14 @@ def build_html(
           </ol>
         </div>
       `).join("");
+      const detailSections = Array.from(groupedDetails.entries())
+        .filter(([section]) => section !== "Unit Information");
+      const unitSections = Array.from(groupedDetails.entries())
+        .filter(([section]) => section === "Unit Information");
+      const detailEntries = renderDetailSections(detailSections);
+      const unitEntries = renderDetailSections(unitSections);
+      const noEntries = '<div class="empty">No detail entries captured.</div>';
+      const trailingEntries = unitEntries || (!detailEntries ? noEntries : "");
       const coordText = incident.latitude == null || incident.longitude == null
         ? '<span class="mapless">No coordinates exposed by CHP for this incident.</span>'
         : `${{escapeHtml(incident.latitude)}}, ${{escapeHtml(incident.longitude)}}`;
@@ -2191,6 +2199,7 @@ def build_html(
               ${{incident.cleared_at ? `<dt>Cleared</dt><dd>${{escapeHtml(incident.cleared_at)}}</dd>` : ""}}
             </dl>
           </section>
+          ${{detailEntries ? `<section class="detail-section">${{detailEntries}}</section>` : ""}}
           <section class="detail-section">
             <div class="detail-subsection">
               <h3>Comments</h3>
@@ -2207,9 +2216,7 @@ def build_html(
               </form>
             </div>
           </section>
-          <section class="detail-section">
-            ${{details || '<div class="empty">No detail entries captured.</div>'}}
-          </section>
+          ${{trailingEntries ? `<section class="detail-section">${{trailingEntries}}</section>` : ""}}
         </div>
       `;
     }}

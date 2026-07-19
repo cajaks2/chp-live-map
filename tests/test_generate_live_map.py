@@ -414,6 +414,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'dismissButton.addEventListener("click"' in html
     assert "function setupStaleRefresh" in html
     assert "healthAgeMs > 180000" in html
+    assert "function focusedCommentFormFor" in html
+    assert "preserveFocusedComment: true" in html
+    assert "detailsPanel.dataset.selectedIncidentKey === incident.event_key" in html
     assert "function escapeHtml" in html
     assert "no map pin" in html
     assert "window.chpLiveMap" in html

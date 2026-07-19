@@ -2042,6 +2042,18 @@ def build_html(
       }}
     }}
 
+    function focusedCommentFormFor(incident) {{
+      const activeElement = document.activeElement;
+      if (!activeElement || !detailsPanel.contains(activeElement)) {{
+        return null;
+      }}
+      const form = activeElement.closest?.("[data-comment-form]");
+      if (!form || form.dataset.commentForm !== incident.event_key) {{
+        return null;
+      }}
+      return form;
+    }}
+
     function updateListScrollCue() {{
       if (!listShell || !list) {{
         return;
@@ -2207,8 +2219,14 @@ def build_html(
         return;
       }}
       selectedIncidentKey = incident.event_key;
-      detailsPanel.innerHTML = detailHtml(incident);
-      loadComments(incident);
+      const preserveFocusedComment = options.preserveFocusedComment === true
+        && detailsPanel.dataset.selectedIncidentKey === incident.event_key
+        && focusedCommentFormFor(incident);
+      if (!preserveFocusedComment) {{
+        detailsPanel.innerHTML = detailHtml(incident);
+        detailsPanel.dataset.selectedIncidentKey = incident.event_key;
+        loadComments(incident);
+      }}
       document.querySelectorAll(".incident").forEach((button) => {{
         button.setAttribute("aria-current", button.dataset.eventKey === incident.event_key ? "true" : "false");
         if (options.revealList && button.dataset.eventKey === incident.event_key) {{
@@ -2390,6 +2408,7 @@ def build_html(
       selectIncident(selectedIncident, {{
         pan: Boolean(linkedIncident) && !options.preserveViewport,
         revealList: Boolean(linkedIncident),
+        preserveFocusedComment: Boolean(options.preserveFocusedComment),
         updateUrl: options.updateUrl !== false
       }});
     }}
@@ -2423,7 +2442,10 @@ def build_html(
         setCheckedAt(payload.checked_at);
       }}
       setLastScrape(payload.last_scrape);
-      render({{ preserveViewport: Boolean(options.preserveViewport) }});
+      render({{
+        preserveViewport: Boolean(options.preserveViewport),
+        preserveFocusedComment: true
+      }});
       document.getElementById("stale-notice")?.classList.remove("is-visible");
       return payload;
     }}

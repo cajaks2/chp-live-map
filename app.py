@@ -693,11 +693,11 @@ def build_admin_comments_html(rows, counts, status, message="", admin_url="/admi
             for part in [
                 row.get("created_at") or "",
                 row.get("display_name") or "Anonymous",
-                row.get("cf_country") or "",
-                row.get("cf_connecting_ip") or "",
             ]
             if part
         )
+        submitter_ip = row.get("cf_connecting_ip") or "unknown"
+        submitter_country = row.get("cf_country") or "unknown"
         incident_title = " · ".join(
             part
             for part in [
@@ -724,6 +724,7 @@ def build_admin_comments_html(rows, counts, status, message="", admin_url="/admi
                 <div class="actions">{action_html}</div>
               </div>
               <div class="meta">{html.escape(meta)}</div>
+              <div class="contact">Submitter IP: {html.escape(submitter_ip)} · Country: {html.escape(submitter_country)}</div>
               {contact}
               <p>{html.escape(row.get("body") or "")}</p>
               <details>

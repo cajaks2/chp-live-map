@@ -27,7 +27,12 @@ def cmd_list(args):
     for row in rows:
         name = row.get("display_name") or "Anonymous"
         contact = f" contact={row['contact']}" if row.get("contact") else ""
-        print(f"#{row['id']} {row['created_at']} {row['status']} {row['event_key']} {name}{contact}")
+        ip = row.get("cf_connecting_ip") or "unknown"
+        country = row.get("cf_country") or "unknown"
+        print(
+            f"#{row['id']} {row['created_at']} {row['status']} {row['event_key']} "
+            f"{name} ip={ip} country={country}{contact}"
+        )
         print(f"  {row['body']}")
 
 

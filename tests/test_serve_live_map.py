@@ -584,6 +584,7 @@ def test_admin_comments_approves_pending_comment(tmp_path):
         assert "Approve" in body
         assert "Reject" in body
         assert "Delete" in body
+        assert "Submitter IP: 198.51.100.50" in body
 
         conn = connect_database(database)
         row = conn.execute("SELECT id FROM incident_comments").fetchone()

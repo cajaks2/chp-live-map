@@ -2192,9 +2192,6 @@ def build_html(
             </dl>
           </section>
           <section class="detail-section">
-            ${{details || '<div class="empty">No detail entries captured.</div>'}}
-          </section>
-          <section class="detail-section">
             <div class="detail-subsection">
               <h3>Comments</h3>
               <div data-comments-for="${{escapeHtml(incident.event_key)}}"><div class="empty">Loading comments...</div></div>
@@ -2209,6 +2206,9 @@ def build_html(
                 <div class="comment-status" role="status"></div>
               </form>
             </div>
+          </section>
+          <section class="detail-section">
+            ${{details || '<div class="empty">No detail entries captured.</div>'}}
           </section>
         </div>
       `;

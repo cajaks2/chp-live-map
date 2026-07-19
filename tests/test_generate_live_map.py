@@ -371,6 +371,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "Detail Information" in html
     assert "Unit Information" in html
     assert "detail-subsection" in html
+    assert html.index("<h3>Comments</h3>") < html.index('${details || \'<div class="empty">No detail entries captured.</div>\'}')
     assert 'id="stale-notice"' in html
     assert 'id="stale-notice-text"' in html
     assert 'id="dismiss-stale-notice"' in html

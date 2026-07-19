@@ -13,6 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+from comments import COMMENT_SUBMISSIONS_TOTAL, pending_count
 from ecs_logging import log_event, log_exception, run_main
 from generate_live_map import (
     build_about_html,
@@ -319,6 +320,7 @@ def empty_metric_status(hours):
 
 
 def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None):
+    comments_pending = 0
     if not database_url and not database.exists():
         status = empty_metric_status(hours)
         region_statuses = {region: empty_metric_status(hours) for region in METRIC_REGIONS}
@@ -346,6 +348,7 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
                 region: load_metric_status(conn, hours, region=region, placeholder=placeholder)
                 for region in METRIC_REGIONS
             }
+            comments_pending = pending_count(conn)
         finally:
             if should_close:
                 conn.close()
@@ -460,6 +463,21 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
                 ),
             ]
         )
+    lines.extend(
+        [
+            "# HELP chp_live_map_comments_submitted_total Comment submissions by outcome.",
+            "# TYPE chp_live_map_comments_submitted_total counter",
+        ]
+    )
+    for outcome, count in sorted(COMMENT_SUBMISSIONS_TOTAL.items()):
+        lines.append(metric_line("chp_live_map_comments_submitted_total", count, {"outcome": outcome}))
+    lines.extend(
+        [
+            "# HELP chp_live_map_comments_pending Comments waiting for moderation.",
+            "# TYPE chp_live_map_comments_pending gauge",
+            metric_line("chp_live_map_comments_pending", comments_pending),
+        ]
+    )
     lines.append("")
     return "\n".join(lines).encode("utf-8")
 

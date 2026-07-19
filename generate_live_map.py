@@ -1276,6 +1276,90 @@ def build_html(
       line-height: 1.3;
       letter-spacing: 0;
     }}
+    .comments-list {{
+      display: grid;
+      gap: 10px;
+      margin: 10px 0 0;
+    }}
+    .comment {{
+      padding: 10px;
+      border: 1px solid #e2e8de;
+      border-radius: 8px;
+      background: #fbfcfa;
+    }}
+    .comment-meta {{
+      margin-bottom: 4px;
+      color: #58645d;
+      font-size: 12px;
+      line-height: 1.35;
+    }}
+    .comment-body {{
+      font-size: 13px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }}
+    .comment-form {{
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }}
+    .comment-form-row {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 8px;
+    }}
+    .comment-form input,
+    .comment-form textarea {{
+      width: 100%;
+      min-width: 0;
+      padding: 8px 9px;
+      border: 1px solid #cfd8cf;
+      border-radius: 7px;
+      color: #1d252a;
+      background: #ffffff;
+      font: inherit;
+      font-size: 13px;
+      line-height: 1.35;
+    }}
+    .comment-form textarea {{
+      min-height: 78px;
+      resize: vertical;
+    }}
+    .comment-form input:focus,
+    .comment-form textarea:focus {{
+      border-color: #2b7c4a;
+      outline: 2px solid rgba(43, 124, 74, 0.18);
+      outline-offset: 0;
+    }}
+    .comment-honeypot {{
+      position: absolute;
+      left: -10000px;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+    }}
+    .comment-submit {{
+      justify-self: start;
+      min-height: 32px;
+      padding: 6px 10px;
+      border: 1px solid #2b7c4a;
+      border-radius: 7px;
+      color: #ffffff;
+      background: #2b7c4a;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+    }}
+    .comment-submit:disabled {{
+      cursor: wait;
+      opacity: 0.72;
+    }}
+    .comment-status {{
+      color: #58645d;
+      font-size: 12px;
+      line-height: 1.35;
+    }}
     .incident[aria-current="true"] {{
       background: #d4e6d5;
       box-shadow: inset 4px 0 0 #1f6840;
@@ -1522,6 +1606,7 @@ def build_html(
     const initialDataStatus = {json.dumps(status, ensure_ascii=False)};
     const statusEndpoint = "{html.escape(status_endpoint)}";
     const incidentsEndpoint = "{html.escape(incidents_endpoint)}";
+    const commentsBaseEndpoint = "/api/v1/incidents";
     const currentRegion = "{html.escape(region)}";
     let incidents = [];
     let currentDataStatus = initialDataStatus;
@@ -1902,6 +1987,61 @@ def build_html(
       }}
     }}
 
+    function commentsEndpoint(incident) {{
+      return `${{commentsBaseEndpoint}}/${{encodeURIComponent(incident.event_key)}}/comments`;
+    }}
+
+    function formatCommentDate(value) {{
+      if (!value) {{
+        return "";
+      }}
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) {{
+        return value;
+      }}
+      return parsed.toLocaleString([], {{ month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }});
+    }}
+
+    function renderComments(container, comments) {{
+      if (!container) {{
+        return;
+      }}
+      if (!comments.length) {{
+        container.innerHTML = '<div class="empty">No approved comments yet.</div>';
+        return;
+      }}
+      container.innerHTML = `
+        <div class="comments-list">
+          ${{comments.map((comment) => `
+            <article class="comment">
+              <div class="comment-meta">${{escapeHtml(comment.display_name || "Anonymous")}} · ${{escapeHtml(formatCommentDate(comment.created_at))}}</div>
+              <div class="comment-body">${{escapeHtml(comment.body || "")}}</div>
+            </article>
+          `).join("")}}
+        </div>
+      `;
+    }}
+
+    async function loadComments(incident) {{
+      const container = detailsPanel.querySelector(`[data-comments-for="${{CSS.escape(incident.event_key)}}"]`);
+      if (!container) {{
+        return;
+      }}
+      try {{
+        const response = await fetch(commentsEndpoint(incident), {{
+          cache: "no-store",
+          headers: {{ "Accept": "application/json" }}
+        }});
+        if (!response.ok) {{
+          throw new Error(`comments API returned ${{response.status}}`);
+        }}
+        const payload = await response.json();
+        renderComments(container, payload.data || []);
+      }} catch (_error) {{
+        container.innerHTML = '<div class="empty">Comments could not be loaded.</div>';
+      }}
+    }}
+
     function updateListScrollCue() {{
       if (!listShell || !list) {{
         return;
@@ -2042,6 +2182,22 @@ def build_html(
           <section class="detail-section">
             ${{details || '<div class="empty">No detail entries captured.</div>'}}
           </section>
+          <section class="detail-section">
+            <div class="detail-subsection">
+              <h3>Comments</h3>
+              <div data-comments-for="${{escapeHtml(incident.event_key)}}"><div class="empty">Loading comments...</div></div>
+              <form class="comment-form" data-comment-form="${{escapeHtml(incident.event_key)}}">
+                <div class="comment-form-row">
+                  <input name="display_name" autocomplete="name" maxlength="80" placeholder="Name (optional)">
+                  <input name="contact" autocomplete="email" maxlength="200" placeholder="Contact (optional, not public)">
+                </div>
+                <textarea name="body" maxlength="750" required placeholder="Add a comment for review"></textarea>
+                <input class="comment-honeypot" name="website" tabindex="-1" autocomplete="off">
+                <button type="submit" class="comment-submit">Submit for review</button>
+                <div class="comment-status" role="status"></div>
+              </form>
+            </div>
+          </section>
         </div>
       `;
     }}
@@ -2052,6 +2208,7 @@ def build_html(
       }}
       selectedIncidentKey = incident.event_key;
       detailsPanel.innerHTML = detailHtml(incident);
+      loadComments(incident);
       document.querySelectorAll(".incident").forEach((button) => {{
         button.setAttribute("aria-current", button.dataset.eventKey === incident.event_key ? "true" : "false");
         if (options.revealList && button.dataset.eventKey === incident.event_key) {{
@@ -2099,6 +2256,44 @@ def build_html(
       const incident = incidents.find((item) => item.event_key === button.dataset.shareIncident);
       if (incident) {{
         copyIncidentLink(incident, button);
+      }}
+    }});
+
+    detailsPanel.addEventListener("submit", async (event) => {{
+      const form = event.target.closest("[data-comment-form]");
+      if (!form) {{
+        return;
+      }}
+      event.preventDefault();
+      const incident = incidents.find((item) => item.event_key === form.dataset.commentForm);
+      if (!incident) {{
+        return;
+      }}
+      const submit = form.querySelector(".comment-submit");
+      const status = form.querySelector(".comment-status");
+      const data = Object.fromEntries(new FormData(form).entries());
+      submit.disabled = true;
+      status.textContent = "Submitting...";
+      try {{
+        const response = await fetch(commentsEndpoint(incident), {{
+          method: "POST",
+          cache: "no-store",
+          headers: {{
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+          }},
+          body: JSON.stringify(data)
+        }});
+        const payload = await response.json().catch(() => ({{}}));
+        if (!response.ok) {{
+          throw new Error(payload.error?.message || `comment API returned ${{response.status}}`);
+        }}
+        form.reset();
+        status.textContent = payload.message || "Comment submitted for review.";
+      }} catch (error) {{
+        status.textContent = error.message || "Comment could not be submitted.";
+      }} finally {{
+        submit.disabled = false;
       }}
     }});
 

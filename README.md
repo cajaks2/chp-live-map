@@ -258,7 +258,23 @@ The web service also exposes:
 - Web `/metrics`: Prometheus text-format metrics for web process uptime, incident counts, data freshness, HTTP request counters, and DB-backed latest scrape data.
 - Scraper `:8081/metrics`: Prometheus text-format metrics emitted by the long-lived scraper service, including scrape attempt counters and outbound CHP response-code counters.
 
-A formal `/api/v1/...` API with stable envelopes, per-incident endpoints, pagination, and schema documentation is planned but not implemented yet.
+Comment API:
+
+```text
+GET  /api/v1/incidents/{event_key}/comments
+POST /api/v1/incidents/{event_key}/comments
+```
+
+The public `GET` endpoint returns only approved comments. The public `POST` endpoint accepts anonymous comments and stores them as `pending` for moderation. Comment bodies are plain text only, stripped of HTML, capped at 750 characters, and protected by a honeypot plus IP/user-agent rate limits. Optional contact information is stored for moderation but is never returned by the public API.
+
+Moderate comments from the container or a local checkout:
+
+```bash
+python manage_comments.py list --status pending
+python manage_comments.py approve 123
+python manage_comments.py reject 123
+python manage_comments.py delete 123
+```
 
 Prometheus metrics:
 
@@ -276,6 +292,8 @@ Prometheus metrics:
 | `chp_live_map_http_requests_total{method,route,status}` | counter | HTTP requests handled by the web process, grouped by method, coarse route, and status code. |
 | `chp_live_map_db_pool_connections{state}` | gauge | Web Postgres pool connections by `min`, `max`, `size`, `available`, and derived `in_use` states. |
 | `chp_live_map_db_pool_requests_waiting` | gauge | Web requests currently waiting for a Postgres pool connection. |
+| `chp_live_map_comments_submitted_total{outcome}` | counter | Comment submissions grouped by outcome such as `pending`, `rate_limited`, `honeypot`, or validation errors. |
+| `chp_live_map_comments_pending` | gauge | Comments currently waiting for moderation. |
 | `chp_live_map_scrape_last_run_timestamp_seconds` | gauge | Unix timestamp for the latest completed CHP scrape. |
 | `chp_live_map_scrape_last_run_duration_seconds` | gauge | Duration of the latest completed CHP scrape. |
 | `chp_live_map_scrape_last_run_incidents{kind}` | gauge | Latest scrape incident counts: total CHP incidents seen, matched incidents acquired, and mapped matched incidents. |
@@ -300,5 +318,6 @@ Prometheus metrics:
 - `observations`: append-only status/detail snapshots when an incident is first seen, changes, or clears.
 - `detail_entries`: normalized detail-log entries for each stored observation.
 - `scrape_runs`: run metadata for monitoring, including total CHP incidents seen, filtered incidents acquired, detail-page fetch counts, scrape duration, and outbound CHP response-code counts.
+- `incident_comments`: user-submitted incident comments. Public submissions start as `pending`; only `approved` rows are shown publicly. Contact and IP metadata are moderation-only.
 
 Generated files such as `*.sqlite` and `live_chp_map.html` are intentionally ignored by git.

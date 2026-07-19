@@ -1347,9 +1347,30 @@ def init_database_sqlite(conn):
             http_status_counts TEXT NOT NULL DEFAULT '{}'
         );
 
+        CREATE TABLE IF NOT EXISTS incident_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_key TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            display_name TEXT,
+            body TEXT NOT NULL,
+            category TEXT,
+            contact TEXT,
+            created_at TEXT NOT NULL,
+            approved_at TEXT,
+            rejected_at TEXT,
+            ip_hash TEXT,
+            user_agent TEXT,
+            cf_connecting_ip TEXT,
+            cf_country TEXT,
+            honeypot_value TEXT,
+            FOREIGN KEY (event_key) REFERENCES events(event_key)
+        );
+
         CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
         CREATE INDEX IF NOT EXISTS idx_events_center_status ON events(center, status);
         CREATE INDEX IF NOT EXISTS idx_observations_event ON observations(event_key, observed_at);
+        CREATE INDEX IF NOT EXISTS idx_incident_comments_event_status ON incident_comments(event_key, status, created_at);
+        CREATE INDEX IF NOT EXISTS idx_incident_comments_status ON incident_comments(status, created_at);
         """
     )
     ensure_column_sqlite(conn, "scrape_runs", "total_seen", "INTEGER NOT NULL DEFAULT 0")
@@ -1458,9 +1479,30 @@ def init_database_postgres_locked(conn):
             http_status_counts TEXT NOT NULL DEFAULT '{}'
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS incident_comments (
+            id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            event_key TEXT NOT NULL REFERENCES events(event_key),
+            status TEXT NOT NULL DEFAULT 'pending',
+            display_name TEXT,
+            body TEXT NOT NULL,
+            category TEXT,
+            contact TEXT,
+            created_at TEXT NOT NULL,
+            approved_at TEXT,
+            rejected_at TEXT,
+            ip_hash TEXT,
+            user_agent TEXT,
+            cf_connecting_ip TEXT,
+            cf_country TEXT,
+            honeypot_value TEXT
+        )
+        """,
         "CREATE INDEX IF NOT EXISTS idx_events_status ON events(status)",
         "CREATE INDEX IF NOT EXISTS idx_events_center_status ON events(center, status)",
         "CREATE INDEX IF NOT EXISTS idx_observations_event ON observations(event_key, observed_at)",
+        "CREATE INDEX IF NOT EXISTS idx_incident_comments_event_status ON incident_comments(event_key, status, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_incident_comments_status ON incident_comments(status, created_at)",
     ]
     for statement in statements:
         conn.execute(statement)

@@ -5,11 +5,12 @@ import time
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, unquote
 
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 
+from comments import CommentValidationError, list_approved_comments, submit_comment
 import serve_live_map as web
 from generate_live_map import (
     build_about_html,
@@ -128,6 +129,8 @@ def route_label(path, settings):
         return "status"
     if path in {"/incidents.json", f"{asset_base}/incidents.json"}:
         return "incidents"
+    if path.startswith("/api/v1/incidents/") and path.endswith("/comments"):
+        return "comments"
     if path in {"/metrics", f"{asset_base}/metrics"}:
         return "metrics"
     if path in {"/healthz", "/readyz"}:
@@ -191,6 +194,22 @@ def database_connection(app):
         yield conn
 
 
+@contextmanager
+def writable_database_connection(app):
+    settings = app.state.settings
+    pool = getattr(app.state, "database_pool", None)
+    if pool is not None:
+        with pool.connection() as conn:
+            yield conn
+        return
+    conn = connect_database(settings.database, settings.database_url)
+    try:
+        yield conn
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def region_statuses(settings, hours, conn=None):
     statuses = {}
     for metric_region in web.METRIC_REGIONS:
@@ -225,6 +244,23 @@ def json_response(payload, status_code=200, cache_control=None, send_body=True):
         cache_control=cache_control,
         send_body=send_body,
     )
+
+
+def api_error(message, code="error", status_code=400, send_body=True):
+    return json_response(
+        {"error": {"code": code, "message": message}},
+        status_code=status_code,
+        cache_control="no-store",
+        send_body=send_body,
+    )
+
+
+def comment_event_key_from_path(path):
+    prefix = "/api/v1/incidents/"
+    suffix = "/comments"
+    if not path.startswith(prefix) or not path.endswith(suffix):
+        return None
+    return unquote(path[len(prefix) : -len(suffix)])
 
 
 def dispatch_request(request, send_body=True):
@@ -526,6 +562,96 @@ def dispatch_request(request, send_body=True):
     return byte_response(body, "text/html; charset=utf-8", cache_control=web.MAP_CACHE_CONTROL, send_body=send_body)
 
 
+def handle_comments_get(request, event_key, send_body=True):
+    try:
+        with writable_database_connection(request.app) as conn:
+            comments = list_approved_comments(conn, event_key)
+        return json_response(
+            {"meta": {"event_key": event_key, "status": "approved"}, "data": comments},
+            cache_control="private, max-age=30, stale-while-revalidate=60",
+            send_body=send_body,
+        )
+    except Exception as exc:
+        web.log_exception(
+            "Failed to render incident comments",
+            exc,
+            **{
+                "event.action": "comments_get",
+                "event.outcome": "failure",
+                "http.request.method": request.method,
+                "url.path": request_target(request),
+                "http.response.status_code": 500,
+                **client_log_fields(request),
+            },
+        )
+        return api_error("failed to render comments", "server_error", 500, send_body=send_body)
+
+
+async def handle_comments_post(request, event_key):
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            raise CommentValidationError("JSON body must be an object.", "invalid_json")
+    except CommentValidationError as exc:
+        web.COMMENT_SUBMISSIONS_TOTAL[exc.code] += 1
+        return api_error(str(exc), exc.code, 400)
+    except Exception:
+        web.COMMENT_SUBMISSIONS_TOTAL["invalid_json"] += 1
+        return api_error("Invalid JSON body.", "invalid_json", 400)
+    try:
+        with writable_database_connection(request.app) as conn:
+            result = submit_comment(
+                conn,
+                event_key,
+                payload,
+                request.headers,
+                request.client.host if request.client else "",
+            )
+            conn.commit()
+        web.log_event(
+            "info",
+            "Incident comment submitted for moderation",
+            **{
+                "event.action": "comments_submit",
+                "event.outcome": "success",
+                "chp.event_key": event_key,
+                "chp.comment.status": "pending",
+                **client_log_fields(request),
+            },
+        )
+        return json_response(result, status_code=202, cache_control="no-store")
+    except CommentValidationError as exc:
+        web.COMMENT_SUBMISSIONS_TOTAL[exc.code] += 1
+        status_code = 404 if exc.code == "not_found" else 429 if exc.code == "rate_limited" else 400
+        web.log_event(
+            "info",
+            "Incident comment rejected",
+            **{
+                "event.action": "comments_submit",
+                "event.outcome": "failure",
+                "chp.event_key": event_key,
+                "chp.comment.reject_reason": exc.code,
+                "http.response.status_code": status_code,
+                **client_log_fields(request),
+            },
+        )
+        return api_error(str(exc), exc.code, status_code)
+    except Exception as exc:
+        web.COMMENT_SUBMISSIONS_TOTAL["server_error"] += 1
+        web.log_exception(
+            "Failed to submit incident comment",
+            exc,
+            **{
+                "event.action": "comments_submit",
+                "event.outcome": "failure",
+                "chp.event_key": event_key,
+                "http.response.status_code": 500,
+                **client_log_fields(request),
+            },
+        )
+        return api_error("failed to submit comment", "server_error", 500)
+
+
 def create_app(settings=None):
     settings = settings or WebSettings.from_env()
 
@@ -627,11 +753,24 @@ def create_app(settings=None):
 
     @app.get("/{full_path:path}")
     def get_anything(request: Request, full_path: str):
+        event_key = comment_event_key_from_path(_path(request))
+        if event_key is not None:
+            return handle_comments_get(request, event_key, send_body=True)
         return dispatch_request(request, send_body=True)
 
     @app.head("/{full_path:path}")
     def head_anything(request: Request, full_path: str):
+        event_key = comment_event_key_from_path(_path(request))
+        if event_key is not None:
+            return handle_comments_get(request, event_key, send_body=False)
         return dispatch_request(request, send_body=False)
+
+    @app.post("/{full_path:path}")
+    async def post_anything(request: Request, full_path: str):
+        event_key = comment_event_key_from_path(_path(request))
+        if event_key is not None:
+            return await handle_comments_post(request, event_key)
+        return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404)
 
     return app
 

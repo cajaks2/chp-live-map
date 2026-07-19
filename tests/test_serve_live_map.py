@@ -3,6 +3,7 @@ import json
 from fastapi.testclient import TestClient
 
 import serve_live_map
+from comments import set_comment_status
 from app import WebSettings, create_app
 from serve_live_map import (
     ASSET_CACHE_CONTROL,
@@ -27,6 +28,28 @@ def make_client(database, **overrides):
         **overrides,
     )
     return TestClient(create_app(settings))
+
+
+def sample_event(event_key="LACC|2026-06-08|1234", region="forest"):
+    return {
+        "event_key": event_key,
+        "center": event_key.split("|", 1)[0],
+        "incident_date": "2026-06-08",
+        "incident_no": event_key.rsplit("|", 1)[-1],
+        "observed_at": "2026-06-08T12:34:00-07:00",
+        "updated_as_of": "6/8/2026 12:34 PM",
+        "incident_time": "12:34 PM",
+        "type": "Traffic Hazard",
+        "location": "Angeles Crest Hwy",
+        "location_desc": "Mile marker 30",
+        "area": "Altadena",
+        "latitude": 34.25,
+        "longitude": -118.1,
+        "matched_keywords": "angeles crest",
+        "details_hash": "hash-1234",
+        "detail_entries": [],
+        "region": region,
+    }
 
 
 def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch):
@@ -239,6 +262,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert "chp_live_map_scrape_chp_http_requests_total" not in body
         assert "chp_live_map_http_requests_total" in body
         assert "chp_live_map_db_pool_connections" not in body
+        assert "chp_live_map_comments_pending 0" in body
 
         response = client.head("/")
         assert response.status_code == 200
@@ -371,25 +395,7 @@ def test_public_malibu_region_is_available_without_auth(tmp_path):
 def test_live_map_handler_serves_red_favicon_when_active(tmp_path):
     database = tmp_path / "chp.sqlite"
     conn = connect_database(database)
-    active_event = {
-        "event_key": "LACC|2026-06-08|1234",
-        "center": "LACC",
-        "incident_date": "2026-06-08",
-        "incident_no": "1234",
-        "observed_at": "2026-06-08T12:34:00-07:00",
-        "updated_as_of": "6/8/2026 12:34 PM",
-        "incident_time": "12:34 PM",
-        "type": "Traffic Hazard",
-        "location": "Angeles Crest Hwy",
-        "location_desc": "Mile marker 30",
-        "area": "Altadena",
-        "latitude": 34.25,
-        "longitude": -118.1,
-        "matched_keywords": "angeles crest",
-        "details_hash": "hash-1234",
-        "detail_entries": [],
-    }
-    upsert_active_event(conn, active_event)
+    upsert_active_event(conn, sample_event())
     conn.commit()
     conn.close()
 
@@ -404,3 +410,121 @@ def test_live_map_handler_serves_red_favicon_when_active(tmp_path):
         body = response.text
         assert "1 active" in body
         assert '<link rel="icon" href="https://crestmap.us/favicon.svg?active=1&amp;v=' in body
+
+
+def test_incident_comments_are_pending_until_approved(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    event_key = "LACC|2026-06-08|1234"
+    conn = connect_database(database)
+    upsert_active_event(conn, sample_event(event_key))
+    conn.commit()
+    conn.close()
+
+    with make_client(database) as client:
+        response = client.get("/")
+        assert response.status_code == 200
+        assert "Comments" in response.text
+        assert "Submit for review" in response.text
+
+        response = client.get(f"/api/v1/incidents/{event_key}/comments")
+        assert response.status_code == 200
+        assert response.json()["data"] == []
+
+        response = client.post(
+            f"/api/v1/incidents/{event_key}/comments",
+            json={
+                "display_name": "<b>Alice</b>",
+                "body": "<script>alert(1)</script> Road is still icy.",
+                "contact": "alice@example.test",
+                "website": "",
+            },
+            headers={
+                "CF-Connecting-IP": "198.51.100.99",
+                "CF-IPCountry": "US",
+                "User-Agent": "comment-test/1.0",
+            },
+        )
+        assert response.status_code == 202
+        assert response.json()["status"] == "pending"
+
+        response = client.get(f"/api/v1/incidents/{event_key}/comments")
+        assert response.status_code == 200
+        assert response.json()["data"] == []
+
+    conn = connect_database(database)
+    row = conn.execute("SELECT * FROM incident_comments").fetchone()
+    assert row["status"] == "pending"
+    assert row["display_name"] == "Alice"
+    assert row["body"] == "alert(1) Road is still icy."
+    assert row["contact"] == "alice@example.test"
+    assert row["cf_connecting_ip"] == "198.51.100.99"
+    assert row["cf_country"] == "US"
+    assert row["ip_hash"]
+    set_comment_status(conn, row["id"], "approved")
+    conn.commit()
+    conn.close()
+
+    with make_client(database) as client:
+        response = client.get(f"/api/v1/incidents/{event_key}/comments")
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["data"] == [
+            {
+                "id": row["id"],
+                "event_key": event_key,
+                "display_name": "Alice",
+                "body": "alert(1) Road is still icy.",
+                "category": None,
+                "created_at": row["created_at"],
+            }
+        ]
+        assert "contact" not in payload["data"][0]
+
+
+def test_comment_honeypot_and_rate_limit(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    event_key = "LACC|2026-06-08|1234"
+    conn = connect_database(database)
+    upsert_active_event(conn, sample_event(event_key))
+    conn.commit()
+    conn.close()
+    headers = {"CF-Connecting-IP": "198.51.100.42", "User-Agent": "rate-test/1.0"}
+
+    with make_client(database) as client:
+        response = client.post(
+            f"/api/v1/incidents/{event_key}/comments",
+            json={"body": "Spam", "website": "https://bot.example"},
+            headers=headers,
+        )
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "honeypot"
+
+        for index in range(3):
+            response = client.post(
+                f"/api/v1/incidents/{event_key}/comments",
+                json={"body": f"Valid comment {index}"},
+                headers=headers,
+            )
+            assert response.status_code == 202
+
+        response = client.post(
+            f"/api/v1/incidents/{event_key}/comments",
+            json={"body": "One too many"},
+            headers=headers,
+        )
+        assert response.status_code == 429
+        assert response.json()["error"]["code"] == "rate_limited"
+
+
+def test_comment_for_missing_incident_returns_404(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    conn = connect_database(database)
+    conn.close()
+
+    with make_client(database) as client:
+        response = client.post(
+            "/api/v1/incidents/LACC%7C2026-06-08%7C9999/comments",
+            json={"body": "Where did it go?"},
+        )
+        assert response.status_code == 404
+        assert response.json()["error"]["code"] == "not_found"

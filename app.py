@@ -8,7 +8,7 @@ import time
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import parse_qs, unquote
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
@@ -338,9 +338,20 @@ def admin_status_from_request(request):
 def same_origin_admin_post(request):
     origin = request.headers.get("origin")
     referer = request.headers.get("referer")
-    expected = f"{request.url.scheme}://{request.headers.get('host', request.url.netloc)}"
+    settings = request.app.state.settings
+    expected_origins = set()
+    if settings.public_url:
+        public = urlsplit(settings.public_url)
+        if public.scheme and public.netloc:
+            expected_origins.add(f"{public.scheme}://{public.netloc}")
+    host = request.headers.get("host", request.url.netloc)
+    expected_origins.add(f"{request.url.scheme}://{host}")
+    forwarded_proto = (request.headers.get("x-forwarded-proto") or "").split(",", 1)[0].strip()
+    forwarded_host = (request.headers.get("x-forwarded-host") or host).split(",", 1)[0].strip()
+    if forwarded_proto and forwarded_host:
+        expected_origins.add(f"{forwarded_proto}://{forwarded_host}")
     for value in (origin, referer):
-        if value and not value.startswith(expected):
+        if value and not any(value.startswith(expected) for expected in expected_origins):
             return False
     return True
 

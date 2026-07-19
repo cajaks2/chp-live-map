@@ -592,7 +592,7 @@ def test_admin_comments_approves_pending_comment(tmp_path):
         response = client.post(
             "/admin/comments",
             data={"id": str(row["id"]), "action": "approve", "status": "pending"},
-            headers={**basic_auth(), "Origin": "http://testserver"},
+            headers={**basic_auth(), "Origin": "https://crestmap.us"},
         )
         assert response.status_code == 200
         assert f"Comment #{row['id']} approved." in response.text

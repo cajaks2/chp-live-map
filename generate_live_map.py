@@ -1308,6 +1308,19 @@ def build_html(
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
       gap: 8px;
     }}
+    .comment-field {{
+      display: grid;
+      min-width: 0;
+      gap: 4px;
+      color: #3f4a44;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.3;
+    }}
+    .comment-field-hint {{
+      color: #68736c;
+      font-weight: 400;
+    }}
     .comment-form input,
     .comment-form textarea {{
       width: 100%;
@@ -1420,6 +1433,11 @@ def build_html(
       padding: 18px;
       color: #58645d;
       font-size: 14px;
+    }}
+    @media (max-width: 420px) {{
+      .comment-form-row {{
+        grid-template-columns: minmax(0, 1fr);
+      }}
     }}
     @media (max-width: 760px) {{
       #app {{
@@ -2206,8 +2224,14 @@ def build_html(
               <div data-comments-for="${{escapeHtml(incident.event_key)}}"><div class="empty">Loading comments...</div></div>
               <form class="comment-form" data-comment-form="${{escapeHtml(incident.event_key)}}">
                 <div class="comment-form-row">
-                  <input name="display_name" autocomplete="name" maxlength="80" placeholder="Name (optional)">
-                  <input name="contact" autocomplete="email" maxlength="200" placeholder="Contact (optional, not public)">
+                  <label class="comment-field">
+                    <span>Name <span class="comment-field-hint">(optional)</span></span>
+                    <input name="display_name" autocomplete="name" maxlength="80" placeholder="Display name">
+                  </label>
+                  <label class="comment-field">
+                    <span>Contact <span class="comment-field-hint">(optional, not public)</span></span>
+                    <input name="contact" autocomplete="email" maxlength="200" placeholder="Email or phone">
+                  </label>
                 </div>
                 <textarea name="body" maxlength="750" required placeholder="Add a comment for review"></textarea>
                 <input class="comment-honeypot" name="website" tabindex="-1" autocomplete="off">

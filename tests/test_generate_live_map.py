@@ -419,6 +419,10 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "function focusedCommentFormFor" in html
     assert "preserveFocusedComment: true" in html
     assert "detailsPanel.dataset.selectedIncidentKey === incident.event_key" in html
+    assert '<label class="comment-field">' in html
+    assert 'Contact <span class="comment-field-hint">(optional, not public)</span>' in html
+    assert 'placeholder="Email or phone"' in html
+    assert "@media (max-width: 420px)" in html
     assert "function escapeHtml" in html
     assert "no map pin" in html
     assert "window.chpLiveMap" in html

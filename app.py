@@ -153,7 +153,14 @@ def route_label(path, settings):
         return "incidents"
     if path in {"/admin/comments", f"{asset_base}/admin/comments"}:
         return "admin_comments"
-    if path in {"/admin/login", f"{asset_base}/admin/login", "/admin/logout", f"{asset_base}/admin/logout"}:
+    if path in {
+        "/admin/login",
+        f"{asset_base}/admin/login",
+        "/admin/logout",
+        f"{asset_base}/admin/logout",
+        "/admin/session",
+        f"{asset_base}/admin/session",
+    }:
         return "admin_session"
     if path == "/admin/incidents" or path == f"{asset_base}/admin/incidents":
         return "admin_incidents"
@@ -323,6 +330,11 @@ def admin_login_path(settings):
 def admin_logout_path(settings):
     base = normalize_base_path(settings.base_path)
     return "/admin/logout" if base == "/" else f"{base}/admin/logout"
+
+
+def admin_session_path(settings):
+    base = normalize_base_path(settings.base_path)
+    return "/admin/session" if base == "/" else f"{base}/admin/session"
 
 
 def admin_session_key(settings):
@@ -524,6 +536,19 @@ def handle_admin_login_get(request, send_body=True, error=""):
     return html_response(
         build_admin_login_html(settings, next_path, error),
         status_code=401 if error else 200,
+        cache_control="no-store",
+        send_body=send_body,
+    )
+
+
+def handle_admin_session_get(request, send_body=True):
+    settings = request.app.state.settings
+    authenticated = admin_enabled(settings) and admin_authorized(request)
+    return json_response(
+        {
+            "authenticated": authenticated,
+            "admin_incidents_url": admin_incidents_path(settings) if authenticated else None,
+        },
         cache_control="no-store",
         send_body=send_body,
     )
@@ -890,6 +915,7 @@ def dispatch_request(request, send_body=True):
                 last_scrape=last_scrape,
                 admin_mode=admin_mode,
                 admin_details_base=admin_incidents_path(settings),
+                admin_session_endpoint=admin_session_path(settings),
             ).encode("utf-8")
     except Exception as exc:
         web.log_exception(
@@ -1388,6 +1414,8 @@ def create_app(settings=None):
     def get_anything(request: Request, full_path: str):
         if _path(request) == admin_login_path(settings):
             return handle_admin_login_get(request, send_body=True)
+        if _path(request) == admin_session_path(settings):
+            return handle_admin_session_get(request, send_body=True)
         if _path(request) == admin_path(settings):
             return handle_admin_comments_get(request, send_body=True)
         hidden_event_key = admin_hidden_event_key_from_path(_path(request), settings)
@@ -1402,6 +1430,8 @@ def create_app(settings=None):
     def head_anything(request: Request, full_path: str):
         if _path(request) == admin_login_path(settings):
             return handle_admin_login_get(request, send_body=False)
+        if _path(request) == admin_session_path(settings):
+            return handle_admin_session_get(request, send_body=False)
         if _path(request) == admin_path(settings):
             return handle_admin_comments_get(request, send_body=False)
         hidden_event_key = admin_hidden_event_key_from_path(_path(request), settings)

@@ -629,6 +629,13 @@ def test_admin_login_cookie_tamper_expiry_and_logout(tmp_path):
         response = client.get("/")
         assert "/admin/login" in response.text
         assert "Admin login" in response.text
+        assert 'const adminSessionEndpoint = "/admin/session";' in response.text
+        assert "window.location.replace(destination)" in response.text
+
+        response = client.get("/admin/session")
+        assert response.status_code == 200
+        assert response.headers["Cache-Control"] == "no-store"
+        assert response.json() == {"authenticated": False, "admin_incidents_url": None}
 
         response = client.post(
             "/admin/login",
@@ -651,6 +658,13 @@ def test_admin_login_cookie_tamper_expiry_and_logout(tmp_path):
         assert "HttpOnly" in cookie
         assert "SameSite=strict" in cookie
         assert "Max-Age=28800" in cookie
+
+        response = client.get("/admin/session")
+        assert response.status_code == 200
+        assert response.json() == {
+            "authenticated": True,
+            "admin_incidents_url": "/admin/incidents",
+        }
 
         response = client.get("/admin/comments")
         assert response.status_code == 200

@@ -280,7 +280,8 @@ Or enable the web moderation GUI by setting both `ADMIN_USERNAME` and `ADMIN_PAS
 When either value is unset, the admin routes return 404. When enabled, the public navigation
 includes an admin login. A successful login creates a signed, HttpOnly, same-site session
 cookie used by the comment moderator and protected incident map. HTTP Basic auth remains
-available for scripts.
+available for scripts. When an authenticated admin opens the public map in another tab,
+the page resumes the existing session in the protected incident view.
 
 ```text
 GET  /admin/login

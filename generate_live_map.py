@@ -512,6 +512,7 @@ def build_html(
     last_scrape=None,
     admin_mode=False,
     admin_details_base="/admin/incidents",
+    admin_session_endpoint="/admin/session",
 ):
     region = normalize_region(region)
     map_label = region_label(region)
@@ -544,6 +545,7 @@ def build_html(
         status_endpoint = f"{asset_base}/status.json"
         incidents_endpoint = f"{asset_base}/incidents.json"
     admin_details_base = admin_details_base.rstrip("/")
+    admin_session_endpoint = admin_session_endpoint.rstrip("/")
     structured_data = {
         "@context": "https://schema.org",
         "@graph": [
@@ -1742,10 +1744,30 @@ def build_html(
     const commentsBaseEndpoint = "/api/v1/incidents";
     const adminMode = {json.dumps(bool(admin_mode))};
     const adminDetailsBase = "{html.escape(admin_details_base)}";
+    const adminSessionEndpoint = "{html.escape(admin_session_endpoint)}";
     const currentRegion = "{html.escape(region)}";
     let incidents = [];
     let currentDataStatus = initialDataStatus;
     let selectedIncidentKey = new URLSearchParams(window.location.search).get("incident");
+
+    if (!adminMode) {{
+      fetch(adminSessionEndpoint, {{
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: {{ "Accept": "application/json" }}
+      }})
+        .then((response) => response.ok ? response.json() : null)
+        .then((session) => {{
+          if (!session?.authenticated) {{
+            return;
+          }}
+          const destination = new URL(session.admin_incidents_url || adminDetailsBase, window.location.origin);
+          destination.search = window.location.search;
+          destination.hash = window.location.hash;
+          window.location.replace(destination);
+        }})
+        .catch(() => {{}});
+    }}
 
     const mapEl = document.getElementById("map");
     mapEl.classList.add("is-loading");

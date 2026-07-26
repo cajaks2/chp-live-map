@@ -373,6 +373,18 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "detail-subsection" in html
     assert html.index("${detailEntries ?") < html.index("<h3>Comments</h3>")
     assert html.index("<h3>Comments</h3>") < html.index("${trailingEntries ?")
+    assert "data-hidden-details-toggle" in html
+    assert "const adminMode = false" in html
+
+    admin_html = build_html(
+        incidents,
+        "2026-05-31T08:05:00-07:00",
+        72,
+        admin_mode=True,
+    )
+    assert "const adminMode = true" in admin_html
+    assert "Show hidden" in admin_html
+    assert "/admin/incidents" in admin_html
     assert 'id="stale-notice"' in html
     assert 'id="stale-notice-text"' in html
     assert 'id="dismiss-stale-notice"' in html

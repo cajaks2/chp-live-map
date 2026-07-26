@@ -5,7 +5,13 @@ from fastapi.testclient import TestClient
 
 import serve_live_map
 from comments import set_comment_status
-from app import WebSettings, create_app
+from app import (
+    ADMIN_SESSION_COOKIE,
+    WebSettings,
+    create_admin_session_token,
+    create_app,
+    valid_admin_session_token,
+)
 from serve_live_map import (
     ASSET_CACHE_CONTROL,
     CONTENT_SECURITY_POLICY,
@@ -15,7 +21,12 @@ from serve_live_map import (
     MAP_CACHE_CONTROL,
     prometheus_metrics,
 )
-from scrape_chp_traffic import connect_database, store_scrape_run, upsert_active_event
+from scrape_chp_traffic import (
+    connect_database,
+    insert_observation,
+    store_scrape_run,
+    upsert_active_event,
+)
 
 
 def make_client(database, **overrides):
@@ -544,20 +555,182 @@ def test_admin_comments_disabled_without_credentials(tmp_path):
     with make_client(database) as client:
         response = client.get("/admin/comments")
         assert response.status_code == 404
+        assert client.get("/admin/login").status_code == 404
+        assert client.get("/admin/incidents").status_code == 404
 
 
-def test_admin_comments_requires_basic_auth(tmp_path):
+def test_admin_comments_redirects_to_login_and_rejects_wrong_basic_auth(tmp_path):
     database = tmp_path / "chp.sqlite"
     conn = connect_database(database)
     conn.close()
 
     with make_client(database, admin_username="admin", admin_password="secret") as client:
-        response = client.get("/admin/comments")
-        assert response.status_code == 401
-        assert response.headers["WWW-Authenticate"].startswith("Basic ")
+        response = client.get("/admin/comments", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["Location"] == "/admin/login?next=%2Fadmin%2Fcomments"
 
-        response = client.get("/admin/comments", headers=basic_auth("admin", "wrong"))
+        response = client.get(
+            "/admin/comments",
+            headers=basic_auth("admin", "wrong"),
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+
+        response = client.post(
+            "/admin/login",
+            data={"username": "admin", "password": "secret"},
+            headers={"Origin": "http://testserver", "X-Forwarded-Proto": "https"},
+            follow_redirects=False,
+        )
+        assert "Secure" in response.headers["Set-Cookie"]
+
+
+def test_admin_login_rate_limits_repeated_failures(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    conn = connect_database(database)
+    conn.close()
+
+    with make_client(database, admin_username="admin", admin_password="secret") as client:
+        for _ in range(10):
+            response = client.post(
+                "/admin/login",
+                data={"username": "admin", "password": "wrong"},
+                headers={"Origin": "http://testserver", "CF-Connecting-IP": "198.51.100.77"},
+            )
+            assert response.status_code == 401
+        response = client.post(
+            "/admin/login",
+            data={"username": "admin", "password": "secret"},
+            headers={"Origin": "http://testserver", "CF-Connecting-IP": "198.51.100.77"},
+        )
+        assert response.status_code == 429
+        assert "Too many failed attempts" in response.text
+
+
+def test_admin_login_cookie_tamper_expiry_and_logout(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    conn = connect_database(database)
+    conn.close()
+    settings = WebSettings(
+        database=database,
+        public_url="https://crestmap.us/",
+        admin_username="admin",
+        admin_password="secret",
+        admin_session_secret="separate-session-secret",
+        admin_session_hours=8,
+    )
+
+    token = create_admin_session_token(settings, now=1000)
+    assert valid_admin_session_token(settings, token, now=1001)
+    assert not valid_admin_session_token(settings, token + "tampered", now=1001)
+    assert not valid_admin_session_token(settings, token, now=1000 + 8 * 3600)
+
+    with TestClient(create_app(settings)) as client:
+        response = client.get("/")
+        assert "/admin/login" in response.text
+        assert "Admin login" in response.text
+
+        response = client.post(
+            "/admin/login",
+            data={"username": "admin", "password": "wrong", "next": "/admin/comments"},
+            headers={"Origin": "http://testserver"},
+        )
         assert response.status_code == 401
+        assert "Incorrect username or password." in response.text
+
+        response = client.post(
+            "/admin/login",
+            data={"username": "admin", "password": "secret", "next": "https://evil.example/"},
+            headers={"Origin": "http://testserver"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert response.headers["Location"] == "/admin/incidents"
+        cookie = response.headers["Set-Cookie"]
+        assert f"{ADMIN_SESSION_COOKIE}=" in cookie
+        assert "HttpOnly" in cookie
+        assert "SameSite=strict" in cookie
+        assert "Max-Age=28800" in cookie
+
+        response = client.get("/admin/comments")
+        assert response.status_code == 200
+        assert "Log out" in response.text
+
+        response = client.post(
+            "/admin/logout",
+            headers={"Origin": "http://testserver"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert response.headers["Location"] == "/"
+
+        response = client.get("/admin/comments", follow_redirects=False)
+        assert response.status_code == 303
+
+
+def test_admin_incident_map_reveals_only_details_removed_from_latest_snapshot(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    event_key = "LACC|2026-06-08|1234"
+    retained = {
+        "section": "Detail Information",
+        "time": "12:35 PM",
+        "entry_no": "0002",
+        "text": "This row remains visible",
+    }
+    removed = {
+        "section": "Detail Information",
+        "time": "12:34 PM",
+        "entry_no": "0001",
+        "text": "This row disappeared later",
+    }
+    conn = connect_database(database)
+    first = {
+        **sample_event(event_key),
+        "observed_at": "2026-06-08T12:34:00-07:00",
+        "details_hash": "first",
+        "detail_entries": [removed, retained],
+    }
+    upsert_active_event(conn, first)
+    insert_observation(conn, first, "active")
+    second = {
+        **sample_event(event_key),
+        "observed_at": "2026-06-08T12:36:00-07:00",
+        "details_hash": "second",
+        "detail_entries": [retained],
+    }
+    upsert_active_event(conn, second)
+    insert_observation(conn, second, "active")
+    conn.commit()
+    conn.close()
+
+    with make_client(database, admin_username="admin", admin_password="secret") as client:
+        public = client.get("/incidents.json")
+        assert public.status_code == 200
+        public_entries = public.json()["incidents"][0]["detail_entries"]
+        assert [entry["text"] for entry in public_entries] == ["This row remains visible"]
+
+        response = client.get("/admin/incidents", follow_redirects=False)
+        assert response.status_code == 303
+
+        response = client.get("/admin/incidents", headers=basic_auth())
+        assert response.status_code == 200
+        assert response.headers["Cache-Control"] == "no-store"
+        assert "Show hidden" in response.text
+        assert "This row disappeared later" not in response.text
+
+        hidden_url = f"/admin/incidents/{event_key}/hidden-details?region=forest"
+        response = client.get(hidden_url)
+        assert response.status_code == 401
+
+        response = client.get(hidden_url, headers=basic_auth())
+        assert response.status_code == 200
+        assert response.headers["Cache-Control"] == "no-store"
+        payload = response.json()
+        assert payload["meta"] == {"event_key": event_key, "count": 1}
+        assert payload["data"][0]["text"] == "This row disappeared later"
+        assert payload["data"][0]["first_seen"] == "2026-06-08T12:34:00-07:00"
+        assert payload["data"][0]["last_seen"] == "2026-06-08T12:34:00-07:00"
+        assert payload["data"][0]["snapshot_count"] == 1
 
 
 def test_admin_comments_approves_pending_comment(tmp_path):

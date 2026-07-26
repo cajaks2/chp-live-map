@@ -277,11 +277,15 @@ python manage_comments.py delete 123
 ```
 
 Or enable the web moderation GUI by setting both `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
-When either value is unset, `/admin/comments` returns 404. When enabled, it is protected
-with HTTP Basic auth and supports approving, rejecting, and deleting comments:
+When either value is unset, the admin routes return 404. When enabled, the public navigation
+includes an admin login. A successful login creates a signed, HttpOnly, same-site session
+cookie used by the comment moderator and protected incident map. HTTP Basic auth remains
+available for scripts.
 
 ```text
+GET  /admin/login
 GET  /admin/comments
+GET  /admin/incidents
 ```
 
 On the DigitalOcean compose host, store the credentials in `/opt/chp-live-map/.env`
@@ -290,6 +294,8 @@ instead of committing them:
 ```bash
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=replace-with-a-long-random-password
+ADMIN_SESSION_SECRET=replace-with-a-separate-long-random-secret
+ADMIN_SESSION_HOURS=8
 ```
 
 Prometheus metrics:

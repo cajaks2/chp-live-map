@@ -700,7 +700,7 @@
                 }
               ]
             },
-            "unit": "reqps"
+            "unit": "short"
           },
           "overrides": []
         },
@@ -949,7 +949,7 @@
                 }
               ]
             },
-            "unit": "reqps"
+            "unit": "short"
           },
           "overrides": []
         },
@@ -1008,7 +1008,7 @@
                 }
               ]
             },
-            "unit": "reqps"
+            "unit": "short"
           },
           "overrides": []
         },
@@ -1050,13 +1050,345 @@
         "type": "timeseries"
       },
       {
+        "id": 1007,
+        "type": "row",
+        "title": "Loki Access Traffic",
+        "collapsed": false,
+        "gridPos": {
+          "x": 0,
+          "y": 34,
+          "w": 24,
+          "h": 1
+        },
+        "panels": []
+      },
+      {
+        "datasource": {
+          "type": "loki",
+          "uid": "${loki}"
+        },
+        "description": "Structured crestmap.us access requests grouped by HTTP response status.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 15,
+              "lineWidth": 1,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              }
+            },
+            "unit": "reqps"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 35,
+          "w": 12,
+          "h": 7
+        },
+        "id": 1008,
+        "options": {
+          "legend": {
+            "calcs": [
+              "sum"
+            ],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "${loki}"
+            },
+            "editorMode": "code",
+            "expr": "sum by (http_response_status_code) (count_over_time({cluster=\"external\"} | json | event_action=\"http_request\" [$__auto]))",
+            "legendFormat": "HTTP {{http_response_status_code}}",
+            "queryType": "range",
+            "refId": "A"
+          }
+        ],
+        "title": "Access requests by status",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "loki",
+          "uid": "${loki}"
+        },
+        "description": "Heuristic split based on the request user agent. Automation includes known bots, crawlers, preview fetchers, scanners, and command-line clients.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 15,
+              "lineWidth": 1,
+              "stacking": {
+                "group": "A",
+                "mode": "normal"
+              }
+            },
+            "unit": "reqps"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 35,
+          "w": 12,
+          "h": 7
+        },
+        "id": 1009,
+        "options": {
+          "legend": {
+            "calcs": [
+              "sum"
+            ],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "${loki}"
+            },
+            "editorMode": "code",
+            "expr": "sum(count_over_time({cluster=\"external\"} | json | event_action=\"http_request\", http_request_header_user_agent=~\"(?i).*(bot|crawler|spider|facebookexternalhit|preview|headless|curl|wget|python|go-http-client).*\" [$__auto]))",
+            "legendFormat": "automation",
+            "queryType": "range",
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "${loki}"
+            },
+            "editorMode": "code",
+            "expr": "sum(count_over_time({cluster=\"external\"} | json | event_action=\"http_request\", http_request_header_user_agent!~\"(?i).*(bot|crawler|spider|facebookexternalhit|preview|headless|curl|wget|python|go-http-client).*\" [$__auto]))",
+            "legendFormat": "browser-like",
+            "queryType": "range",
+            "refId": "B"
+          }
+        ],
+        "title": "Browser-like vs automated traffic",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "loki",
+          "uid": "${loki}"
+        },
+        "description": "Access requests split between page loads and the browser endpoints used for status checks, incident refreshes, and comments.",
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1
+            },
+            "unit": "reqps"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 42,
+          "w": 12,
+          "h": 7
+        },
+        "id": 1010,
+        "options": {
+          "legend": {
+            "calcs": [
+              "sum"
+            ],
+            "displayMode": "table",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "${loki}"
+            },
+            "editorMode": "code",
+            "expr": "sum(count_over_time({cluster=\"external\"} | json | event_action=\"http_request\", url_path=~\"/($|\\\\?.*)\" [$__auto]))",
+            "legendFormat": "map page",
+            "queryType": "range",
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "${loki}"
+            },
+            "editorMode": "code",
+            "expr": "sum(count_over_time({cluster=\"external\"} | json | event_action=\"http_request\", url_path=~\"/status\\\\.json.*\" [$__auto]))",
+            "legendFormat": "status polling",
+            "queryType": "range",
+            "refId": "B"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "${loki}"
+            },
+            "editorMode": "code",
+            "expr": "sum(count_over_time({cluster=\"external\"} | json | event_action=\"http_request\", url_path=~\"/incidents\\\\.json.*\" [$__auto]))",
+            "legendFormat": "incident data",
+            "queryType": "range",
+            "refId": "C"
+          },
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "${loki}"
+            },
+            "editorMode": "code",
+            "expr": "sum(count_over_time({cluster=\"external\"} | json | event_action=\"http_request\", url_path=~\"/api/v1/incidents/.*/comments.*\" [$__auto]))",
+            "legendFormat": "comments",
+            "queryType": "range",
+            "refId": "D"
+          }
+        ],
+        "title": "Request mix",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "loki",
+          "uid": "${loki}"
+        },
+        "description": "Top Cloudflare country codes over the selected dashboard time range.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "continuous-GrYlRd"
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 42,
+          "w": 6,
+          "h": 7
+        },
+        "id": 1011,
+        "options": {
+          "displayMode": "gradient",
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "showUnfilled": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "${loki}"
+            },
+            "editorMode": "code",
+            "expr": "topk(10, sum by (client_geo_country_iso_code) (count_over_time({cluster=\"external\"} | json | event_action=\"http_request\" [$__range])))",
+            "legendFormat": "{{client_geo_country_iso_code}}",
+            "queryType": "instant",
+            "refId": "A"
+          }
+        ],
+        "title": "Top countries",
+        "type": "bargauge"
+      },
+      {
+        "datasource": {
+          "type": "loki",
+          "uid": "${loki}"
+        },
+        "description": "Most-requested full URLs over the selected dashboard time range. Query parameters are retained to expose shared incident links.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "continuous-BlPu"
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 18,
+          "y": 42,
+          "w": 6,
+          "h": 7
+        },
+        "id": 1012,
+        "options": {
+          "displayMode": "gradient",
+          "legend": {
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "showUnfilled": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "loki",
+              "uid": "${loki}"
+            },
+            "editorMode": "code",
+            "expr": "topk(10, sum by (url_path) (count_over_time({cluster=\"external\"} | json | event_action=\"http_request\" [$__range])))",
+            "legendFormat": "{{url_path}}",
+            "queryType": "instant",
+            "refId": "A"
+          }
+        ],
+        "title": "Top request URLs",
+        "type": "bargauge"
+      },
+      {
         "id": 1004,
         "type": "row",
         "title": "Application & Database",
         "collapsed": false,
         "gridPos": {
           "x": 0,
-          "y": 34,
+          "y": 49,
           "w": 24,
           "h": 1
         },
@@ -1086,7 +1418,7 @@
         },
         "gridPos": {
           "x": 0,
-          "y": 35,
+          "y": 50,
           "w": 12,
           "h": 7
         },
@@ -1156,7 +1488,7 @@
         },
         "gridPos": {
           "x": 12,
-          "y": 35,
+          "y": 50,
           "w": 4,
           "h": 4
         },
@@ -1215,7 +1547,7 @@
         },
         "gridPos": {
           "x": 16,
-          "y": 35,
+          "y": 50,
           "w": 4,
           "h": 4
         },
@@ -1274,7 +1606,7 @@
         },
         "gridPos": {
           "x": 20,
-          "y": 35,
+          "y": 50,
           "w": 4,
           "h": 4
         },
@@ -1316,7 +1648,7 @@
         "collapsed": false,
         "gridPos": {
           "x": 0,
-          "y": 42,
+          "y": 57,
           "w": 24,
           "h": 1
         },
@@ -1346,7 +1678,7 @@
         },
         "gridPos": {
           "x": 0,
-          "y": 43,
+          "y": 58,
           "w": 4,
           "h": 4
         },
@@ -1405,7 +1737,7 @@
         },
         "gridPos": {
           "x": 4,
-          "y": 43,
+          "y": 58,
           "w": 8,
           "h": 6
         },
@@ -1462,7 +1794,7 @@
         },
         "gridPos": {
           "x": 12,
-          "y": 43,
+          "y": 58,
           "w": 12,
           "h": 6
         },
@@ -1519,7 +1851,7 @@
         },
         "gridPos": {
           "x": 0,
-          "y": 49,
+          "y": 64,
           "w": 12,
           "h": 7
         },
@@ -1578,7 +1910,7 @@
         },
         "gridPos": {
           "x": 12,
-          "y": 49,
+          "y": 64,
           "w": 12,
           "h": 7
         },
@@ -1620,7 +1952,7 @@
         "collapsed": false,
         "gridPos": {
           "x": 0,
-          "y": 56,
+          "y": 71,
           "w": 24,
           "h": 1
         },
@@ -1650,7 +1982,7 @@
         },
         "gridPos": {
           "x": 0,
-          "y": 57,
+          "y": 72,
           "w": 8,
           "h": 7
         },
@@ -1709,7 +2041,7 @@
         },
         "gridPos": {
           "x": 8,
-          "y": 57,
+          "y": 72,
           "w": 8,
           "h": 7
         },
@@ -1766,7 +2098,7 @@
         },
         "gridPos": {
           "x": 16,
-          "y": 57,
+          "y": 72,
           "w": 8,
           "h": 7
         },
@@ -1805,12 +2137,22 @@
     "tags": [
       "chp",
       "crestmap",
+      "loki",
       "prometheus",
       "scraper",
       "traffic"
     ],
     "templating": {
       "list": [
+        {
+          "current": {},
+          "label": "Loki",
+          "name": "loki",
+          "options": [],
+          "query": "loki",
+          "refresh": 1,
+          "type": "datasource"
+        },
         {
           "current": {
             "selected": true,
@@ -1891,10 +2233,10 @@
     "timezone": "browser",
     "title": "Crestmap CHP Live Map",
     "uid": "crestmap-chp-live-map",
-    "version": 5,
-    "description": "Operational dashboard for crestmap.us: scraper freshness, XML/CAD source behavior, public web traffic, Postgres pool health, and incident data quality."
+    "version": 6,
+    "description": "Operational dashboard for crestmap.us: scraper freshness, XML/CAD source behavior, Loki access traffic, Postgres pool health, and incident data quality."
   },
   "folderUid": "bfo1wv4abcd1cd",
   "overwrite": true,
-  "message": "Reorganize Crestmap CHP dashboard layout"
+  "message": "Add Loki access traffic panels"
 }

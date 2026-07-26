@@ -1,5 +1,7 @@
 import base64
 import datetime as dt
+import hashlib
+import hmac
 import html
 import json
 import os
@@ -8,7 +10,7 @@ import time
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlencode, urlsplit
 
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
@@ -33,6 +35,7 @@ from generate_live_map import (
     load_incident_by_key,
     load_incidents,
     load_last_scrape_run,
+    load_removed_detail_entries,
     normalize_base_path,
     normalize_region,
     region_label,
@@ -52,6 +55,8 @@ class WebSettings:
     database_pool_max: int = 5
     admin_username: str | None = None
     admin_password: str | None = None
+    admin_session_secret: str | None = None
+    admin_session_hours: int = 8
 
     @classmethod
     def from_env(cls):
@@ -66,6 +71,8 @@ class WebSettings:
             database_pool_max=int(os.environ.get("DATABASE_POOL_MAX", "5")),
             admin_username=os.environ.get("ADMIN_USERNAME") or None,
             admin_password=os.environ.get("ADMIN_PASSWORD") or None,
+            admin_session_secret=os.environ.get("ADMIN_SESSION_SECRET") or None,
+            admin_session_hours=int(os.environ.get("ADMIN_SESSION_HOURS", "8")),
         )
 
 
@@ -146,6 +153,12 @@ def route_label(path, settings):
         return "incidents"
     if path in {"/admin/comments", f"{asset_base}/admin/comments"}:
         return "admin_comments"
+    if path in {"/admin/login", f"{asset_base}/admin/login", "/admin/logout", f"{asset_base}/admin/logout"}:
+        return "admin_session"
+    if path == "/admin/incidents" or path == f"{asset_base}/admin/incidents":
+        return "admin_incidents"
+    if path.startswith(f"{asset_base}/admin/incidents/") and path.endswith("/hidden-details"):
+        return "admin_hidden_details"
     if path.startswith("/api/v1/incidents/") and path.endswith("/comments"):
         return "comments"
     if path in {"/metrics", f"{asset_base}/metrics"}:
@@ -297,37 +310,144 @@ def admin_enabled(settings):
     return bool(settings.admin_username and settings.admin_password)
 
 
-def admin_unauthorized(send_body=True):
-    return html_response(
-        "<!doctype html><title>Unauthorized</title><h1>Unauthorized</h1>",
-        status_code=401,
-        send_body=send_body,
-        headers={"WWW-Authenticate": 'Basic realm="Crestmap comments", charset="UTF-8"'},
+ADMIN_SESSION_COOKIE = "crestmap_admin_session"
+ADMIN_LOGIN_ATTEMPT_LIMIT = 10
+ADMIN_LOGIN_WINDOW_SECONDS = 15 * 60
+
+
+def admin_login_path(settings):
+    base = normalize_base_path(settings.base_path)
+    return "/admin/login" if base == "/" else f"{base}/admin/login"
+
+
+def admin_logout_path(settings):
+    base = normalize_base_path(settings.base_path)
+    return "/admin/logout" if base == "/" else f"{base}/admin/logout"
+
+
+def admin_session_key(settings):
+    secret = settings.admin_session_secret or settings.admin_password or ""
+    return hashlib.sha256(f"crestmap-admin-session\0{secret}".encode("utf-8")).digest()
+
+
+def create_admin_session_token(settings, now=None):
+    now = int(time.time() if now is None else now)
+    expires_at = now + max(1, settings.admin_session_hours) * 3600
+    payload = json.dumps(
+        {"username": settings.admin_username, "expires_at": expires_at},
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    encoded = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+    signature = hmac.new(admin_session_key(settings), encoded.encode("ascii"), hashlib.sha256).hexdigest()
+    return f"{encoded}.{signature}"
+
+
+def valid_admin_session_token(settings, token, now=None):
+    if not token or "." not in token:
+        return False
+    encoded, signature = token.rsplit(".", 1)
+    expected = hmac.new(admin_session_key(settings), encoded.encode("ascii"), hashlib.sha256).hexdigest()
+    if not secrets.compare_digest(signature, expected):
+        return False
+    try:
+        padding = "=" * (-len(encoded) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(encoded + padding))
+        expires_at = int(payload["expires_at"])
+    except (ValueError, TypeError, KeyError, json.JSONDecodeError):
+        return False
+    now = int(time.time() if now is None else now)
+    return (
+        expires_at > now
+        and secrets.compare_digest(str(payload.get("username") or ""), settings.admin_username or "")
     )
+
+
+def request_uses_https(request):
+    forwarded_proto = (request.headers.get("x-forwarded-proto") or "").split(",", 1)[0].strip()
+    return forwarded_proto == "https" or request.url.scheme == "https"
+
+
+def admin_unauthorized(send_body=True):
+    return api_error("admin authentication required", "unauthorized", 401, send_body=send_body)
 
 
 def admin_authorized(request):
     settings = request.app.state.settings
     if not admin_enabled(settings):
         return False
+    token = request.cookies.get(ADMIN_SESSION_COOKIE, "")
+    if valid_admin_session_token(settings, token):
+        return True
     auth = request.headers.get("authorization", "")
-    if not auth.startswith("Basic "):
-        return False
-    try:
-        decoded = base64.b64decode(auth.split(" ", 1)[1], validate=True).decode("utf-8")
-    except Exception:
-        return False
-    username, separator, password = decoded.partition(":")
-    return bool(
-        separator
-        and secrets.compare_digest(username, settings.admin_username or "")
-        and secrets.compare_digest(password, settings.admin_password or "")
-    )
+    if auth.startswith("Basic "):
+        try:
+            decoded = base64.b64decode(auth.split(" ", 1)[1], validate=True).decode("utf-8")
+        except Exception:
+            return False
+        username, separator, password = decoded.partition(":")
+        return bool(
+            separator
+            and secrets.compare_digest(username, settings.admin_username or "")
+            and secrets.compare_digest(password, settings.admin_password or "")
+        )
+    return False
+
+
+def safe_admin_next(settings, value):
+    fallback = admin_incidents_path(settings)
+    if not value or not value.startswith("/") or value.startswith("//"):
+        return fallback
+    parsed = urlsplit(value)
+    admin_base = admin_login_path(settings).rsplit("/", 1)[0] + "/"
+    if parsed.scheme or parsed.netloc or not parsed.path.startswith(admin_base):
+        return fallback
+    if parsed.path in {admin_login_path(settings), admin_logout_path(settings)}:
+        return fallback
+    return parsed.path + (f"?{parsed.query}" if parsed.query else "")
+
+
+def admin_login_redirect(request):
+    settings = request.app.state.settings
+    location = f"{admin_login_path(settings)}?{urlencode({'next': request_target(request)})}"
+    return Response(status_code=303, headers={"Location": location, "Cache-Control": "no-store"})
+
+
+def admin_login_attempt_key(request):
+    return str(client_log_fields(request).get("client.address") or "unknown")
+
+
+def admin_login_attempts(request, record_failure=False):
+    now = time.time()
+    key = admin_login_attempt_key(request)
+    attempts = request.app.state.admin_login_attempts
+    recent = [
+        attempted_at
+        for attempted_at in attempts.get(key, [])
+        if now - attempted_at < ADMIN_LOGIN_WINDOW_SECONDS
+    ]
+    if record_failure:
+        recent.append(now)
+    attempts[key] = recent
+    return len(recent)
 
 
 def admin_path(settings):
     base = normalize_base_path(settings.base_path)
     return "/admin/comments" if base == "/" else f"{base}/admin/comments"
+
+
+def admin_incidents_path(settings):
+    base = normalize_base_path(settings.base_path)
+    return "/admin/incidents" if base == "/" else f"{base}/admin/incidents"
+
+
+def admin_hidden_event_key_from_path(path, settings):
+    prefix = f"{admin_incidents_path(settings)}/"
+    suffix = "/hidden-details"
+    if not path.startswith(prefix) or not path.endswith(suffix):
+        return None
+    return unquote(path[len(prefix) : -len(suffix)])
 
 
 def admin_status_from_request(request):
@@ -356,12 +476,148 @@ def same_origin_admin_post(request):
     return True
 
 
+def build_admin_login_html(settings, next_path, error=""):
+    error_html = f'<div class="error" role="alert">{html.escape(error)}</div>' if error else ""
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crestmap Admin Login</title>
+  <style>
+    body {{ min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 20px; box-sizing: border-box; color: #1d252a; background: #f2f5ef; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
+    main {{ width: min(100%, 380px); padding: 24px; border: 1px solid #d6ded2; border-radius: 14px; background: #fff; box-shadow: 0 10px 30px rgba(24, 42, 29, 0.09); }}
+    h1 {{ margin: 0 0 6px; font-size: 25px; }}
+    p {{ margin: 0 0 20px; color: #59655d; line-height: 1.45; }}
+    label {{ display: block; margin-top: 13px; color: #35413a; font-size: 13px; font-weight: 800; }}
+    input {{ width: 100%; min-height: 42px; margin-top: 6px; padding: 8px 10px; box-sizing: border-box; border: 1px solid #cbd5ca; border-radius: 8px; font: inherit; }}
+    input:focus {{ border-color: #2b7c4a; outline: 3px solid rgba(43, 124, 74, 0.15); }}
+    button {{ width: 100%; min-height: 44px; margin-top: 18px; border: 0; border-radius: 8px; color: #fff; background: #2b7c4a; font: inherit; font-weight: 850; cursor: pointer; }}
+    .error {{ margin-bottom: 14px; padding: 10px 12px; border: 1px solid #e1b2b2; border-radius: 8px; color: #8f2525; background: #fff1f1; }}
+    .back {{ display: block; margin-top: 16px; color: #2b6f45; text-align: center; }}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Admin login</h1>
+    <p>Sign in to moderate comments and view incident details removed from later CHP snapshots.</p>
+    {error_html}
+    <form method="post" action="{html.escape(admin_login_path(settings))}">
+      <input type="hidden" name="next" value="{html.escape(next_path)}">
+      <label>Username<input name="username" autocomplete="username" required autofocus></label>
+      <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+      <button type="submit">Sign in</button>
+    </form>
+    <a class="back" href="/">Back to map</a>
+  </main>
+</body>
+</html>"""
+
+
+def handle_admin_login_get(request, send_body=True, error=""):
+    settings = request.app.state.settings
+    if not admin_enabled(settings):
+        return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404, send_body=send_body)
+    next_path = safe_admin_next(settings, (_query(request).get("next") or [""])[0])
+    if admin_authorized(request):
+        return Response(status_code=303, headers={"Location": next_path, "Cache-Control": "no-store"})
+    return html_response(
+        build_admin_login_html(settings, next_path, error),
+        status_code=401 if error else 200,
+        cache_control="no-store",
+        send_body=send_body,
+    )
+
+
+async def handle_admin_login_post(request):
+    settings = request.app.state.settings
+    if not admin_enabled(settings):
+        return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404)
+    if not same_origin_admin_post(request):
+        return byte_response(b"Forbidden\n", "text/plain; charset=utf-8", status_code=403)
+    if admin_login_attempts(request) >= ADMIN_LOGIN_ATTEMPT_LIMIT:
+        next_path = safe_admin_next(settings, (_query(request).get("next") or [""])[0])
+        return html_response(
+            build_admin_login_html(settings, next_path, "Too many failed attempts. Try again later."),
+            status_code=429,
+            cache_control="no-store",
+        )
+    raw_body = (await request.body()).decode("utf-8", errors="replace")
+    fields = {key: values[-1] for key, values in parse_qs(raw_body).items()}
+    next_path = safe_admin_next(settings, fields.get("next"))
+    username = fields.get("username") or ""
+    password = fields.get("password") or ""
+    valid = secrets.compare_digest(username, settings.admin_username or "") and secrets.compare_digest(
+        password, settings.admin_password or ""
+    )
+    if not valid:
+        admin_login_attempts(request, record_failure=True)
+        web.log_event(
+            "warning",
+            "Admin login rejected",
+            **{
+                "event.action": "admin_login",
+                "event.outcome": "failure",
+                **client_log_fields(request),
+            },
+        )
+        return html_response(
+            build_admin_login_html(settings, next_path, "Incorrect username or password."),
+            status_code=401,
+            cache_control="no-store",
+        )
+    request.app.state.admin_login_attempts.pop(admin_login_attempt_key(request), None)
+    response = Response(status_code=303, headers={"Location": next_path, "Cache-Control": "no-store"})
+    response.set_cookie(
+        ADMIN_SESSION_COOKIE,
+        create_admin_session_token(settings),
+        max_age=max(1, settings.admin_session_hours) * 3600,
+        path="/",
+        secure=request_uses_https(request),
+        httponly=True,
+        samesite="strict",
+    )
+    web.log_event(
+        "info",
+        "Admin login completed",
+        **{
+            "event.action": "admin_login",
+            "event.outcome": "success",
+            **client_log_fields(request),
+        },
+    )
+    return response
+
+
+async def handle_admin_logout_post(request):
+    settings = request.app.state.settings
+    if not admin_enabled(settings):
+        return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404)
+    if not same_origin_admin_post(request):
+        return byte_response(b"Forbidden\n", "text/plain; charset=utf-8", status_code=403)
+    response = Response(status_code=303, headers={"Location": "/", "Cache-Control": "no-store"})
+    response.delete_cookie(
+        ADMIN_SESSION_COOKIE,
+        path="/",
+        secure=request_uses_https(request),
+        httponly=True,
+        samesite="strict",
+    )
+    return response
+
+
 def dispatch_request(request, send_body=True):
     settings = request.app.state.settings
     path = _path(request)
     base_path = normalize_base_path(settings.base_path)
     asset_base = "" if base_path == "/" else base_path
-    map_paths = {"/", "/live_chp_map.html", base_path}
+    admin_mode = path == admin_incidents_path(settings)
+    if admin_mode:
+        if not admin_enabled(settings):
+            return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404, send_body=send_body)
+        if not admin_authorized(request):
+            return admin_login_redirect(request)
+    map_paths = {"/", "/live_chp_map.html", base_path, admin_incidents_path(settings)}
     summary_paths = {"/summary", f"{asset_base}/summary"}
     history_paths = {"/history", f"{asset_base}/history"}
     about_paths = {"/about", f"{asset_base}/about"}
@@ -632,6 +888,8 @@ def dispatch_request(request, send_body=True):
                 region=region,
                 region_statuses=current_region_statuses,
                 last_scrape=last_scrape,
+                admin_mode=admin_mode,
+                admin_details_base=admin_incidents_path(settings),
             ).encode("utf-8")
     except Exception as exc:
         web.log_exception(
@@ -652,10 +910,56 @@ def dispatch_request(request, send_body=True):
             status_code=500,
             send_body=send_body,
         )
-    return byte_response(body, "text/html; charset=utf-8", cache_control=web.MAP_CACHE_CONTROL, send_body=send_body)
+    cache_control = "no-store" if admin_mode else web.MAP_CACHE_CONTROL
+    return byte_response(body, "text/html; charset=utf-8", cache_control=cache_control, send_body=send_body)
 
 
-def build_admin_comments_html(rows, counts, status, message="", admin_url="/admin/comments"):
+def handle_admin_hidden_details_get(request, event_key, send_body=True):
+    settings = request.app.state.settings
+    if not admin_enabled(settings):
+        return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404, send_body=send_body)
+    if not admin_authorized(request):
+        return admin_unauthorized(send_body=send_body)
+    region = requested_region(request)
+    try:
+        with database_connection(request.app) as conn:
+            entries = load_removed_detail_entries(
+                settings.database,
+                event_key,
+                settings.database_url,
+                region=region,
+                conn=conn,
+            )
+    except Exception as exc:
+        web.log_exception(
+            "Failed to load admin hidden incident details",
+            exc,
+            **{
+                "event.action": "admin_hidden_details",
+                "event.outcome": "failure",
+                "url.path": request_target(request),
+                **client_log_fields(request),
+            },
+        )
+        return api_error("failed to load hidden details", status_code=500, send_body=send_body)
+    if entries is None:
+        return api_error("incident not found", "not_found", 404, send_body=send_body)
+    return json_response(
+        {"meta": {"event_key": event_key, "count": len(entries)}, "data": entries},
+        cache_control="no-store",
+        send_body=send_body,
+    )
+
+
+def build_admin_comments_html(
+    rows,
+    counts,
+    status,
+    message="",
+    admin_url="/admin/comments",
+    admin_incidents_url="/admin/incidents",
+    admin_logout_url="/admin/logout",
+):
     tabs = []
     for tab_status, label in (("pending", "Pending"), ("approved", "Approved"), ("rejected", "Rejected")):
         count = counts.get(tab_status, 0)
@@ -671,7 +975,10 @@ def build_admin_comments_html(rows, counts, status, message="", admin_url="/admi
         )
     cards = []
     for row in rows:
-        incident_url = f"/?region={html.escape(row.get('region') or 'forest')}&incident={html.escape(row['event_key'])}"
+        incident_url = (
+            f"{html.escape(admin_incidents_url)}?region={html.escape(row.get('region') or 'forest')}"
+            f"&incident={html.escape(row['event_key'])}"
+        )
         actions = []
         if row["status"] != "approved":
             actions.append(("approve", "Approve"))
@@ -750,7 +1057,8 @@ def build_admin_comments_html(rows, counts, status, message="", admin_url="/admi
     h1 {{ margin: 0; font-size: 28px; letter-spacing: 0; }}
     h2 {{ margin: 4px 0; font-size: 18px; letter-spacing: 0; }}
     .tabs {{ display: flex; gap: 8px; flex-wrap: wrap; }}
-    .tab {{ padding: 8px 12px; border: 1px solid #d7ded2; border-radius: 8px; color: #35413a; text-decoration: none; font-weight: 800; background: #fff; }}
+    .tabs form {{ margin: 0; }}
+    .tab {{ padding: 8px 12px; border: 1px solid #d7ded2; border-radius: 8px; color: #35413a; text-decoration: none; font: inherit; font-weight: 800; background: #fff; cursor: pointer; }}
     .tab.is-active {{ color: #fff; border-color: #2b7c4a; background: #2b7c4a; }}
     .tab span {{ opacity: 0.8; }}
     .notice {{ margin-bottom: 12px; padding: 10px 12px; border: 1px solid #bdd4c0; border-radius: 8px; background: #edf7ee; color: #1f6840; font-weight: 700; }}
@@ -779,7 +1087,11 @@ def build_admin_comments_html(rows, counts, status, message="", admin_url="/admi
       <h1>Comment Moderation</h1>
       <div class="meta">Only approved comments are shown publicly.</div>
     </div>
-    <nav class="tabs">{"".join(tabs)}</nav>
+    <nav class="tabs">
+      <a class="tab" href="{html.escape(admin_incidents_url)}">Incident map</a>
+      {"".join(tabs)}
+      <form method="post" action="{html.escape(admin_logout_url)}"><button class="tab" type="submit">Log out</button></form>
+    </nav>
   </header>
   <main>
     {message_html}
@@ -794,7 +1106,7 @@ def handle_admin_comments_get(request, send_body=True, message=""):
     if not admin_enabled(settings):
         return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404, send_body=send_body)
     if not admin_authorized(request):
-        return admin_unauthorized(send_body=send_body)
+        return admin_login_redirect(request)
     status = admin_status_from_request(request)
     try:
         with writable_database_connection(request.app) as conn:
@@ -806,6 +1118,8 @@ def handle_admin_comments_get(request, send_body=True, message=""):
             status,
             message=message,
             admin_url=admin_path(settings),
+            admin_incidents_url=admin_incidents_path(settings),
+            admin_logout_url=admin_logout_path(settings),
         )
         return html_response(body, cache_control="no-store", send_body=send_body)
     except Exception as exc:
@@ -1016,6 +1330,7 @@ def create_app(settings=None):
     app = FastAPI(lifespan=lifespan)
     app.state.settings = settings
     app.state.database_pool = None
+    app.state.admin_login_attempts = {}
 
     @app.middleware("http")
     async def ecs_access_log_middleware(request, call_next):
@@ -1071,8 +1386,13 @@ def create_app(settings=None):
 
     @app.get("/{full_path:path}")
     def get_anything(request: Request, full_path: str):
+        if _path(request) == admin_login_path(settings):
+            return handle_admin_login_get(request, send_body=True)
         if _path(request) == admin_path(settings):
             return handle_admin_comments_get(request, send_body=True)
+        hidden_event_key = admin_hidden_event_key_from_path(_path(request), settings)
+        if hidden_event_key is not None:
+            return handle_admin_hidden_details_get(request, hidden_event_key, send_body=True)
         event_key = comment_event_key_from_path(_path(request))
         if event_key is not None:
             return handle_comments_get(request, event_key, send_body=True)
@@ -1080,8 +1400,13 @@ def create_app(settings=None):
 
     @app.head("/{full_path:path}")
     def head_anything(request: Request, full_path: str):
+        if _path(request) == admin_login_path(settings):
+            return handle_admin_login_get(request, send_body=False)
         if _path(request) == admin_path(settings):
             return handle_admin_comments_get(request, send_body=False)
+        hidden_event_key = admin_hidden_event_key_from_path(_path(request), settings)
+        if hidden_event_key is not None:
+            return handle_admin_hidden_details_get(request, hidden_event_key, send_body=False)
         event_key = comment_event_key_from_path(_path(request))
         if event_key is not None:
             return handle_comments_get(request, event_key, send_body=False)
@@ -1089,6 +1414,10 @@ def create_app(settings=None):
 
     @app.post("/{full_path:path}")
     async def post_anything(request: Request, full_path: str):
+        if _path(request) == admin_login_path(settings):
+            return await handle_admin_login_post(request)
+        if _path(request) == admin_logout_path(settings):
+            return await handle_admin_logout_post(request)
         if _path(request) == admin_path(settings):
             return await handle_admin_comments_post(request)
         event_key = comment_event_key_from_path(_path(request))

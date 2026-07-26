@@ -16,6 +16,7 @@ stringData:
   DATABASE_URL: postgresql://chp_map:change-me@chp-live-map-postgres:5432/chp_map
   ADMIN_USERNAME: admin
   ADMIN_PASSWORD: change-me
+  ADMIN_SESSION_SECRET: change-me-too
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -261,6 +262,14 @@ spec:
                   name: chp-live-map-db
                   key: ADMIN_PASSWORD
                   optional: true
+            - name: ADMIN_SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: chp-live-map-db
+                  key: ADMIN_SESSION_SECRET
+                  optional: true
+            - name: ADMIN_SESSION_HOURS
+              value: "8"
           resources:
             requests:
               cpu: 25m

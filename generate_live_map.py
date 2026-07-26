@@ -188,6 +188,92 @@ def load_incident_by_key(database, event_key, database_url=None, region="forest"
     return hydrate_incident(row, region) if row else None
 
 
+def load_removed_detail_entries(database, event_key, database_url=None, region="forest", conn=None):
+    region = normalize_region(region)
+    if not event_key or (conn is None and not database_url and not database.exists()):
+        return None
+    should_close = False
+    if conn is not None:
+        placeholder = "%s" if database_url else "?"
+    elif database_url:
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+        except ImportError as exc:
+            raise RuntimeError("Postgres support requires psycopg. Install requirements.txt.") from exc
+        conn = psycopg.connect(database_url, row_factory=dict_row)
+        should_close = True
+        placeholder = "%s"
+    else:
+        conn = sqlite3.connect(database)
+        conn.row_factory = sqlite3.Row
+        should_close = True
+        placeholder = "?"
+    exists = conn.execute(
+        f"SELECT 1 FROM events WHERE event_key = {placeholder} AND region = {placeholder}",
+        (event_key, region),
+    ).fetchone()
+    rows = []
+    if exists:
+        rows = conn.execute(
+            f"""
+            SELECT observed_at, details_json
+            FROM observations
+            WHERE event_key = {placeholder}
+              AND status = 'active'
+            ORDER BY observed_at DESC, id DESC
+            """,
+            (event_key,),
+        ).fetchall()
+    if should_close:
+        conn.close()
+    if not exists:
+        return None
+
+    snapshots = []
+    for row in rows:
+        try:
+            entries = json.loads(row["details_json"] or "[]")
+        except (json.JSONDecodeError, TypeError):
+            entries = []
+        snapshots.append((row["observed_at"], entries))
+    current_entries = snapshots[0][1] if snapshots else []
+
+    def entry_key(entry):
+        return (
+            str(entry.get("section") or ""),
+            str(entry.get("time") or ""),
+            str(entry.get("entry_no") or ""),
+            str(entry.get("text") or ""),
+        )
+
+    current_keys = {entry_key(entry) for entry in current_entries}
+    history = {}
+    for observed_at, entries in reversed(snapshots):
+        snapshot_keys = set()
+        for entry in entries:
+            key = entry_key(entry)
+            if key in snapshot_keys:
+                continue
+            snapshot_keys.add(key)
+            item = history.setdefault(
+                key,
+                {
+                    "section": entry.get("section") or "",
+                    "time": entry.get("time") or "",
+                    "entry_no": entry.get("entry_no") or "",
+                    "text": entry.get("text") or "",
+                    "first_seen": observed_at,
+                    "last_seen": observed_at,
+                    "snapshot_count": 0,
+                },
+            )
+            item["last_seen"] = observed_at
+            item["snapshot_count"] += 1
+    removed = [item for key, item in history.items() if key not in current_keys]
+    return sorted(removed, key=lambda item: (item["last_seen"], item["entry_no"]), reverse=True)
+
+
 def include_linked_incident(incidents, linked_incident):
     if not linked_incident:
         return incidents
@@ -266,12 +352,18 @@ def view_href(base_path, suffix, hours, region="forest"):
     return href_with_query(app_path(base_path, suffix), hours=f"{hours:g}", region=normalize_region(region))
 
 
-def view_menu(base_path, current, hours, region="forest"):
+def view_menu(base_path, current, hours, region="forest", admin_mode=False):
     items = [
         ("map", "Map", "Current incidents", view_href(base_path, "/", hours, region)),
         ("summary", "Summary", "Counts + trends", view_href(base_path, "/summary", hours, region)),
         ("history", "History", "Search incidents", view_href(base_path, "/history", hours, region)),
         ("about", "About", "Source + cadence", view_href(base_path, "/about", hours, region)),
+        (
+            "admin",
+            "Admin tools" if admin_mode else "Admin login",
+            "Moderation + hidden details",
+            app_path(base_path, "/admin/comments" if admin_mode else "/admin/login"),
+        ),
     ]
     rows = []
     for key, label, description, href in items:
@@ -418,6 +510,8 @@ def build_html(
     region="forest",
     region_statuses=None,
     last_scrape=None,
+    admin_mode=False,
+    admin_details_base="/admin/incidents",
 ):
     region = normalize_region(region)
     map_label = region_label(region)
@@ -449,6 +543,7 @@ def build_html(
     else:
         status_endpoint = f"{asset_base}/status.json"
         incidents_endpoint = f"{asset_base}/incidents.json"
+    admin_details_base = admin_details_base.rstrip("/")
     structured_data = {
         "@context": "https://schema.org",
         "@graph": [
@@ -1200,7 +1295,8 @@ def build_html(
       letter-spacing: 0;
     }}
     .share-incident,
-    .default-view {{
+    .default-view,
+    .hidden-details-toggle {{
       flex: 0 0 auto;
       min-height: 30px;
       padding: 5px 9px;
@@ -1216,10 +1312,17 @@ def build_html(
     .default-view {{
       color: #4f5b54;
     }}
+    .hidden-details-toggle {{
+      color: #7a4e09;
+      border-color: #d8bd83;
+      background: #fff8e8;
+    }}
     .share-incident:focus,
     .share-incident:hover,
     .default-view:focus,
-    .default-view:hover {{
+    .default-view:hover,
+    .hidden-details-toggle:focus,
+    .hidden-details-toggle:hover {{
       border-color: #94b69a;
       background: #edf5ed;
       outline: none;
@@ -1228,6 +1331,18 @@ def build_html(
       margin-top: 14px;
       padding-top: 14px;
       border-top: 1px solid #e5e8e1;
+    }}
+    .hidden-detail-section {{
+      padding: 12px;
+      border: 1px solid #e1c890;
+      border-radius: 8px;
+      background: #fffaf0;
+    }}
+    .hidden-detail-note {{
+      margin-bottom: 10px;
+      color: #72510e;
+      font-size: 12px;
+      line-height: 1.4;
     }}
     .detail-grid {{
       display: grid;
@@ -1590,7 +1705,7 @@ def build_html(
       <header>
         <div class="title-row">
           <h1>CHP {html.escape(map_label)} Incidents</h1>
-          {view_menu(base_path, "map", hours, region)}
+          {view_menu(base_path, "map", hours, region, admin_mode=admin_mode)}
         </div>
         <div class="meta">{active_count} active · {status['total_count']} in last {hours:g}h · {mapped_count} mapped</div>
         <div class="meta checked-meta"><span>View last updated <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span><span aria-hidden="true">·</span>{scrape_meta_html(last_scrape)}<span aria-hidden="true">·</span>
@@ -1625,6 +1740,8 @@ def build_html(
     const statusEndpoint = "{html.escape(status_endpoint)}";
     const incidentsEndpoint = "{html.escape(incidents_endpoint)}";
     const commentsBaseEndpoint = "/api/v1/incidents";
+    const adminMode = {json.dumps(bool(admin_mode))};
+    const adminDetailsBase = "{html.escape(admin_details_base)}";
     const currentRegion = "{html.escape(region)}";
     let incidents = [];
     let currentDataStatus = initialDataStatus;
@@ -2143,6 +2260,23 @@ def build_html(
       bindElement();
     }}
 
+    function renderDetailSections(sections, includeHistory = false) {{
+      return sections.map(([section, entries]) => `
+        <div class="detail-subsection">
+          <h3>${{escapeHtml(section)}}</h3>
+          <ol class="detail-log">
+            ${{entries.map((entry) => `
+              <li>
+                <time>${{escapeHtml(entry.time)}} · Entry ${{escapeHtml(entry.entry_no)}}</time>
+                <div>${{escapeHtml(entry.text)}}</div>
+                ${{includeHistory ? `<div class="hidden-detail-note">Seen ${{escapeHtml(entry.first_seen)}} through ${{escapeHtml(entry.last_seen)}} · ${{escapeHtml(entry.snapshot_count)}} snapshot(s)</div>` : ""}}
+              </li>
+            `).join("")}}
+          </ol>
+        </div>
+      `).join("");
+    }}
+
     function detailHtml(incident) {{
       if (!incident) {{
         return '<div class="empty">Select an incident to view CHP detail entries.</div>';
@@ -2161,19 +2295,6 @@ def build_html(
         }}
         groupedDetails.get(section).push(entry);
       }});
-      const renderDetailSections = (sections) => sections.map(([section, entries]) => `
-        <div class="detail-subsection">
-          <h3>${{escapeHtml(section)}}</h3>
-          <ol class="detail-log">
-            ${{entries.map((entry) => `
-              <li>
-                <time>${{escapeHtml(entry.time)}} · Entry ${{escapeHtml(entry.entry_no)}}</time>
-                <div>${{escapeHtml(entry.text)}}</div>
-              </li>
-            `).join("")}}
-          </ol>
-        </div>
-      `).join("");
       const detailSections = Array.from(groupedDetails.entries())
         .filter(([section]) => section !== "Unit Information");
       const unitSections = Array.from(groupedDetails.entries())
@@ -2191,6 +2312,9 @@ def build_html(
       const defaultButton = new URLSearchParams(window.location.search).get("incident")
         ? `<button type="button" class="default-view" data-default-view>Back to ${{escapeHtml(formatRangeLabel(currentDataStatus.hours))}}</button>`
         : "";
+      const hiddenDetailsButton = adminMode
+        ? `<button type="button" class="hidden-details-toggle" data-hidden-details-toggle="${{escapeHtml(incident.event_key)}}">Show hidden</button>`
+        : "";
       return `
         <div class="detail-panel">
           <div class="detail-header">
@@ -2201,6 +2325,7 @@ def build_html(
             </div>
             <div class="detail-actions">
               ${{defaultButton}}
+              ${{hiddenDetailsButton}}
               <button type="button" class="share-incident" data-share-incident="${{escapeHtml(incident.event_key)}}">Copy link</button>
             </div>
           </div>
@@ -2218,6 +2343,7 @@ def build_html(
             </dl>
           </section>
           ${{detailEntries ? `<section class="detail-section">${{detailEntries}}</section>` : ""}}
+          ${{adminMode ? '<section class="detail-section hidden-detail-section" data-hidden-details hidden><div class="empty">Loading previously seen details...</div></section>' : ""}}
           <section class="detail-section">
             <div class="detail-subsection">
               <h3>Comments</h3>
@@ -2292,10 +2418,55 @@ def build_html(
       detailsPanel.scrollIntoView({{ behavior: "smooth", block: "start" }});
     }});
 
-    detailsPanel.addEventListener("click", (event) => {{
+    detailsPanel.addEventListener("click", async (event) => {{
       const defaultButton = event.target.closest("[data-default-view]");
       if (defaultButton) {{
         showDefaultView();
+        return;
+      }}
+      const hiddenButton = event.target.closest("[data-hidden-details-toggle]");
+      if (hiddenButton) {{
+        const incident = incidents.find((item) => item.event_key === hiddenButton.dataset.hiddenDetailsToggle);
+        const container = detailsPanel.querySelector("[data-hidden-details]");
+        if (!incident || !container) {{
+          return;
+        }}
+        if (container.dataset.loaded === "true") {{
+          container.hidden = !container.hidden;
+          hiddenButton.textContent = container.hidden ? "Show hidden" : "Hide hidden";
+          return;
+        }}
+        hiddenButton.disabled = true;
+        hiddenButton.textContent = "Loading...";
+        try {{
+          const url = `${{adminDetailsBase}}/${{encodeURIComponent(incident.event_key)}}/hidden-details?region=${{encodeURIComponent(currentRegion)}}`;
+          const response = await fetch(url, {{ cache: "no-store", headers: {{ "Accept": "application/json" }} }});
+          if (!response.ok) {{
+            throw new Error(`hidden details API returned ${{response.status}}`);
+          }}
+          const payload = await response.json();
+          const entries = payload.data || [];
+          const grouped = new Map();
+          entries.forEach((entry) => {{
+            const section = entry.section || "Detail Information";
+            if (!grouped.has(section)) {{
+              grouped.set(section, []);
+            }}
+            grouped.get(section).push(entry);
+          }});
+          container.innerHTML = entries.length
+            ? `<div class="hidden-detail-note">Previously seen in CHP snapshots but absent from the latest captured snapshot.</div>${{renderDetailSections(Array.from(grouped.entries()), true)}}`
+            : '<div class="empty">No previously seen detail rows are hidden for this incident.</div>';
+          container.dataset.loaded = "true";
+          container.hidden = false;
+          hiddenButton.textContent = "Hide hidden";
+        }} catch (_error) {{
+          container.innerHTML = '<div class="empty">Hidden details could not be loaded.</div>';
+          container.hidden = false;
+          hiddenButton.textContent = "Retry hidden";
+        }} finally {{
+          hiddenButton.disabled = false;
+        }}
         return;
       }}
       const button = event.target.closest("[data-share-incident]");

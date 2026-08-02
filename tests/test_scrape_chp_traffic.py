@@ -412,6 +412,7 @@ def test_filtered_xml_incident_keys_applies_region_bounds():
 
 def test_scrape_once_xml_writes_matching_incidents(tmp_path, monkeypatch):
     database = tmp_path / "chp.sqlite"
+    logged_events = []
 
     class Args:
         source_mode = "xml"
@@ -456,8 +457,14 @@ def test_scrape_once_xml_writes_matching_incidents(tmp_path, monkeypatch):
             }
         ],
     )
+    monkeypatch.setattr(
+        scrape_chp_traffic,
+        "log_event",
+        lambda level, message, **fields: logged_events.append((level, message, fields)),
+    )
 
     result = scrape_chp_traffic.scrape_once(Args())
+    scrape_chp_traffic.scrape_once(Args())
 
     assert result[1] == 1
     assert result[2] == 1
@@ -471,6 +478,18 @@ def test_scrape_once_xml_writes_matching_incidents(tmp_path, monkeypatch):
     assert event["status"] == "active"
     assert event["region"] == "forest"
     assert observation["details_json"]
+    assert len(logged_events) == 1
+    level, message, fields = logged_events[0]
+    assert level == "info"
+    assert message == "Discovered new CHP incident"
+    assert fields["event.action"] == "incident_discovered"
+    assert fields["chp.event_key"] == "LACC|2026-06-15|2002"
+    assert fields["chp.region"] == "forest"
+    assert fields["chp.incident_type"] == "Traffic Hazard"
+    assert fields["chp.location"] == "Angeles Crest Hwy / Mm 30.50"
+    assert fields["chp.incident_url"] == (
+        "https://crestmap.us/?region=forest&incident=LACC%7C2026-06-15%7C2002"
+    )
 
 
 def test_scrape_once_xml_parse_error_falls_back_to_cad(monkeypatch):

@@ -1774,6 +1774,33 @@ def upsert_active_event(conn, row):
     return previous
 
 
+def incident_public_url(row):
+    return "https://crestmap.us/?" + urlencode(
+        {
+            "region": row.get("region") or "forest",
+            "incident": row["event_key"],
+        }
+    )
+
+
+def log_discovered_incident(row):
+    log_event(
+        "info",
+        "Discovered new CHP incident",
+        **{
+            "event.action": "incident_discovered",
+            "event.outcome": "success",
+            "chp.event_key": row["event_key"],
+            "chp.region": row.get("region") or "forest",
+            "chp.incident_type": row.get("type") or "CHP Incident",
+            "chp.location": row.get("location") or "",
+            "chp.location_description": row.get("location_desc") or "",
+            "chp.area": row.get("area") or "",
+            "chp.incident_url": incident_public_url(row),
+        },
+    )
+
+
 def insert_observation(conn, row, status):
     details_json = json.dumps(row["detail_entries"], ensure_ascii=False)
     params = {**row, "region": row.get("region", "forest"), "status": status, "details_json": details_json}
@@ -1907,6 +1934,7 @@ def scrape_once_xml(args):
     region_seen_keys = {region: set() for region in REGION_ROAD_KEYWORDS}
     region_seen_with_coords = {region: set() for region in REGION_ROAD_KEYWORDS}
     observations_inserted = 0
+    discovered_incidents = []
     stats = {"http_status_counts": {}, "source_bytes": {}}
 
     if args.respect_robots and not robots_allows(args.user_agent, args.timeout):
@@ -1949,6 +1977,8 @@ def scrape_once_xml(args):
                 seen_with_coords.add(row["event_key"])
                 region_seen_with_coords.setdefault(region, set()).add(row["event_key"])
             previous = upsert_active_event(conn, row)
+            if not previous:
+                discovered_incidents.append(dict(row))
             if (
                 not previous
                 or previous["status"] != "active"
@@ -1995,6 +2025,9 @@ def scrape_once_xml(args):
             source="xml",
         )
 
+    for incident in discovered_incidents:
+        log_discovered_incident(incident)
+
     region_counts = {
         region: {
             "matched": len(region_seen_keys.get(region, set())),
@@ -2036,6 +2069,7 @@ def scrape_once_cad(args):
     details_requested = 0
     details_skipped = 0
     observations_inserted = 0
+    discovered_incidents = []
     stats = {"http_status_counts": {}, "source_bytes": {}}
 
     if args.respect_robots and not robots_allows(args.user_agent, args.timeout):
@@ -2121,6 +2155,8 @@ def scrape_once_cad(args):
                     seen_with_coords.add(row["event_key"])
                     region_seen_with_coords.setdefault(region, set()).add(row["event_key"])
                 previous = upsert_active_event(conn, row)
+                if not previous:
+                    discovered_incidents.append(dict(row))
                 if (
                     not previous
                     or previous["status"] != "active"
@@ -2166,6 +2202,10 @@ def scrape_once_cad(args):
             stats["http_status_counts"],
             source="cad",
         )
+
+    for incident in discovered_incidents:
+        log_discovered_incident(incident)
+
     region_counts = {
         region: {
             "matched": len(region_seen_keys.get(region, set())),

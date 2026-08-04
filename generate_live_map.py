@@ -513,6 +513,9 @@ def build_html(
     admin_mode=False,
     admin_details_base="/admin/incidents",
     admin_session_endpoint="/admin/session",
+    media_enabled=False,
+    media_max_video_bytes=100 * 1024 * 1024,
+    media_max_video_seconds=60,
 ):
     region = normalize_region(region)
     map_label = region_label(region)
@@ -546,6 +549,14 @@ def build_html(
         incidents_endpoint = f"{asset_base}/incidents.json"
     admin_details_base = admin_details_base.rstrip("/")
     admin_session_endpoint = admin_session_endpoint.rstrip("/")
+    media_form_markup = """
+                <label class="comment-field media-picker">
+                  <span>Add photos or a short video <span class="comment-field-hint">(optional)</span></span>
+                  <input name="media_files" type="file" accept="image/jpeg,image/png,image/webp,video/mp4" multiple>
+                  <span class="comment-field-hint">Up to 3 photos, or 1 MP4 video. Photos are compressed before upload.</span>
+                </label>
+                <div class="media-preview" data-media-preview></div>
+    """ if media_enabled else ""
     structured_data = {
         "@context": "https://schema.org",
         "@graph": [
@@ -1415,6 +1426,21 @@ def build_html(
       line-height: 1.4;
       white-space: pre-wrap;
     }}
+    .comment-media {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px;
+      margin-top: 9px;
+    }}
+    .comment-media img,
+    .comment-media video {{
+      display: block;
+      width: 100%;
+      max-height: 280px;
+      border-radius: 7px;
+      object-fit: contain;
+      background: #111;
+    }}
     .comment-form {{
       display: grid;
       gap: 8px;
@@ -1489,6 +1515,25 @@ def build_html(
       color: #58645d;
       font-size: 12px;
       line-height: 1.35;
+    }}
+    .media-picker input[type="file"] {{
+      padding: 7px;
+      background: #f8faf6;
+    }}
+    .media-preview {{
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+    }}
+    .media-preview-item {{
+      min-width: 0;
+      padding: 7px;
+      border: 1px solid #dce3d7;
+      border-radius: 7px;
+      color: #58645d;
+      background: #f8faf6;
+      font-size: 11px;
+      overflow-wrap: anywhere;
     }}
     .incident[aria-current="true"] {{
       background: #d4e6d5;
@@ -1742,6 +1787,9 @@ def build_html(
     const statusEndpoint = "{html.escape(status_endpoint)}";
     const incidentsEndpoint = "{html.escape(incidents_endpoint)}";
     const commentsBaseEndpoint = "/api/v1/incidents";
+    const mediaEnabled = {json.dumps(bool(media_enabled))};
+    const mediaMaxVideoBytes = {int(media_max_video_bytes)};
+    const mediaMaxVideoSeconds = {int(media_max_video_seconds)};
     const adminMode = {json.dumps(bool(admin_mode))};
     const adminDetailsBase = "{html.escape(admin_details_base)}";
     const adminSessionEndpoint = "{html.escape(admin_session_endpoint)}";
@@ -2173,10 +2221,126 @@ def build_html(
             <article class="comment">
               <div class="comment-meta">${{escapeHtml(comment.display_name || "Anonymous")}} · ${{escapeHtml(formatCommentDate(comment.created_at))}}</div>
               <div class="comment-body">${{escapeHtml(comment.body || "")}}</div>
+              ${{comment.media?.length ? `<div class="comment-media">${{comment.media.map((item) =>
+                item.kind === "video"
+                  ? `<video src="${{escapeHtml(item.url)}}" controls preload="metadata" playsinline></video>`
+                  : `<img src="${{escapeHtml(item.url)}}" alt="Submitted incident photo" loading="lazy">`
+              ).join("")}}</div>` : ""}}
             </article>
           `).join("")}}
         </div>
       `;
+    }}
+
+    function videoMetadata(file) {{
+      return new Promise((resolve, reject) => {{
+        const video = document.createElement("video");
+        const url = URL.createObjectURL(file);
+        video.preload = "metadata";
+        video.onloadedmetadata = () => {{
+          const duration = video.duration;
+          URL.revokeObjectURL(url);
+          Number.isFinite(duration) ? resolve(duration) : reject(new Error("Could not read video duration."));
+        }};
+        video.onerror = () => {{
+          URL.revokeObjectURL(url);
+          reject(new Error("Use a browser-compatible H.264/AAC MP4 video."));
+        }};
+        video.src = url;
+      }});
+    }}
+
+    async function compressImage(file) {{
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.min(1, 1920 / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.82));
+      if (!blob) {{
+        throw new Error("Photo compression failed.");
+      }}
+      const stem = file.name.replace(/\\.[^.]+$/, "") || "photo";
+      return {{ blob, filename: `${{stem}}.webp`, contentType: "image/webp", durationSeconds: null }};
+    }}
+
+    async function prepareMediaFiles(input) {{
+      const files = Array.from(input?.files || []);
+      if (!files.length) {{
+        return [];
+      }}
+      const videos = files.filter((file) => file.type === "video/mp4");
+      if ((videos.length && files.length !== 1) || videos.length > 1) {{
+        throw new Error("Choose up to 3 photos, or 1 MP4 video by itself.");
+      }}
+      if (!videos.length && files.length > 3) {{
+        throw new Error("Choose no more than 3 photos.");
+      }}
+      if (videos.length) {{
+        const file = videos[0];
+        if (file.size > mediaMaxVideoBytes) {{
+          throw new Error(`Video must be ${{Math.round(mediaMaxVideoBytes / (1024 * 1024))}} MB or smaller.`);
+        }}
+        const duration = await videoMetadata(file);
+        if (duration > mediaMaxVideoSeconds) {{
+          throw new Error(`Video must be ${{mediaMaxVideoSeconds}} seconds or shorter.`);
+        }}
+        return [{{ blob: file, filename: file.name, contentType: "video/mp4", durationSeconds: duration }}];
+      }}
+      if (files.some((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type))) {{
+        throw new Error("Use JPEG, PNG, WebP, or MP4 files.");
+      }}
+      return Promise.all(files.map(compressImage));
+    }}
+
+    async function uploadCommentMedia(incident, comment, files, status) {{
+      for (let index = 0; index < files.length; index += 1) {{
+        const file = files[index];
+        status.textContent = `Uploading ${{index + 1}} of ${{files.length}}...`;
+        const createResponse = await fetch(
+          `${{commentsBaseEndpoint}}/${{encodeURIComponent(incident.event_key)}}/media/uploads`,
+          {{
+            method: "POST",
+            cache: "no-store",
+            headers: {{ "Accept": "application/json", "Content-Type": "application/json" }},
+            body: JSON.stringify({{
+              comment_id: comment.id,
+              upload_token: comment.upload_token,
+              filename: file.filename,
+              content_type: file.contentType,
+              size: file.blob.size,
+              duration_seconds: file.durationSeconds
+            }})
+          }}
+        );
+        const upload = await createResponse.json().catch(() => ({{}}));
+        if (!createResponse.ok) {{
+          throw new Error(upload.error?.message || "Could not prepare media upload.");
+        }}
+        const putResponse = await fetch(upload.upload_url, {{
+          method: upload.method || "PUT",
+          headers: upload.headers || {{}},
+          body: file.blob
+        }});
+        if (!putResponse.ok) {{
+          throw new Error(`Media upload failed (${{putResponse.status}}).`);
+        }}
+        const finalizeResponse = await fetch(
+          `${{commentsBaseEndpoint}}/${{encodeURIComponent(incident.event_key)}}/media/${{upload.id}}/finalize`,
+          {{
+            method: "POST",
+            cache: "no-store",
+            headers: {{ "Accept": "application/json", "Content-Type": "application/json" }},
+            body: JSON.stringify({{ comment_id: comment.id, upload_token: comment.upload_token }})
+          }}
+        );
+        if (!finalizeResponse.ok) {{
+          const finalized = await finalizeResponse.json().catch(() => ({{}}));
+          throw new Error(finalized.error?.message || "Could not finish media upload.");
+        }}
+      }}
     }}
 
     async function loadComments(incident) {{
@@ -2382,6 +2546,7 @@ def build_html(
                   </label>
                 </div>
                 <textarea name="body" maxlength="750" required placeholder="Add a comment for review"></textarea>
+                {media_form_markup}
                 <input class="comment-honeypot" name="website" tabindex="-1" autocomplete="off">
                 <button type="submit" class="comment-submit">Submit for review</button>
                 <div class="comment-status" role="status"></div>
@@ -2501,6 +2666,19 @@ def build_html(
       }}
     }});
 
+    detailsPanel.addEventListener("change", (event) => {{
+      if (event.target.name !== "media_files") {{
+        return;
+      }}
+      const preview = event.target.closest("form")?.querySelector("[data-media-preview]");
+      if (!preview) {{
+        return;
+      }}
+      preview.innerHTML = Array.from(event.target.files || []).map((file) =>
+        `<div class="media-preview-item">${{escapeHtml(file.name)}}<br>${{(file.size / (1024 * 1024)).toFixed(1)}} MB</div>`
+      ).join("");
+    }});
+
     detailsPanel.addEventListener("submit", async (event) => {{
       const form = event.target.closest("[data-comment-form]");
       if (!form) {{
@@ -2514,9 +2692,16 @@ def build_html(
       const submit = form.querySelector(".comment-submit");
       const status = form.querySelector(".comment-status");
       const data = Object.fromEntries(new FormData(form).entries());
+      delete data.media_files;
       submit.disabled = true;
-      status.textContent = "Submitting...";
+      status.textContent = "Preparing...";
+      let commentSubmitted = false;
       try {{
+        const files = mediaEnabled
+          ? await prepareMediaFiles(form.querySelector('input[name="media_files"]'))
+          : [];
+        data.media_count = files.length;
+        status.textContent = "Submitting...";
         const response = await fetch(commentsEndpoint(incident), {{
           method: "POST",
           cache: "no-store",
@@ -2530,10 +2715,18 @@ def build_html(
         if (!response.ok) {{
           throw new Error(payload.error?.message || `comment API returned ${{response.status}}`);
         }}
+        commentSubmitted = true;
+        if (files.length) {{
+          await uploadCommentMedia(incident, payload, files, status);
+        }}
         form.reset();
+        const preview = form.querySelector("[data-media-preview]");
+        if (preview) preview.innerHTML = "";
         status.textContent = payload.message || "Comment submitted for review.";
       }} catch (error) {{
-        status.textContent = error.message || "Comment could not be submitted.";
+        status.textContent = commentSubmitted
+          ? `Comment saved, but media failed: ${{error.message || "upload error"}}`
+          : (error.message || "Comment could not be submitted.");
       }} finally {{
         submit.disabled = false;
       }}

@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from comments import delete_comment, moderation_rows, set_comment_status
+from media import R2MediaStore, media_keys_for_comment, set_media_status
 from scrape_chp_traffic import connect_database
 
 
@@ -13,6 +14,26 @@ def database_args(parser):
 
 def connect_from_args(args):
     return connect_database(Path(args.database), args.database_url)
+
+
+def media_store_from_env():
+    values = [
+        os.environ.get("R2_ACCOUNT_ID"),
+        os.environ.get("R2_ACCESS_KEY_ID"),
+        os.environ.get("R2_SECRET_ACCESS_KEY"),
+        os.environ.get("R2_BUCKET", "crestmap-media"),
+    ]
+    return R2MediaStore(*values) if all(values) else None
+
+
+def delete_media_objects(keys):
+    if not keys:
+        return
+    store = media_store_from_env()
+    if store is None:
+        raise RuntimeError("R2 credentials are required to remove this comment's media.")
+    for key in keys:
+        store.delete(key)
 
 
 def cmd_list(args):
@@ -47,7 +68,10 @@ def cmd_reject(args):
 def update_status(args, status):
     conn = connect_from_args(args)
     try:
+        keys = media_keys_for_comment(conn, args.id) if status == "rejected" else []
+        delete_media_objects(keys)
         set_comment_status(conn, args.id, status)
+        set_media_status(conn, args.id, status)
         conn.commit()
     finally:
         conn.close()
@@ -57,6 +81,7 @@ def update_status(args, status):
 def cmd_delete(args):
     conn = connect_from_args(args)
     try:
+        delete_media_objects(media_keys_for_comment(conn, args.id))
         delete_comment(conn, args.id)
         conn.commit()
     finally:

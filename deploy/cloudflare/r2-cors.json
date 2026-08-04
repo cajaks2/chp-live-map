@@ -1,0 +1,25 @@
+[
+  {
+    "AllowedOrigins": [
+      "https://crestmap.us",
+      "http://127.0.0.1:8080",
+      "http://localhost:8080"
+    ],
+    "AllowedMethods": [
+      "GET",
+      "HEAD",
+      "PUT"
+    ],
+    "AllowedHeaders": [
+      "Content-Type",
+      "Range"
+    ],
+    "ExposeHeaders": [
+      "Accept-Ranges",
+      "Content-Length",
+      "Content-Range",
+      "ETag"
+    ],
+    "MaxAgeSeconds": 3600
+  }
+]

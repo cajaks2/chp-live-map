@@ -267,6 +267,28 @@ POST /api/v1/incidents/{event_key}/comments
 
 The public `GET` endpoint returns only approved comments. The public `POST` endpoint accepts anonymous comments and stores them as `pending` for moderation. Comment bodies are plain text only, stripped of HTML, capped at 750 characters, and protected by a honeypot plus IP/user-agent rate limits. Optional contact information is stored for moderation but is never returned by the public API.
 
+Comments can also include up to three photos or one short MP4 video. Photos are resized to a
+maximum 1920-pixel edge and converted to WebP in the visitor's browser before upload. Videos are
+not encoded or transcoded; the browser verifies that they are playable MP4 files and enforces the
+configured duration limit. Attachments upload directly to a private Cloudflare R2 bucket and are
+not publicly viewable until the associated comment is approved. Rejecting or deleting a comment
+also removes its objects from R2.
+
+Enable uploads with an R2 API token that has Object Read & Write permission for the private bucket:
+
+```bash
+R2_ACCOUNT_ID=your-cloudflare-account-id
+R2_ACCESS_KEY_ID=your-r2-access-key-id
+R2_SECRET_ACCESS_KEY=your-r2-secret-access-key
+R2_BUCKET=crestmap-media
+R2_UPLOAD_TOKEN_SECRET=replace-with-an-independent-long-random-secret
+```
+
+Apply the bucket CORS policy in `deploy/cloudflare/r2-cors.json`, which allows signed browser reads
+and direct PUTs from `https://crestmap.us`. Keep the bucket private; the app issues short-lived signed URLs for
+uploads, moderator previews, and approved public media. If any required R2 variable is unset, the
+media picker and upload endpoints remain disabled while text comments continue to work.
+
 Moderate comments from the container or a local checkout:
 
 ```bash

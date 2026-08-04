@@ -1366,11 +1366,30 @@ def init_database_sqlite(conn):
             FOREIGN KEY (event_key) REFERENCES events(event_key)
         );
 
+        CREATE TABLE IF NOT EXISTS incident_media (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            comment_id INTEGER NOT NULL,
+            event_key TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'uploading',
+            kind TEXT NOT NULL,
+            object_key TEXT NOT NULL UNIQUE,
+            original_filename TEXT NOT NULL,
+            content_type TEXT NOT NULL,
+            expected_size INTEGER NOT NULL,
+            actual_size INTEGER,
+            duration_seconds REAL,
+            created_at TEXT NOT NULL,
+            uploaded_at TEXT,
+            FOREIGN KEY (comment_id) REFERENCES incident_comments(id) ON DELETE CASCADE,
+            FOREIGN KEY (event_key) REFERENCES events(event_key)
+        );
+
         CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
         CREATE INDEX IF NOT EXISTS idx_events_center_status ON events(center, status);
         CREATE INDEX IF NOT EXISTS idx_observations_event ON observations(event_key, observed_at);
         CREATE INDEX IF NOT EXISTS idx_incident_comments_event_status ON incident_comments(event_key, status, created_at);
         CREATE INDEX IF NOT EXISTS idx_incident_comments_status ON incident_comments(status, created_at);
+        CREATE INDEX IF NOT EXISTS idx_incident_media_comment_status ON incident_media(comment_id, status);
         """
     )
     ensure_column_sqlite(conn, "scrape_runs", "total_seen", "INTEGER NOT NULL DEFAULT 0")
@@ -1498,11 +1517,29 @@ def init_database_postgres_locked(conn):
             honeypot_value TEXT
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS incident_media (
+            id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            comment_id BIGINT NOT NULL REFERENCES incident_comments(id) ON DELETE CASCADE,
+            event_key TEXT NOT NULL REFERENCES events(event_key),
+            status TEXT NOT NULL DEFAULT 'uploading',
+            kind TEXT NOT NULL,
+            object_key TEXT NOT NULL UNIQUE,
+            original_filename TEXT NOT NULL,
+            content_type TEXT NOT NULL,
+            expected_size BIGINT NOT NULL,
+            actual_size BIGINT,
+            duration_seconds DOUBLE PRECISION,
+            created_at TEXT NOT NULL,
+            uploaded_at TEXT
+        )
+        """,
         "CREATE INDEX IF NOT EXISTS idx_events_status ON events(status)",
         "CREATE INDEX IF NOT EXISTS idx_events_center_status ON events(center, status)",
         "CREATE INDEX IF NOT EXISTS idx_observations_event ON observations(event_key, observed_at)",
         "CREATE INDEX IF NOT EXISTS idx_incident_comments_event_status ON incident_comments(event_key, status, created_at)",
         "CREATE INDEX IF NOT EXISTS idx_incident_comments_status ON incident_comments(status, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_incident_media_comment_status ON incident_media(comment_id, status)",
     ]
     for statement in statements:
         conn.execute(statement)

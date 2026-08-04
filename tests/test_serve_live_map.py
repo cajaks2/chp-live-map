@@ -493,9 +493,121 @@ def test_incident_comments_are_pending_until_approved(tmp_path):
                 "body": "alert(1) Road is still icy.",
                 "category": None,
                 "created_at": row["created_at"],
+                "media": [],
             }
         ]
         assert "contact" not in payload["data"][0]
+
+
+def test_incident_media_upload_uses_comment_moderation_flow(tmp_path):
+    class FakeMediaStore:
+        def __init__(self):
+            self.deleted = []
+            self.size = 123
+            self.content_type = "image/webp"
+
+        def presigned_url(self, method, object_key, expires=900, now=None, content_type=None):
+            return f"https://r2.example.test/{object_key}?method={method}"
+
+        def head(self, object_key):
+            return {"size": self.size, "content_type": self.content_type}
+
+        def delete(self, object_key):
+            self.deleted.append(object_key)
+
+    database = tmp_path / "chp.sqlite"
+    event_key = "LACC|2026-06-08|5678"
+    conn = connect_database(database)
+    upsert_active_event(conn, sample_event(event_key))
+    conn.commit()
+    conn.close()
+
+    with make_client(
+        database,
+        admin_username="admin",
+        admin_password="secret",
+        r2_account_id="account",
+        r2_access_key_id="access",
+        r2_secret_access_key="secret-key",
+        r2_upload_token_secret="upload-secret",
+    ) as client:
+        fake_store = FakeMediaStore()
+        client.app.state.media_store = fake_store
+
+        map_response = client.get("/")
+        assert 'name="media_files"' in map_response.text
+        assert "Photos are compressed before upload" in map_response.text
+
+        comment_response = client.post(
+            f"/api/v1/incidents/{event_key}/comments",
+            json={"body": "Photo of a fallen tree.", "media_count": 1},
+        )
+        assert comment_response.status_code == 202
+        comment = comment_response.json()
+        assert comment["upload_token"]
+
+        upload_response = client.post(
+            f"/api/v1/incidents/{event_key}/media/uploads",
+            json={
+                "comment_id": comment["id"],
+                "upload_token": comment["upload_token"],
+                "filename": "tree.webp",
+                "content_type": "image/webp",
+                "size": 123,
+            },
+        )
+        assert upload_response.status_code == 201
+        upload = upload_response.json()
+        assert upload["method"] == "PUT"
+        assert upload["upload_url"].startswith("https://r2.example.test/comments/")
+        assert upload["headers"] == {"Content-Type": "image/webp"}
+
+        finalize_response = client.post(
+            f"/api/v1/incidents/{event_key}/media/{upload['id']}/finalize",
+            json={"comment_id": comment["id"], "upload_token": comment["upload_token"]},
+        )
+        assert finalize_response.status_code == 200
+        assert finalize_response.json()["status"] == "pending"
+
+        response = client.get(f"/api/v1/media/{upload['id']}", follow_redirects=False)
+        assert response.status_code == 404
+
+        admin_page = client.get("/admin/comments", headers=basic_auth())
+        assert admin_page.status_code == 200
+        assert f'/admin/media/{upload["id"]}' in admin_page.text
+        assert "tree.webp" in admin_page.text
+
+        approved = client.post(
+            "/admin/comments",
+            data={"id": comment["id"], "status": "pending", "action": "approve"},
+            headers=basic_auth(),
+        )
+        assert approved.status_code == 200
+
+        public_comments = client.get(f"/api/v1/incidents/{event_key}/comments").json()["data"]
+        assert public_comments[0]["media"] == [
+            {
+                "id": upload["id"],
+                "kind": "image",
+                "content_type": "image/webp",
+                "filename": "tree.webp",
+                "size": 123,
+                "duration_seconds": None,
+                "url": f"/api/v1/media/{upload['id']}",
+            }
+        ]
+        response = client.get(f"/api/v1/media/{upload['id']}", follow_redirects=False)
+        assert response.status_code == 302
+        assert response.headers["Location"].endswith("?method=GET")
+
+        rejected = client.post(
+            "/admin/comments",
+            data={"id": comment["id"], "status": "approved", "action": "reject"},
+            headers=basic_auth(),
+        )
+        assert rejected.status_code == 200
+        assert len(fake_store.deleted) == 1
+        assert client.get(f"/api/v1/incidents/{event_key}/comments").json()["data"] == []
 
 
 def test_comment_honeypot_and_rate_limit(tmp_path):

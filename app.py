@@ -24,6 +24,21 @@ from comments import (
     set_comment_status,
     submit_comment,
 )
+from media import (
+    MediaValidationError,
+    R2MediaStore,
+    approved_media_row,
+    create_media_row,
+    create_upload_token,
+    finalize_media_row,
+    media_for_comments,
+    media_keys_for_comment,
+    media_row,
+    public_media,
+    set_media_status,
+    validate_upload,
+    validate_upload_token,
+)
 import serve_live_map as web
 from generate_live_map import (
     build_about_html,
@@ -57,6 +72,15 @@ class WebSettings:
     admin_password: str | None = None
     admin_session_secret: str | None = None
     admin_session_hours: int = 8
+    r2_account_id: str | None = None
+    r2_access_key_id: str | None = None
+    r2_secret_access_key: str | None = None
+    r2_bucket: str = "crestmap-media"
+    r2_upload_token_secret: str | None = None
+    r2_upload_ttl_seconds: int = 900
+    media_max_image_bytes: int = 8 * 1024 * 1024
+    media_max_video_bytes: int = 100 * 1024 * 1024
+    media_max_video_seconds: int = 60
 
     @classmethod
     def from_env(cls):
@@ -73,7 +97,39 @@ class WebSettings:
             admin_password=os.environ.get("ADMIN_PASSWORD") or None,
             admin_session_secret=os.environ.get("ADMIN_SESSION_SECRET") or None,
             admin_session_hours=int(os.environ.get("ADMIN_SESSION_HOURS", "8")),
+            r2_account_id=os.environ.get("R2_ACCOUNT_ID") or None,
+            r2_access_key_id=os.environ.get("R2_ACCESS_KEY_ID") or None,
+            r2_secret_access_key=os.environ.get("R2_SECRET_ACCESS_KEY") or None,
+            r2_bucket=os.environ.get("R2_BUCKET", "crestmap-media"),
+            r2_upload_token_secret=os.environ.get("R2_UPLOAD_TOKEN_SECRET") or None,
+            r2_upload_ttl_seconds=int(os.environ.get("R2_UPLOAD_TTL_SECONDS", "900")),
+            media_max_image_bytes=int(os.environ.get("MEDIA_MAX_IMAGE_BYTES", str(8 * 1024 * 1024))),
+            media_max_video_bytes=int(os.environ.get("MEDIA_MAX_VIDEO_BYTES", str(100 * 1024 * 1024))),
+            media_max_video_seconds=int(os.environ.get("MEDIA_MAX_VIDEO_SECONDS", "60")),
         )
+
+
+def media_enabled(settings):
+    return all(
+        [
+            settings.r2_account_id,
+            settings.r2_access_key_id,
+            settings.r2_secret_access_key,
+            settings.r2_bucket,
+            settings.r2_upload_token_secret,
+        ]
+    )
+
+
+def build_media_store(settings):
+    if not media_enabled(settings):
+        return None
+    return R2MediaStore(
+        settings.r2_account_id,
+        settings.r2_access_key_id,
+        settings.r2_secret_access_key,
+        settings.r2_bucket,
+    )
 
 
 def _pool_limits(settings):
@@ -168,6 +224,10 @@ def route_label(path, settings):
         return "admin_hidden_details"
     if path.startswith("/api/v1/incidents/") and path.endswith("/comments"):
         return "comments"
+    if path.startswith("/api/v1/incidents/") and "/media/" in path:
+        return "media_upload"
+    if path.startswith("/api/v1/media/") or path.startswith(f"{asset_base}/admin/media/"):
+        return "media"
     if path in {"/metrics", f"{asset_base}/metrics"}:
         return "metrics"
     if path in {"/healthz", "/readyz"}:
@@ -311,6 +371,38 @@ def comment_event_key_from_path(path):
     if not path.startswith(prefix) or not path.endswith(suffix):
         return None
     return unquote(path[len(prefix) : -len(suffix)])
+
+
+def media_upload_path_parts(path):
+    prefix = "/api/v1/incidents/"
+    if not path.startswith(prefix):
+        return None
+    remainder = path[len(prefix) :]
+    if remainder.endswith("/media/uploads"):
+        return unquote(remainder[: -len("/media/uploads")]), "create", None
+    marker = "/media/"
+    if marker not in remainder or not remainder.endswith("/finalize"):
+        return None
+    event_key, media_part = remainder.split(marker, 1)
+    try:
+        media_id = int(media_part[: -len("/finalize")])
+    except ValueError:
+        return None
+    return unquote(event_key), "finalize", media_id
+
+
+def media_id_from_path(path, admin=False, settings=None):
+    if admin and settings is not None:
+        base = normalize_base_path(settings.base_path)
+        prefix = "/admin/media/" if base == "/" else f"{base}/admin/media/"
+    else:
+        prefix = "/admin/media/" if admin else "/api/v1/media/"
+    if not path.startswith(prefix):
+        return None
+    try:
+        return int(path[len(prefix) :])
+    except ValueError:
+        return None
 
 
 def admin_enabled(settings):
@@ -916,6 +1008,9 @@ def dispatch_request(request, send_body=True):
                 admin_mode=admin_mode,
                 admin_details_base=admin_incidents_path(settings),
                 admin_session_endpoint=admin_session_path(settings),
+                media_enabled=media_enabled(settings),
+                media_max_video_bytes=settings.media_max_video_bytes,
+                media_max_video_seconds=settings.media_max_video_seconds,
             ).encode("utf-8")
     except Exception as exc:
         web.log_exception(
@@ -1045,6 +1140,19 @@ def build_admin_comments_html(
             if row.get("contact")
             else ""
         )
+        media_items = []
+        for attachment in row.get("media", []):
+            media_url = html.escape(attachment["url"])
+            if attachment["kind"] == "image":
+                preview = f'<img src="{media_url}" alt="Submitted incident photo" loading="lazy">'
+            else:
+                preview = f'<video src="{media_url}" controls preload="metadata" playsinline></video>'
+            size_mb = attachment["size"] / (1024 * 1024)
+            media_items.append(
+                f'<div class="media-item">{preview}<div class="media-meta">'
+                f'{html.escape(attachment["filename"])} · {size_mb:.1f} MB</div></div>'
+            )
+        media_html = f'<div class="media-grid">{"".join(media_items)}</div>' if media_items else ""
         cards.append(
             f"""
             <article class="comment-card">
@@ -1060,6 +1168,7 @@ def build_admin_comments_html(
               <div class="contact">Submitter IP: {html.escape(submitter_ip)} · Country: {html.escape(submitter_country)}</div>
               {contact}
               <p>{html.escape(row.get("body") or "")}</p>
+              {media_html}
               <details>
                 <summary>User agent</summary>
                 <code>{html.escape(row.get("user_agent") or "")}</code>
@@ -1092,6 +1201,10 @@ def build_admin_comments_html(
     .comment-top {{ display: flex; justify-content: space-between; gap: 12px; }}
     .comment-id, .meta, .contact {{ color: #58645d; font-size: 13px; line-height: 1.35; }}
     .incident-link {{ color: #1f6840; overflow-wrap: anywhere; }}
+    .media-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin: 12px 0; }}
+    .media-item {{ overflow: hidden; border: 1px solid #dce3d7; border-radius: 9px; background: #f7f9f5; }}
+    .media-item img, .media-item video {{ display: block; width: 100%; max-height: 320px; object-fit: contain; background: #111; }}
+    .media-meta {{ padding: 7px 9px; color: #58645d; font-size: 12px; overflow-wrap: anywhere; }}
     p {{ white-space: pre-wrap; line-height: 1.45; }}
     .actions {{ display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; align-content: flex-start; }}
     form {{ margin: 0; }}
@@ -1137,6 +1250,17 @@ def handle_admin_comments_get(request, send_body=True, message=""):
     try:
         with writable_database_connection(request.app) as conn:
             rows = moderation_rows(conn, status=status, limit=100)
+            attachments = media_for_comments(conn, [row["id"] for row in rows])
+            for row in rows:
+                row["media"] = [
+                    public_media(
+                        media,
+                        admin=True,
+                        admin_base=f"{admin_path(settings).rsplit('/', 1)[0]}/media",
+                    )
+                    for media in attachments.get(int(row["id"]), [])
+                    if media["status"] in {"pending", "approved"}
+                ]
             counts = comment_status_counts(conn)
         body = build_admin_comments_html(
             rows,
@@ -1183,14 +1307,34 @@ async def handle_admin_comments_post(request):
     if action not in {"approve", "reject", "delete"}:
         return byte_response(b"Bad Request\n", "text/plain; charset=utf-8", status_code=400)
     try:
+        object_keys = []
         with writable_database_connection(request.app) as conn:
             if action == "approve":
                 set_comment_status(conn, comment_id, "approved")
+                set_media_status(conn, comment_id, "approved")
             elif action == "reject":
+                object_keys = media_keys_for_comment(conn, comment_id)
                 set_comment_status(conn, comment_id, "rejected")
+                set_media_status(conn, comment_id, "rejected")
             else:
+                object_keys = media_keys_for_comment(conn, comment_id)
                 delete_comment(conn, comment_id)
             conn.commit()
+        store = request.app.state.media_store
+        if store is not None:
+            for object_key in object_keys:
+                try:
+                    store.delete(object_key)
+                except Exception as exc:
+                    web.log_exception(
+                        "Failed to remove moderated media from R2",
+                        exc,
+                        **{
+                            "event.action": "media_delete",
+                            "event.outcome": "failure",
+                            "chp.comment.id": comment_id,
+                        },
+                    )
         web.log_event(
             "info",
             "Moderated incident comment",
@@ -1224,6 +1368,13 @@ def handle_comments_get(request, event_key, send_body=True):
     try:
         with writable_database_connection(request.app) as conn:
             comments = list_approved_comments(conn, event_key)
+            attachments = media_for_comments(
+                conn, [comment["id"] for comment in comments], statuses=["approved"]
+            )
+            for comment in comments:
+                comment["media"] = [
+                    public_media(row) for row in attachments.get(int(comment["id"]), [])
+                ]
         return json_response(
             {"meta": {"event_key": event_key, "status": "approved"}, "data": comments},
             cache_control="private, max-age=30, stale-while-revalidate=60",
@@ -1265,6 +1416,21 @@ async def handle_comments_post(request, event_key):
                 request.headers,
                 request.client.host if request.client else "",
             )
+            try:
+                requested_media = int(payload.get("media_count") or 0)
+            except (TypeError, ValueError):
+                raise CommentValidationError("Invalid media count.", "invalid_media_count") from None
+            if requested_media:
+                settings = request.app.state.settings
+                if not media_enabled(settings):
+                    raise CommentValidationError("Media uploads are not available.", "media_disabled")
+                if requested_media < 1 or requested_media > 3:
+                    raise CommentValidationError("Choose up to three photos or one video.", "invalid_media_count")
+                expires_at = int(time.time()) + settings.r2_upload_ttl_seconds
+                result["upload_token"] = create_upload_token(
+                    settings.r2_upload_token_secret, result["id"], event_key, expires_at
+                )
+                result["upload_expires_at"] = expires_at
             conn.commit()
         web.log_event(
             "info",
@@ -1308,6 +1474,105 @@ async def handle_comments_post(request, event_key):
             },
         )
         return api_error("failed to submit comment", "server_error", 500)
+
+
+async def handle_media_upload_post(request, event_key, action, media_id=None):
+    settings = request.app.state.settings
+    store = request.app.state.media_store
+    if not media_enabled(settings) or store is None:
+        return api_error("Media uploads are not available.", "media_disabled", 503)
+    try:
+        payload = await request.json()
+        comment_id = int(payload.get("comment_id"))
+        validate_upload_token(
+            settings.r2_upload_token_secret,
+            payload.get("upload_token"),
+            comment_id,
+            event_key,
+        )
+        if action == "create":
+            upload = validate_upload(
+                payload,
+                settings.media_max_image_bytes,
+                settings.media_max_video_bytes,
+                settings.media_max_video_seconds,
+            )
+            with writable_database_connection(request.app) as conn:
+                row = create_media_row(conn, comment_id, event_key, upload)
+                conn.commit()
+            return json_response(
+                {
+                    "id": row["id"],
+                    "method": "PUT",
+                    "upload_url": store.presigned_url(
+                        "PUT",
+                        row["object_key"],
+                        expires=settings.r2_upload_ttl_seconds,
+                        content_type=row["content_type"],
+                    ),
+                    "headers": {"Content-Type": row["content_type"]},
+                },
+                status_code=201,
+                cache_control="no-store",
+            )
+        with writable_database_connection(request.app) as conn:
+            row = media_row(conn, media_id, comment_id)
+            if not row or row["event_key"] != event_key:
+                raise MediaValidationError("Upload was not found.", "upload_not_found")
+            uploaded = store.head(row["object_key"])
+            finalized = finalize_media_row(
+                conn,
+                media_id,
+                comment_id,
+                uploaded["size"],
+                uploaded["content_type"],
+            )
+            conn.commit()
+        return json_response(
+            {"id": media_id, "status": finalized["status"]},
+            cache_control="no-store",
+        )
+    except MediaValidationError as exc:
+        status_code = 404 if exc.code == "upload_not_found" else 400
+        return api_error(str(exc), exc.code, status_code)
+    except (TypeError, ValueError):
+        return api_error("Invalid media upload request.", "invalid_media", 400)
+    except Exception as exc:
+        web.log_exception(
+            "Failed to process incident media",
+            exc,
+            **{
+                "event.action": "media_upload",
+                "event.outcome": "failure",
+                "chp.event_key": event_key,
+                "http.response.status_code": 500,
+                **client_log_fields(request),
+            },
+        )
+        return api_error("failed to process media upload", "server_error", 500)
+
+
+def handle_media_get(request, media_id, admin=False, send_body=True):
+    settings = request.app.state.settings
+    store = request.app.state.media_store
+    if store is None:
+        return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404, send_body=send_body)
+    if admin and (not admin_enabled(settings) or not admin_authorized(request)):
+        return admin_unauthorized(send_body=send_body)
+    try:
+        with writable_database_connection(request.app) as conn:
+            row = media_row(conn, media_id) if admin else approved_media_row(conn, media_id)
+        if not row:
+            return byte_response(
+                b"Not Found\n", "text/plain; charset=utf-8", status_code=404, send_body=send_body
+            )
+        response = Response(b"" if not send_body else None, status_code=302)
+        response.headers["Location"] = store.presigned_url("GET", row["object_key"], expires=900)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+    except Exception as exc:
+        web.log_exception("Failed to create media view URL", exc, **{"event.action": "media_view"})
+        return byte_response(b"media unavailable\n", "text/plain; charset=utf-8", status_code=500)
 
 
 def create_app(settings=None):
@@ -1357,6 +1622,7 @@ def create_app(settings=None):
     app.state.settings = settings
     app.state.database_pool = None
     app.state.admin_login_attempts = {}
+    app.state.media_store = build_media_store(settings)
 
     @app.middleware("http")
     async def ecs_access_log_middleware(request, call_next):
@@ -1412,6 +1678,12 @@ def create_app(settings=None):
 
     @app.get("/{full_path:path}")
     def get_anything(request: Request, full_path: str):
+        public_media_id = media_id_from_path(_path(request))
+        if public_media_id is not None:
+            return handle_media_get(request, public_media_id, send_body=True)
+        admin_media_id = media_id_from_path(_path(request), admin=True, settings=settings)
+        if admin_media_id is not None:
+            return handle_media_get(request, admin_media_id, admin=True, send_body=True)
         if _path(request) == admin_login_path(settings):
             return handle_admin_login_get(request, send_body=True)
         if _path(request) == admin_session_path(settings):
@@ -1428,6 +1700,12 @@ def create_app(settings=None):
 
     @app.head("/{full_path:path}")
     def head_anything(request: Request, full_path: str):
+        public_media_id = media_id_from_path(_path(request))
+        if public_media_id is not None:
+            return handle_media_get(request, public_media_id, send_body=False)
+        admin_media_id = media_id_from_path(_path(request), admin=True, settings=settings)
+        if admin_media_id is not None:
+            return handle_media_get(request, admin_media_id, admin=True, send_body=False)
         if _path(request) == admin_login_path(settings):
             return handle_admin_login_get(request, send_body=False)
         if _path(request) == admin_session_path(settings):
@@ -1450,6 +1728,9 @@ def create_app(settings=None):
             return await handle_admin_logout_post(request)
         if _path(request) == admin_path(settings):
             return await handle_admin_comments_post(request)
+        media_parts = media_upload_path_parts(_path(request))
+        if media_parts is not None:
+            return await handle_media_upload_post(request, *media_parts)
         event_key = comment_event_key_from_path(_path(request))
         if event_key is not None:
             return await handle_comments_post(request, event_key)

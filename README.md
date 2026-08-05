@@ -301,14 +301,14 @@ python manage_comments.py delete 123
 Or enable the web moderation GUI by setting both `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
 When either value is unset, the admin routes return 404. When enabled, the public navigation
 includes an admin login. A successful login creates a signed, HttpOnly, same-site session
-cookie used by the comment moderator and protected incident map. HTTP Basic auth remains
-available for scripts. When an authenticated admin opens the public map in another tab,
-the page resumes the existing session in the protected incident view.
+cookie used by the comment moderator and the normal incident views. HTTP Basic auth remains
+available for scripts. Authenticated requests keep the same public map, summary, history,
+and about URLs while adding moderation navigation and protected incident options.
 
 ```text
 GET  /admin/login
 GET  /admin/comments
-GET  /admin/incidents
+GET  /api/v1/incidents/{event_key}/hidden-details
 ```
 
 On the DigitalOcean compose host, store the credentials in `/opt/chp-live-map/.env`

@@ -371,6 +371,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "Detail Information" in html
     assert "Unit Information" in html
     assert "detail-subsection" in html
+    assert ".detail-header {\n      display: block;" in html
+    assert "justify-content: flex-start;\n      gap: 8px;\n      flex-wrap: wrap;\n      margin-top: 10px;" in html
     assert html.index("${detailEntries ?") < html.index("<h3>Comments</h3>")
     assert html.index("<h3>Comments</h3>") < html.index("${trailingEntries ?")
     assert "data-hidden-details-toggle" in html

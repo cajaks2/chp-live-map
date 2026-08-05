@@ -353,6 +353,17 @@ def view_href(base_path, suffix, hours, region="forest"):
 
 
 def view_menu(base_path, current, hours, region="forest", admin_mode=False):
+    current_suffix = {
+        "map": "/",
+        "summary": "/summary",
+        "history": "/history",
+        "about": "/about",
+    }.get(current, "/")
+    current_href = view_href(base_path, current_suffix, hours, region)
+    admin_href = app_path(base_path, "/admin/comments") if admin_mode else href_with_query(
+        app_path(base_path, "/admin/login"),
+        next=current_href,
+    )
     items = [
         ("map", "Map", "Current incidents", view_href(base_path, "/", hours, region)),
         ("summary", "Summary", "Counts + trends", view_href(base_path, "/summary", hours, region)),
@@ -362,7 +373,7 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False):
             "admin",
             "Admin tools" if admin_mode else "Admin login",
             "Moderation + hidden details",
-            app_path(base_path, "/admin/comments" if admin_mode else "/admin/login"),
+            admin_href,
         ),
     ]
     rows = []
@@ -511,8 +522,7 @@ def build_html(
     region_statuses=None,
     last_scrape=None,
     admin_mode=False,
-    admin_details_base="/admin/incidents",
-    admin_session_endpoint="/admin/session",
+    admin_details_base="/api/v1/incidents",
     media_enabled=False,
     media_max_video_bytes=100 * 1024 * 1024,
     media_max_video_seconds=60,
@@ -548,7 +558,6 @@ def build_html(
         status_endpoint = f"{asset_base}/status.json"
         incidents_endpoint = f"{asset_base}/incidents.json"
     admin_details_base = admin_details_base.rstrip("/")
-    admin_session_endpoint = admin_session_endpoint.rstrip("/")
     media_form_markup = """
                 <label class="comment-field media-picker">
                   <span>Add photos or a short video <span class="comment-field-hint">(optional)</span></span>
@@ -1792,30 +1801,10 @@ def build_html(
     const mediaMaxVideoSeconds = {int(media_max_video_seconds)};
     const adminMode = {json.dumps(bool(admin_mode))};
     const adminDetailsBase = "{html.escape(admin_details_base)}";
-    const adminSessionEndpoint = "{html.escape(admin_session_endpoint)}";
     const currentRegion = "{html.escape(region)}";
     let incidents = [];
     let currentDataStatus = initialDataStatus;
     let selectedIncidentKey = new URLSearchParams(window.location.search).get("incident");
-
-    if (!adminMode) {{
-      fetch(adminSessionEndpoint, {{
-        cache: "no-store",
-        credentials: "same-origin",
-        headers: {{ "Accept": "application/json" }}
-      }})
-        .then((response) => response.ok ? response.json() : null)
-        .then((session) => {{
-          if (!session?.authenticated) {{
-            return;
-          }}
-          const destination = new URL(session.admin_incidents_url || adminDetailsBase, window.location.origin);
-          destination.search = window.location.search;
-          destination.hash = window.location.hash;
-          window.location.replace(destination);
-        }})
-        .catch(() => {{}});
-    }}
 
     const mapEl = document.getElementById("map");
     mapEl.classList.add("is-loading");
@@ -2499,7 +2488,7 @@ def build_html(
         ? `<button type="button" class="default-view" data-default-view>Back to ${{escapeHtml(formatRangeLabel(currentDataStatus.hours))}}</button>`
         : "";
       const hiddenDetailsButton = adminMode
-        ? `<button type="button" class="hidden-details-toggle" data-hidden-details-toggle="${{escapeHtml(incident.event_key)}}">Show hidden</button>`
+        ? `<button type="button" class="hidden-details-toggle" data-hidden-details-toggle="${{escapeHtml(incident.event_key)}}" disabled>Checking hidden...</button>`
         : "";
       return `
         <div class="detail-panel">
@@ -2558,6 +2547,62 @@ def build_html(
       `;
     }}
 
+    async function loadHiddenDetails(incident, reveal = false) {{
+      const selectedKey = detailsPanel.dataset.selectedIncidentKey;
+      const hiddenButton = detailsPanel.querySelector("[data-hidden-details-toggle]");
+      const container = detailsPanel.querySelector("[data-hidden-details]");
+      if (!adminMode || !hiddenButton || !container || selectedKey !== incident.event_key) {{
+        return;
+      }}
+      hiddenButton.disabled = true;
+      hiddenButton.textContent = "Checking hidden...";
+      try {{
+        const url = `${{adminDetailsBase}}/${{encodeURIComponent(incident.event_key)}}/hidden-details?region=${{encodeURIComponent(currentRegion)}}`;
+        const response = await fetch(url, {{
+          cache: "no-store",
+          credentials: "same-origin",
+          headers: {{ "Accept": "application/json" }}
+        }});
+        if (!response.ok) {{
+          throw new Error(`hidden details API returned ${{response.status}}`);
+        }}
+        const payload = await response.json();
+        const entries = payload.data || [];
+        if (detailsPanel.dataset.selectedIncidentKey !== incident.event_key) {{
+          return;
+        }}
+        const grouped = new Map();
+        entries.forEach((entry) => {{
+          const section = entry.section || "Detail Information";
+          if (!grouped.has(section)) {{
+            grouped.set(section, []);
+          }}
+          grouped.get(section).push(entry);
+        }});
+        container.dataset.loaded = "true";
+        container.dataset.hiddenCount = String(entries.length);
+        if (!entries.length) {{
+          container.innerHTML = '<div class="empty">No previously seen detail rows are hidden for this incident.</div>';
+          container.hidden = true;
+          hiddenButton.textContent = "No hidden details";
+          hiddenButton.disabled = true;
+          return;
+        }}
+        container.innerHTML = `<div class="hidden-detail-note">Previously seen in CHP snapshots but absent from the latest captured snapshot.</div>${{renderDetailSections(Array.from(grouped.entries()), true)}}`;
+        container.hidden = !reveal;
+        hiddenButton.textContent = reveal ? `Hide hidden (${{entries.length}})` : `Show hidden (${{entries.length}})`;
+        hiddenButton.disabled = false;
+      }} catch (_error) {{
+        if (detailsPanel.dataset.selectedIncidentKey !== incident.event_key) {{
+          return;
+        }}
+        container.innerHTML = '<div class="empty">Hidden details could not be loaded.</div>';
+        container.hidden = true;
+        hiddenButton.textContent = "Retry hidden check";
+        hiddenButton.disabled = false;
+      }}
+    }}
+
     function selectIncident(incident, options = {{}}) {{
       if (!incident) {{
         return;
@@ -2570,6 +2615,9 @@ def build_html(
         detailsPanel.innerHTML = detailHtml(incident);
         detailsPanel.dataset.selectedIncidentKey = incident.event_key;
         loadComments(incident);
+        if (adminMode) {{
+          loadHiddenDetails(incident);
+        }}
       }}
       document.querySelectorAll(".incident").forEach((button) => {{
         button.setAttribute("aria-current", button.dataset.eventKey === incident.event_key ? "true" : "false");
@@ -2619,41 +2667,15 @@ def build_html(
           return;
         }}
         if (container.dataset.loaded === "true") {{
+          const count = Number(container.dataset.hiddenCount || 0);
+          if (!count) {{
+            return;
+          }}
           container.hidden = !container.hidden;
-          hiddenButton.textContent = container.hidden ? "Show hidden" : "Hide hidden";
+          hiddenButton.textContent = container.hidden ? `Show hidden (${{count}})` : `Hide hidden (${{count}})`;
           return;
         }}
-        hiddenButton.disabled = true;
-        hiddenButton.textContent = "Loading...";
-        try {{
-          const url = `${{adminDetailsBase}}/${{encodeURIComponent(incident.event_key)}}/hidden-details?region=${{encodeURIComponent(currentRegion)}}`;
-          const response = await fetch(url, {{ cache: "no-store", headers: {{ "Accept": "application/json" }} }});
-          if (!response.ok) {{
-            throw new Error(`hidden details API returned ${{response.status}}`);
-          }}
-          const payload = await response.json();
-          const entries = payload.data || [];
-          const grouped = new Map();
-          entries.forEach((entry) => {{
-            const section = entry.section || "Detail Information";
-            if (!grouped.has(section)) {{
-              grouped.set(section, []);
-            }}
-            grouped.get(section).push(entry);
-          }});
-          container.innerHTML = entries.length
-            ? `<div class="hidden-detail-note">Previously seen in CHP snapshots but absent from the latest captured snapshot.</div>${{renderDetailSections(Array.from(grouped.entries()), true)}}`
-            : '<div class="empty">No previously seen detail rows are hidden for this incident.</div>';
-          container.dataset.loaded = "true";
-          container.hidden = false;
-          hiddenButton.textContent = "Hide hidden";
-        }} catch (_error) {{
-          container.innerHTML = '<div class="empty">Hidden details could not be loaded.</div>';
-          container.hidden = false;
-          hiddenButton.textContent = "Retry hidden";
-        }} finally {{
-          hiddenButton.disabled = false;
-        }}
+        loadHiddenDetails(incident, true);
         return;
       }}
       const button = event.target.closest("[data-share-incident]");
@@ -3171,6 +3193,7 @@ def report_shell(
     region="forest",
     region_statuses=None,
     extra_params=None,
+    admin_mode=False,
 ):
     region = normalize_region(region)
     label = region_label(region)
@@ -3779,7 +3802,7 @@ def report_shell(
             <div class="meta">{html.escape(subtitle)}</div>
             <div class="meta">Window: last {hours:g}h</div>
           </div>
-          {view_menu(base_path, current, hours, region)}
+          {view_menu(base_path, current, hours, region, admin_mode=admin_mode)}
         </div>
         <div class="report-nav">
           <nav class="range-tabs" aria-label="History range">{history_controls(hours, region, extra_params)}</nav>
@@ -3806,6 +3829,7 @@ def build_summary_html(
     region="forest",
     region_statuses=None,
     filters=None,
+    admin_mode=False,
 ):
     region = normalize_region(region)
     label = region_label(region)
@@ -3896,6 +3920,7 @@ def build_summary_html(
         region=region,
         region_statuses=region_statuses,
         extra_params=active_filter_params,
+        admin_mode=admin_mode,
     )
 
 
@@ -3908,6 +3933,7 @@ def build_history_html(
     filters=None,
     region="forest",
     region_statuses=None,
+    admin_mode=False,
 ):
     region = normalize_region(region)
     label = region_label(region)
@@ -3981,6 +4007,7 @@ def build_history_html(
         status=status,
         region=region,
         region_statuses=region_statuses,
+        admin_mode=admin_mode,
     )
 
 
@@ -3992,6 +4019,7 @@ def build_about_html(
     public_url=None,
     region="forest",
     region_statuses=None,
+    admin_mode=False,
 ):
     region = normalize_region(region)
     label = region_label(region)
@@ -4035,6 +4063,7 @@ def build_about_html(
         status=status,
         region=region,
         region_statuses=region_statuses,
+        admin_mode=admin_mode,
     )
 
 

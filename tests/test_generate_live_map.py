@@ -383,8 +383,11 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
         admin_mode=True,
     )
     assert "const adminMode = true" in admin_html
-    assert "Show hidden" in admin_html
-    assert "/admin/incidents" in admin_html
+    assert "Checking hidden..." in admin_html
+    assert "No hidden details" in admin_html
+    assert "Show hidden (${entries.length})" in admin_html
+    assert "/api/v1/incidents" in admin_html
+    assert "/admin/incidents" not in admin_html
     assert 'id="stale-notice"' in html
     assert 'id="stale-notice-text"' in html
     assert 'id="dismiss-stale-notice"' in html

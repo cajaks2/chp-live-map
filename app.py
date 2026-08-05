@@ -218,10 +218,8 @@ def route_label(path, settings):
         f"{asset_base}/admin/session",
     }:
         return "admin_session"
-    if path == "/admin/incidents" or path == f"{asset_base}/admin/incidents":
-        return "admin_incidents"
-    if path.startswith(f"{asset_base}/admin/incidents/") and path.endswith("/hidden-details"):
-        return "admin_hidden_details"
+    if path.startswith("/api/v1/incidents/") and path.endswith("/hidden-details"):
+        return "hidden_details"
     if path.startswith("/api/v1/incidents/") and path.endswith("/comments"):
         return "comments"
     if path.startswith("/api/v1/incidents/") and "/media/" in path:
@@ -499,12 +497,13 @@ def admin_authorized(request):
 
 
 def safe_admin_next(settings, value):
-    fallback = admin_incidents_path(settings)
+    fallback = map_path(settings)
     if not value or not value.startswith("/") or value.startswith("//"):
         return fallback
     parsed = urlsplit(value)
-    admin_base = admin_login_path(settings).rsplit("/", 1)[0] + "/"
-    if parsed.scheme or parsed.netloc or not parsed.path.startswith(admin_base):
+    base = normalize_base_path(settings.base_path)
+    within_base = base == "/" or parsed.path == base or parsed.path.startswith(f"{base}/")
+    if parsed.scheme or parsed.netloc or "\\" in parsed.path or not within_base:
         return fallback
     if parsed.path in {admin_login_path(settings), admin_logout_path(settings)}:
         return fallback
@@ -541,13 +540,13 @@ def admin_path(settings):
     return "/admin/comments" if base == "/" else f"{base}/admin/comments"
 
 
-def admin_incidents_path(settings):
+def map_path(settings):
     base = normalize_base_path(settings.base_path)
-    return "/admin/incidents" if base == "/" else f"{base}/admin/incidents"
+    return "/" if base == "/" else base
 
 
-def admin_hidden_event_key_from_path(path, settings):
-    prefix = f"{admin_incidents_path(settings)}/"
+def hidden_event_key_from_path(path):
+    prefix = "/api/v1/incidents/"
     suffix = "/hidden-details"
     if not path.startswith(prefix) or not path.endswith(suffix):
         return None
@@ -639,7 +638,7 @@ def handle_admin_session_get(request, send_body=True):
     return json_response(
         {
             "authenticated": authenticated,
-            "admin_incidents_url": admin_incidents_path(settings) if authenticated else None,
+            "admin_incidents_url": map_path(settings) if authenticated else None,
         },
         cache_control="no-store",
         send_body=send_body,
@@ -712,7 +711,7 @@ async def handle_admin_logout_post(request):
         return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404)
     if not same_origin_admin_post(request):
         return byte_response(b"Forbidden\n", "text/plain; charset=utf-8", status_code=403)
-    response = Response(status_code=303, headers={"Location": "/", "Cache-Control": "no-store"})
+    response = Response(status_code=303, headers={"Location": map_path(settings), "Cache-Control": "no-store"})
     response.delete_cookie(
         ADMIN_SESSION_COOKIE,
         path="/",
@@ -728,13 +727,13 @@ def dispatch_request(request, send_body=True):
     path = _path(request)
     base_path = normalize_base_path(settings.base_path)
     asset_base = "" if base_path == "/" else base_path
-    admin_mode = path == admin_incidents_path(settings)
-    if admin_mode:
-        if not admin_enabled(settings):
-            return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404, send_body=send_body)
-        if not admin_authorized(request):
-            return admin_login_redirect(request)
-    map_paths = {"/", "/live_chp_map.html", base_path, admin_incidents_path(settings)}
+    admin_mode = admin_enabled(settings) and admin_authorized(request)
+    legacy_admin_incidents_path = "/admin/incidents" if base_path == "/" else f"{base_path}/admin/incidents"
+    if path == legacy_admin_incidents_path:
+        query = request.url.query
+        location = map_path(settings) + (f"?{query}" if query else "")
+        return Response(status_code=308, headers={"Location": location, "Cache-Control": "no-store"})
+    map_paths = {"/", "/live_chp_map.html", base_path}
     summary_paths = {"/summary", f"{asset_base}/summary"}
     history_paths = {"/history", f"{asset_base}/history"}
     about_paths = {"/about", f"{asset_base}/about"}
@@ -971,6 +970,7 @@ def dispatch_request(request, send_body=True):
                 region=region,
                 region_statuses=current_region_statuses,
                 filters=summary_filters(request),
+                admin_mode=admin_mode,
             ).encode("utf-8")
         elif path in history_paths:
             body = build_history_html(
@@ -982,6 +982,7 @@ def dispatch_request(request, send_body=True):
                 filters=history_filters(request),
                 region=region,
                 region_statuses=current_region_statuses,
+                admin_mode=admin_mode,
             ).encode("utf-8")
         elif path in about_paths:
             body = build_about_html(
@@ -992,6 +993,7 @@ def dispatch_request(request, send_body=True):
                 public_url=settings.public_url,
                 region=region,
                 region_statuses=current_region_statuses,
+                admin_mode=admin_mode,
             ).encode("utf-8")
         else:
             body = build_html(
@@ -1006,8 +1008,7 @@ def dispatch_request(request, send_body=True):
                 region_statuses=current_region_statuses,
                 last_scrape=last_scrape,
                 admin_mode=admin_mode,
-                admin_details_base=admin_incidents_path(settings),
-                admin_session_endpoint=admin_session_path(settings),
+                admin_details_base="/api/v1/incidents",
                 media_enabled=media_enabled(settings),
                 media_max_video_bytes=settings.media_max_video_bytes,
                 media_max_video_seconds=settings.media_max_video_seconds,
@@ -1032,7 +1033,9 @@ def dispatch_request(request, send_body=True):
             send_body=send_body,
         )
     cache_control = "no-store" if admin_mode else web.MAP_CACHE_CONTROL
-    return byte_response(body, "text/html; charset=utf-8", cache_control=cache_control, send_body=send_body)
+    response = byte_response(body, "text/html; charset=utf-8", cache_control=cache_control, send_body=send_body)
+    response.headers["Vary"] = "Cookie, Authorization"
+    return response
 
 
 def handle_admin_hidden_details_get(request, event_key, send_body=True):
@@ -1078,7 +1081,7 @@ def build_admin_comments_html(
     status,
     message="",
     admin_url="/admin/comments",
-    admin_incidents_url="/admin/incidents",
+    admin_incidents_url="/",
     admin_logout_url="/admin/logout",
 ):
     tabs = []
@@ -1268,7 +1271,7 @@ def handle_admin_comments_get(request, send_body=True, message=""):
             status,
             message=message,
             admin_url=admin_path(settings),
-            admin_incidents_url=admin_incidents_path(settings),
+            admin_incidents_url=map_path(settings),
             admin_logout_url=admin_logout_path(settings),
         )
         return html_response(body, cache_control="no-store", send_body=send_body)
@@ -1690,7 +1693,7 @@ def create_app(settings=None):
             return handle_admin_session_get(request, send_body=True)
         if _path(request) == admin_path(settings):
             return handle_admin_comments_get(request, send_body=True)
-        hidden_event_key = admin_hidden_event_key_from_path(_path(request), settings)
+        hidden_event_key = hidden_event_key_from_path(_path(request))
         if hidden_event_key is not None:
             return handle_admin_hidden_details_get(request, hidden_event_key, send_body=True)
         event_key = comment_event_key_from_path(_path(request))
@@ -1712,7 +1715,7 @@ def create_app(settings=None):
             return handle_admin_session_get(request, send_body=False)
         if _path(request) == admin_path(settings):
             return handle_admin_comments_get(request, send_body=False)
-        hidden_event_key = admin_hidden_event_key_from_path(_path(request), settings)
+        hidden_event_key = hidden_event_key_from_path(_path(request))
         if hidden_event_key is not None:
             return handle_admin_hidden_details_get(request, hidden_event_key, send_body=False)
         event_key = comment_event_key_from_path(_path(request))

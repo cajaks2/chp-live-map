@@ -123,6 +123,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert '<link rel="icon" href="https://crestmap.us/favicon.svg?active=0&amp;v=' in body
         assert '<meta property="og:image" content="https://crestmap.us/og-image.png">' in body
         assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
+        assert response.headers["Vary"] == "Cookie, Authorization"
         assert response.headers["Content-Security-Policy"] == CONTENT_SECURITY_POLICY
         assert "form-action 'self'" in response.headers["Content-Security-Policy"]
         assert response.headers["X-Content-Type-Options"] == "nosniff"
@@ -668,7 +669,9 @@ def test_admin_comments_disabled_without_credentials(tmp_path):
         response = client.get("/admin/comments")
         assert response.status_code == 404
         assert client.get("/admin/login").status_code == 404
-        assert client.get("/admin/incidents").status_code == 404
+        response = client.get("/admin/incidents", follow_redirects=False)
+        assert response.status_code == 308
+        assert response.headers["Location"] == "/"
 
 
 def test_admin_comments_redirects_to_login_and_rejects_wrong_basic_auth(tmp_path):
@@ -741,8 +744,8 @@ def test_admin_login_cookie_tamper_expiry_and_logout(tmp_path):
         response = client.get("/")
         assert "/admin/login" in response.text
         assert "Admin login" in response.text
-        assert 'const adminSessionEndpoint = "/admin/session";' in response.text
-        assert "window.location.replace(destination)" in response.text
+        assert "const adminMode = false" in response.text
+        assert "window.location.replace(destination)" not in response.text
 
         response = client.get("/admin/session")
         assert response.status_code == 200
@@ -764,7 +767,7 @@ def test_admin_login_cookie_tamper_expiry_and_logout(tmp_path):
             follow_redirects=False,
         )
         assert response.status_code == 303
-        assert response.headers["Location"] == "/admin/incidents"
+        assert response.headers["Location"] == "/"
         cookie = response.headers["Set-Cookie"]
         assert f"{ADMIN_SESSION_COOKIE}=" in cookie
         assert "HttpOnly" in cookie
@@ -775,8 +778,20 @@ def test_admin_login_cookie_tamper_expiry_and_logout(tmp_path):
         assert response.status_code == 200
         assert response.json() == {
             "authenticated": True,
-            "admin_incidents_url": "/admin/incidents",
+            "admin_incidents_url": "/",
         }
+
+        response = client.get("/")
+        assert response.status_code == 200
+        assert response.headers["Cache-Control"] == "no-store"
+        assert response.headers["Vary"] == "Cookie, Authorization"
+        assert "const adminMode = true" in response.text
+        assert "Admin tools" in response.text
+
+        response = client.get("/summary")
+        assert response.status_code == 200
+        assert response.headers["Cache-Control"] == "no-store"
+        assert "Admin tools" in response.text
 
         response = client.get("/admin/comments")
         assert response.status_code == 200
@@ -835,16 +850,18 @@ def test_admin_incident_map_reveals_only_details_removed_from_latest_snapshot(tm
         public_entries = public.json()["incidents"][0]["detail_entries"]
         assert [entry["text"] for entry in public_entries] == ["This row remains visible"]
 
-        response = client.get("/admin/incidents", follow_redirects=False)
-        assert response.status_code == 303
-
-        response = client.get("/admin/incidents", headers=basic_auth())
+        response = client.get("/", headers=basic_auth())
         assert response.status_code == 200
         assert response.headers["Cache-Control"] == "no-store"
-        assert "Show hidden" in response.text
+        assert "Checking hidden..." in response.text
+        assert "No hidden details" in response.text
+        assert "Show hidden (${entries.length})" in response.text
         assert "This row disappeared later" not in response.text
 
-        hidden_url = f"/admin/incidents/{event_key}/hidden-details?region=forest"
+        old_hidden_url = f"/admin/incidents/{event_key}/hidden-details?region=forest"
+        assert client.get(old_hidden_url, headers=basic_auth()).status_code == 404
+
+        hidden_url = f"/api/v1/incidents/{event_key}/hidden-details?region=forest"
         response = client.get(hidden_url)
         assert response.status_code == 401
 

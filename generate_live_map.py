@@ -500,7 +500,7 @@ def push_ui_html(base_path):
       <button type="button" class="push-card-close" data-dismiss-push-onboarding aria-label="Close">&times;</button>
       <h2 id="ios-push-onboarding-title">Turn on incident alerts?</h2>
       <p>Crestmap can notify this iPhone when it discovers a new CHP incident matching the areas and categories you choose.</p>
-      <p>You stay in control: choose Forest or Malibu roads, select incident types, and turn alerts off here at any time.</p>
+      <p>You stay in control: choose all Forest roads, Crest + west forest only, or Malibu roads; select incident types; and turn alerts off here at any time.</p>
       <div class="push-actions">
         <button type="button" id="push-onboarding-setup">Choose alerts</button>
         <button type="button" class="is-secondary" data-dismiss-push-onboarding>Not now</button>
@@ -517,7 +517,8 @@ def push_ui_html(base_path):
         <fieldset class="push-choice-group">
           <legend>Areas</legend>
           <div class="push-choice-grid">
-            <label class="push-choice"><input type="checkbox" name="push_region" value="forest"> Angeles Forest roads</label>
+            <label class="push-choice"><input type="checkbox" name="push_region" value="forest"> All Angeles Forest roads</label>
+            <label class="push-choice"><input type="checkbox" name="push_region" value="crest"> Crest + west forest only</label>
             <label class="push-choice"><input type="checkbox" name="push_region" value="malibu"> Malibu roads</label>
           </div>
         </fieldset>
@@ -583,6 +584,11 @@ def push_ui_script(base_path):
     function selectValues(name, values) {{
       form.querySelectorAll(`input[name="${{name}}"]`).forEach(input => {{ input.checked = values.includes(input.value); }});
     }}
+    form?.querySelectorAll('input[name="push_region"]').forEach(input => input.addEventListener("change", () => {{
+      if (!input.checked) return;
+      if (input.value === "forest") form.querySelector('input[name="push_region"][value="crest"]').checked = false;
+      if (input.value === "crest") form.querySelector('input[name="push_region"][value="forest"]').checked = false;
+    }}));
     function setBusy(busy) {{ saveButton.disabled = busy; testButton.disabled = busy; disableButton.disabled = busy; }}
     function renderHeaderAlertState() {{
       headerLaunchers.forEach(button => {{
@@ -4519,7 +4525,8 @@ def build_about_html(
       </section>
       <section class="section" id="push-notifications">
         <h2>Push Notifications</h2>
-        <p class="empty-report">Crestmap can notify you when it discovers a new matching CHP incident. You choose Forest or Malibu roads and the incident categories you want: collisions, traffic hazards, closures and weather, or other incidents.</p>
+        <p class="empty-report">Crestmap can notify you when it discovers a new matching CHP incident. Choose all Forest roads, Crest + west forest only, or Malibu roads, then select the incident categories you want.</p>
+        <div class="result"><strong>Crest + west forest</strong><span>Includes Angeles Crest, Angeles Forest, Big Tujunga, and Mount Wilson/Red Box incidents. It excludes San Gabriel Canyon, Glendora Mountain/Ridge, Mount Baldy, and San Antonio Canyon incidents.</span></div>
         <div class="result"><strong>iPhone and iPad</strong><span>Open Crestmap in Safari. With Compact tabs, tap More (&hellip;) then Share; with Bottom or Top tabs, tap Share directly. Scroll down and choose Add to Home Screen. If it is missing, scroll to the bottom, open Edit Actions, and add it. Turn on Open as Web App, tap Add, then launch Crestmap from the new icon. Open Alerts from the menu and approve the notification prompt.</span></div>
         <div class="result"><strong>Privacy</strong><span>A browser-generated push endpoint and your choices are stored. No email address, phone number, or account is required. Turning alerts off deactivates that device subscription.</span></div>
         <div class="result"><strong>Delivery</strong><span>Notifications are sent only for newly discovered incidents after you subscribe. Delivery can be delayed or suppressed by Focus, Low Power settings, connectivity, or browser notification settings.</span></div>

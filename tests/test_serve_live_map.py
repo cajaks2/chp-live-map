@@ -179,6 +179,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert "Update Cadence" in body
         assert 'id="push-notifications"' in body
         assert "Manage alert choices" in body
+        assert 'value="crest"> Crest + west forest only' in body
         assert 'class="push-launcher"' not in body
         assert '<button type="button" class="view-menu-row" data-open-push-settings>' in body
         assert '<span class="view-menu-label">Alerts</span>' in body
@@ -402,6 +403,7 @@ def test_push_subscription_api_saves_preferences_and_unsubscribes(tmp_path):
         assert config.status_code == 200
         assert config.json()["enabled"] is True
         assert config.json()["public_key"] == "public-vapid-key"
+        assert config.json()["defaults"]["regions"] == ["forest", "malibu"]
 
         response = client.post("/api/v1/push/subscription", json=payload)
         assert response.status_code == 201

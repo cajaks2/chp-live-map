@@ -4,10 +4,19 @@ import uuid
 from urllib.parse import urlsplit
 
 
-REGIONS = {"forest", "malibu"}
+REGIONS = {"crest", "forest", "malibu"}
 CATEGORIES = {"collision", "hazard", "closure", "other"}
-DEFAULT_REGIONS = sorted(REGIONS)
+DEFAULT_REGIONS = ["forest", "malibu"]
 DEFAULT_CATEGORIES = sorted(CATEGORIES)
+CREST_NOTIFICATION_KEYWORDS = (
+    "angeles crest",
+    "angeles forest",
+    "upper big tujunga",
+    "big tujunga canyon",
+    "mt wilson",
+    "mount wilson",
+    "red box",
+)
 MAX_ENDPOINT_LENGTH = 2048
 MAX_KEY_LENGTH = 512
 MAX_DELIVERY_ATTEMPTS = 3
@@ -60,11 +69,14 @@ def validate_subscription(payload):
     auth = str(keys.get("auth") or "").strip()
     if not p256dh or not auth or len(p256dh) > MAX_KEY_LENGTH or len(auth) > MAX_KEY_LENGTH:
         raise PushValidationError("subscription keys are invalid")
+    regions = normalize_choices(payload.get("regions"), REGIONS, "regions")
+    if "forest" in regions and "crest" in regions:
+        regions.remove("crest")
     return {
         "endpoint": endpoint,
         "p256dh": p256dh,
         "auth": auth,
-        "regions": normalize_choices(payload.get("regions"), REGIONS, "regions"),
+        "regions": regions,
         "categories": normalize_choices(payload.get("categories"), CATEGORIES, "categories"),
     }
 
@@ -169,6 +181,20 @@ def incident_public_url(incident, public_url):
     return f"{base}?{urlencode({'region': incident.get('region') or 'forest', 'incident': incident['event_key']})}"
 
 
+def notification_areas(incident):
+    region = incident.get("region") or "forest"
+    areas = [region]
+    if region != "forest":
+        return areas
+    haystack = " ".join(
+        str(incident.get(field) or "").casefold()
+        for field in ("matched_keywords", "location", "location_desc", "area")
+    )
+    if any(keyword in haystack for keyword in CREST_NOTIFICATION_KEYWORDS):
+        areas.append("crest")
+    return areas
+
+
 def notification_payload(incident, public_url):
     incident_type = incident.get("type") or "CHP Incident"
     location = incident.get("location") or incident.get("location_desc") or "Location unavailable"
@@ -177,6 +203,7 @@ def notification_payload(incident, public_url):
     return {
         "event_key": incident["event_key"],
         "region": region,
+        "areas": notification_areas(incident),
         "category": incident_category(incident_type),
         "title": f"New {incident_type}",
         "body": f"{location}{f' ({area})' if area else ''}",
@@ -257,10 +284,12 @@ def _matching_subscriptions(conn, event):
         ),
         ((True, event["created_at"]) if _is_postgres(conn) else (event["created_at"],)),
     ).fetchall()
+    payload = json.loads(event["payload_json"])
+    event_areas = set(payload.get("areas") or [event["region"]])
     return [
         row
         for row in rows
-        if event["region"] in json.loads(row["regions_json"])
+        if event_areas.intersection(json.loads(row["regions_json"]))
         and event["category"] in json.loads(row["categories_json"])
     ]
 

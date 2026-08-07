@@ -5,6 +5,7 @@ from push_notifications import (
     enqueue_incidents,
     enqueue_test_notification,
     incident_category,
+    notification_areas,
     process_pending,
     save_subscription,
     subscription_preferences,
@@ -85,6 +86,51 @@ def test_incident_categories_cover_chp_labels():
     assert incident_category("Traffic Hazard") == "hazard"
     assert incident_category("Road Closure") == "closure"
     assert incident_category("Disabled Vehicle") == "other"
+
+
+def test_crest_notification_area_includes_west_forest_and_excludes_baldy():
+    crest = event_row()
+    baldy = {
+        **event_row(),
+        "location": "Mount Baldy Rd / Shinn Rd",
+        "matched_keywords": "mount baldy",
+        "longitude": -117.68,
+    }
+
+    assert notification_areas(crest) == ["forest", "crest"]
+    assert notification_areas(baldy) == ["forest"]
+
+
+def test_crest_subscription_receives_only_west_forest_incidents(tmp_path):
+    database = tmp_path / "push.sqlite"
+    conn = connect_database(database)
+    crest = event_row()
+    baldy = {
+        **event_row("LACC|2026-08-06|0124"),
+        "location": "Mount Baldy Rd / Shinn Rd",
+        "matched_keywords": "mount baldy",
+        "longitude": -117.68,
+    }
+    upsert_active_event(conn, crest)
+    upsert_active_event(conn, baldy)
+    save_subscription(conn, subscription_payload("https://push.example.test/crest", ["crest"], ["hazard"]))
+    save_subscription(conn, subscription_payload("https://push.example.test/all-forest", ["forest"], ["hazard"]))
+    enqueue_incidents(conn, [crest, baldy], "https://crestmap.us/")
+    conn.commit()
+
+    calls = []
+    stats = process_pending(conn, "private-key", "https://crestmap.us/", sender=lambda **kwargs: calls.append(kwargs))
+
+    delivered = [
+        (call["subscription_info"]["endpoint"], json.loads(call["data"])["event_key"])
+        for call in calls
+    ]
+    assert stats == {"events": 2, "delivered": 3, "failed": 0, "expired": 0}
+    assert delivered.count(("https://push.example.test/crest", crest["event_key"])) == 1
+    assert ("https://push.example.test/crest", baldy["event_key"]) not in delivered
+    assert ("https://push.example.test/all-forest", crest["event_key"]) in delivered
+    assert ("https://push.example.test/all-forest", baldy["event_key"]) in delivered
+    conn.close()
 
 
 def test_delivery_filters_preferences_and_deduplicates(tmp_path):

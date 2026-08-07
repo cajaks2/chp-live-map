@@ -683,12 +683,17 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False):
     for key, label, description, href in items:
         if key == "alerts":
             rows.append(
-                '<button type="button" class="view-menu-row" data-open-push-settings>{} '
-                '<span>{}</span></button>'.format(html.escape(label), html.escape(description))
+                '<button type="button" class="view-menu-row" data-open-push-settings>'
+                '<span class="view-menu-label">{}</span>'
+                '<span class="view-menu-description">{}</span></button>'.format(
+                    html.escape(label), html.escape(description)
+                )
             )
             continue
         rows.append(
-            '<a class="view-menu-row{}" href="{}">{} <span>{}</span></a>'.format(
+            '<a class="view-menu-row{}" href="{}">'
+            '<span class="view-menu-label">{}</span>'
+            '<span class="view-menu-description">{}</span></a>'.format(
                 " is-active" if key == current else "",
                 html.escape(href),
                 html.escape(label),
@@ -1136,11 +1141,24 @@ def build_html(
       font-family: inherit;
       text-align: left;
       cursor: pointer;
+      box-sizing: border-box;
     }}
-    .view-menu-row span {{
+    .view-menu-row .view-menu-label {{
+      flex: 0 0 auto;
+      color: inherit;
+      font-size: 13px;
+      font-weight: 800;
+    }}
+    .view-menu-row .view-menu-description {{
+      min-width: 0;
+      max-width: 65%;
       color: #46534b;
       font-size: 12px;
       font-weight: 700;
+      line-height: 1.2;
+      text-align: right;
+      white-space: normal;
+      overflow-wrap: anywhere;
     }}
     .view-menu-row.is-active,
     .view-menu-row:hover,
@@ -3629,11 +3647,24 @@ def report_shell(
       font-family: inherit;
       text-align: left;
       cursor: pointer;
+      box-sizing: border-box;
     }}
-    .view-menu-row span {{
+    .view-menu-row .view-menu-label {{
+      flex: 0 0 auto;
+      color: inherit;
+      font-size: 13px;
+      font-weight: 800;
+    }}
+    .view-menu-row .view-menu-description {{
+      min-width: 0;
+      max-width: 65%;
       color: #46534b;
       font-size: 12px;
       font-weight: 700;
+      line-height: 1.2;
+      text-align: right;
+      white-space: normal;
+      overflow-wrap: anywhere;
     }}
     .view-menu-row.is-active,
     .view-menu-row:hover,

@@ -121,6 +121,9 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert 'Last scrape <time id="last-scrape-at" datetime="2026-05-31T08:00:00-07:00">' in body
         assert '<span class="source-label">(CAD)</span>' in body
         assert '<link rel="icon" href="https://crestmap.us/favicon.svg?active=0&amp;v=' in body
+        assert '<link rel="manifest" href="/manifest.webmanifest">' in body
+        assert 'id="ios-push-tutorial"' in body
+        assert 'Remind me in 7 days' in body
         assert '<meta property="og:image" content="https://crestmap.us/og-image.png">' in body
         assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
         assert response.headers["Vary"] == "Cookie, Authorization"
@@ -172,6 +175,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
         assert "About - CHP Forest Incidents" in body
         assert "Update Cadence" in body
+        assert 'id="push-notifications"' in body
+        assert "Manage alert choices" in body
         assert '<a class="range-tab is-active" href="?hours=24&amp;region=forest" aria-current="page">24h</a>' in body
         assert '<a class="view-tab is-active" href="/about?hours=24&amp;region=forest" aria-current="page">About</a>' in body
 
@@ -248,6 +253,17 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
             assert response.headers["Content-Type"] == "image/png"
             assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
             assert response.content.startswith(b"\x89PNG\r\n\x1a\n")
+
+        response = client.get("/manifest.webmanifest")
+        assert response.status_code == 200
+        assert response.headers["Content-Type"] == "application/manifest+json; charset=utf-8"
+        assert response.json()["display"] == "standalone"
+        assert response.json()["name"] == "Crestmap CHP Incidents"
+
+        response = client.get("/sw.js")
+        assert response.status_code == 200
+        assert response.headers["Service-Worker-Allowed"] == "/"
+        assert 'self.addEventListener("push"' in response.text
 
         response = client.get("/robots.txt")
         body = response.text
@@ -354,6 +370,51 @@ def test_prometheus_metrics_include_pool_stats(tmp_path):
     assert 'chp_live_map_db_pool_connections{state="available"} 2' in body
     assert 'chp_live_map_db_pool_connections{state="in_use"} 1' in body
     assert "chp_live_map_db_pool_requests_waiting 4" in body
+
+
+def test_push_subscription_api_saves_preferences_and_unsubscribes(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    payload = {
+        "subscription": {
+            "endpoint": "https://web.push.apple.com/device-token",
+            "keys": {"p256dh": "device-public-key", "auth": "device-auth-secret"},
+        },
+        "regions": ["forest"],
+        "categories": ["collision", "closure"],
+    }
+    with make_client(database, vapid_public_key="public-vapid-key") as client:
+        config = client.get("/api/v1/push/config")
+        assert config.status_code == 200
+        assert config.json()["enabled"] is True
+        assert config.json()["public_key"] == "public-vapid-key"
+
+        response = client.post("/api/v1/push/subscription", json=payload)
+        assert response.status_code == 201
+        assert response.json()["subscribed"] is True
+        assert response.json()["regions"] == ["forest"]
+
+        status = client.post(
+            "/api/v1/push/subscription",
+            json={"action": "status", "subscription": payload["subscription"]},
+        )
+        assert status.status_code == 200
+        assert status.json() == {
+            "subscribed": True,
+            "preferences": {"regions": ["forest"], "categories": ["closure", "collision"]},
+        }
+
+        disabled = client.post(
+            "/api/v1/push/subscription",
+            json={"action": "unsubscribe", "subscription": payload["subscription"]},
+        )
+        assert disabled.status_code == 200
+        assert disabled.json()["subscribed"] is False
+
+        status = client.post(
+            "/api/v1/push/subscription",
+            json={"action": "status", "subscription": payload["subscription"]},
+        )
+        assert status.json() == {"subscribed": False, "preferences": None}
 
 
 def test_public_malibu_region_is_available_without_auth(tmp_path):

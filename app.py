@@ -39,6 +39,14 @@ from media import (
     validate_upload,
     validate_upload_token,
 )
+from push_notifications import (
+    DEFAULT_CATEGORIES,
+    DEFAULT_REGIONS,
+    PushValidationError,
+    deactivate_subscription,
+    save_subscription,
+    subscription_preferences,
+)
 import serve_live_map as web
 from generate_live_map import (
     build_about_html,
@@ -81,6 +89,7 @@ class WebSettings:
     media_max_image_bytes: int = 8 * 1024 * 1024
     media_max_video_bytes: int = 100 * 1024 * 1024
     media_max_video_seconds: int = 60
+    vapid_public_key: str | None = None
 
     @classmethod
     def from_env(cls):
@@ -106,6 +115,7 @@ class WebSettings:
             media_max_image_bytes=int(os.environ.get("MEDIA_MAX_IMAGE_BYTES", str(8 * 1024 * 1024))),
             media_max_video_bytes=int(os.environ.get("MEDIA_MAX_VIDEO_BYTES", str(100 * 1024 * 1024))),
             media_max_video_seconds=int(os.environ.get("MEDIA_MAX_VIDEO_SECONDS", "60")),
+            vapid_public_key=os.environ.get("VAPID_PUBLIC_KEY") or None,
         )
 
 
@@ -226,6 +236,10 @@ def route_label(path, settings):
         return "media_upload"
     if path.startswith("/api/v1/media/") or path.startswith(f"{asset_base}/admin/media/"):
         return "media"
+    if path.startswith("/api/v1/push/"):
+        return "push"
+    if path in {"/manifest.webmanifest", f"{asset_base}/manifest.webmanifest", "/sw.js", f"{asset_base}/sw.js"}:
+        return "pwa_asset"
     if path in {"/metrics", f"{asset_base}/metrics"}:
         return "metrics"
     if path in {"/healthz", "/readyz"}:
@@ -722,6 +736,123 @@ async def handle_admin_logout_post(request):
     return response
 
 
+def push_config_path(settings):
+    base = normalize_base_path(settings.base_path)
+    return "/api/v1/push/config" if base == "/" else f"{base}/api/v1/push/config"
+
+
+def push_subscription_path(settings):
+    base = normalize_base_path(settings.base_path)
+    return "/api/v1/push/subscription" if base == "/" else f"{base}/api/v1/push/subscription"
+
+
+def pwa_manifest(settings):
+    base = normalize_base_path(settings.base_path)
+    start_url = "/" if base == "/" else f"{base}/"
+    return {
+        "id": start_url,
+        "name": "Crestmap CHP Incidents",
+        "short_name": "Crestmap",
+        "description": "Live CHP incidents for Angeles forest and Malibu roads.",
+        "start_url": start_url,
+        "scope": start_url,
+        "display": "standalone",
+        "background_color": "#f6f7f4",
+        "theme_color": "#18392b",
+        "icons": [
+            {
+                "src": f"{base.rstrip('/')}/apple-touch-icon-180x180.png" or "/apple-touch-icon-180x180.png",
+                "sizes": "180x180",
+                "type": "image/png",
+                "purpose": "any",
+            }
+        ],
+    }
+
+
+SERVICE_WORKER_JS = r"""const DEFAULT_URL = "/";
+
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch (_error) {
+    payload = { title: "New CHP incident", body: "Open Crestmap for details.", url: DEFAULT_URL };
+  }
+  const title = payload.title || "New CHP incident";
+  const options = {
+    body: payload.body || "Open Crestmap for details.",
+    icon: "/apple-touch-icon.png",
+    badge: "/apple-touch-icon.png",
+    tag: payload.tag || (payload.event_key ? `chp-${payload.event_key}` : "chp-incident"),
+    renotify: true,
+    data: { url: payload.url || DEFAULT_URL }
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || DEFAULT_URL, self.location.origin).href;
+  event.waitUntil((async () => {
+    const windows = await clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const client of windows) {
+      if ("navigate" in client) await client.navigate(target);
+      return client.focus();
+    }
+    return clients.openWindow(target);
+  })());
+});
+"""
+
+
+def handle_push_config_get(request, send_body=True):
+    settings = request.app.state.settings
+    return json_response(
+        {
+            "enabled": bool(settings.vapid_public_key),
+            "public_key": settings.vapid_public_key,
+            "defaults": {"regions": DEFAULT_REGIONS, "categories": DEFAULT_CATEGORIES},
+        },
+        cache_control="no-store",
+        send_body=send_body,
+    )
+
+
+async def handle_push_subscription_post(request):
+    settings = request.app.state.settings
+    if not settings.vapid_public_key:
+        return api_error("push notifications are not configured", "push_unavailable", 503)
+    if not same_origin_admin_post(request):
+        return api_error("cross-origin request rejected", "forbidden", 403)
+    try:
+        payload = await request.json()
+    except Exception:
+        return api_error("invalid JSON body", "invalid_json", 400)
+    if not isinstance(payload, dict):
+        return api_error("request body must be an object", "invalid_request", 400)
+    action = str(payload.get("action") or "subscribe").lower()
+    subscription = payload.get("subscription") or {}
+    endpoint = str(subscription.get("endpoint") or "") if isinstance(subscription, dict) else ""
+    try:
+        with writable_database_connection(request.app) as conn:
+            if action in {"subscribe", "update"}:
+                result = save_subscription(conn, payload, request.headers.get("user-agent", ""))
+                return json_response({"subscribed": True, **result}, 201 if action == "subscribe" else 200)
+            if action == "unsubscribe":
+                deactivate_subscription(conn, endpoint)
+                return json_response({"subscribed": False})
+            if action == "status":
+                preferences = subscription_preferences(conn, endpoint)
+                return json_response({"subscribed": bool(preferences), "preferences": preferences})
+    except PushValidationError as exc:
+        return api_error(str(exc), "invalid_subscription", 422)
+    except Exception as exc:
+        web.log_exception("Push subscription request failed", exc, **{"event.action": "push_subscription"})
+        return api_error("push subscription could not be saved", "push_failed", 500)
+    return api_error("unsupported action", "invalid_action", 422)
+
+
 def dispatch_request(request, send_body=True):
     settings = request.app.state.settings
     path = _path(request)
@@ -742,6 +873,8 @@ def dispatch_request(request, send_body=True):
     robots_paths = {"/robots.txt", f"{asset_base}/robots.txt"}
     sitemap_paths = {"/sitemap.xml", f"{asset_base}/sitemap.xml"}
     metrics_paths = {"/metrics", f"{asset_base}/metrics"}
+    manifest_paths = {"/manifest.webmanifest", f"{asset_base}/manifest.webmanifest"}
+    service_worker_paths = {"/sw.js", f"{asset_base}/sw.js"}
     favicon_svg_paths = {"/favicon.svg", f"{asset_base}/favicon.svg"}
     favicon_ico_paths = {"/favicon.ico", f"{asset_base}/favicon.ico"}
     apple_touch_icon_paths = {
@@ -770,6 +903,24 @@ def dispatch_request(request, send_body=True):
 
     if path in {"/healthz", "/readyz"}:
         return byte_response(b"ok\n", "text/plain; charset=utf-8", send_body=send_body)
+
+    if path in manifest_paths:
+        return byte_response(
+            json.dumps(pwa_manifest(settings), sort_keys=True).encode("utf-8"),
+            "application/manifest+json; charset=utf-8",
+            cache_control=web.ASSET_CACHE_CONTROL,
+            send_body=send_body,
+        )
+
+    if path in service_worker_paths:
+        response = byte_response(
+            SERVICE_WORKER_JS.encode("utf-8"),
+            "application/javascript; charset=utf-8",
+            cache_control="no-cache",
+            send_body=send_body,
+        )
+        response.headers["Service-Worker-Allowed"] = "/"
+        return response
 
     if path in favicon_svg_paths or path in favicon_ico_paths:
         try:
@@ -1681,6 +1832,8 @@ def create_app(settings=None):
 
     @app.get("/{full_path:path}")
     def get_anything(request: Request, full_path: str):
+        if _path(request) == push_config_path(settings):
+            return handle_push_config_get(request, send_body=True)
         public_media_id = media_id_from_path(_path(request))
         if public_media_id is not None:
             return handle_media_get(request, public_media_id, send_body=True)
@@ -1703,6 +1856,8 @@ def create_app(settings=None):
 
     @app.head("/{full_path:path}")
     def head_anything(request: Request, full_path: str):
+        if _path(request) == push_config_path(settings):
+            return handle_push_config_get(request, send_body=False)
         public_media_id = media_id_from_path(_path(request))
         if public_media_id is not None:
             return handle_media_get(request, public_media_id, send_body=False)
@@ -1725,6 +1880,8 @@ def create_app(settings=None):
 
     @app.post("/{full_path:path}")
     async def post_anything(request: Request, full_path: str):
+        if _path(request) == push_subscription_path(settings):
+            return await handle_push_subscription_post(request)
         if _path(request) == admin_login_path(settings):
             return await handle_admin_login_post(request)
         if _path(request) == admin_logout_path(settings):

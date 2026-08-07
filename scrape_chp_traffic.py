@@ -1384,12 +1384,52 @@ def init_database_sqlite(conn):
             FOREIGN KEY (event_key) REFERENCES events(event_key)
         );
 
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            regions_json TEXT NOT NULL,
+            categories_json TEXT NOT NULL,
+            user_agent TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1
+        );
+
+        CREATE TABLE IF NOT EXISTS push_notification_events (
+            event_key TEXT PRIMARY KEY,
+            region TEXT NOT NULL,
+            category TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            completed_at TEXT,
+            FOREIGN KEY (event_key) REFERENCES events(event_key)
+        );
+
+        CREATE TABLE IF NOT EXISTS push_deliveries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subscription_id INTEGER NOT NULL,
+            event_key TEXT NOT NULL,
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            delivered_at TEXT,
+            last_error TEXT,
+            created_at TEXT NOT NULL,
+            last_attempt_at TEXT,
+            UNIQUE (subscription_id, event_key),
+            FOREIGN KEY (subscription_id) REFERENCES push_subscriptions(id) ON DELETE CASCADE,
+            FOREIGN KEY (event_key) REFERENCES push_notification_events(event_key) ON DELETE CASCADE
+        );
+
         CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
         CREATE INDEX IF NOT EXISTS idx_events_center_status ON events(center, status);
         CREATE INDEX IF NOT EXISTS idx_observations_event ON observations(event_key, observed_at);
         CREATE INDEX IF NOT EXISTS idx_incident_comments_event_status ON incident_comments(event_key, status, created_at);
         CREATE INDEX IF NOT EXISTS idx_incident_comments_status ON incident_comments(status, created_at);
         CREATE INDEX IF NOT EXISTS idx_incident_media_comment_status ON incident_media(comment_id, status);
+        CREATE INDEX IF NOT EXISTS idx_push_subscriptions_active ON push_subscriptions(active, created_at);
+        CREATE INDEX IF NOT EXISTS idx_push_events_pending ON push_notification_events(completed_at, created_at);
+        CREATE INDEX IF NOT EXISTS idx_push_deliveries_event ON push_deliveries(event_key, delivered_at);
         """
     )
     ensure_column_sqlite(conn, "scrape_runs", "total_seen", "INTEGER NOT NULL DEFAULT 0")
@@ -1534,12 +1574,52 @@ def init_database_postgres_locked(conn):
             uploaded_at TEXT
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            regions_json TEXT NOT NULL,
+            categories_json TEXT NOT NULL,
+            user_agent TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            active BOOLEAN NOT NULL DEFAULT TRUE
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS push_notification_events (
+            event_key TEXT PRIMARY KEY REFERENCES events(event_key),
+            region TEXT NOT NULL,
+            category TEXT NOT NULL,
+            payload_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            completed_at TEXT
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS push_deliveries (
+            id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            subscription_id BIGINT NOT NULL REFERENCES push_subscriptions(id) ON DELETE CASCADE,
+            event_key TEXT NOT NULL REFERENCES push_notification_events(event_key) ON DELETE CASCADE,
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            delivered_at TEXT,
+            last_error TEXT,
+            created_at TEXT NOT NULL,
+            last_attempt_at TEXT,
+            UNIQUE (subscription_id, event_key)
+        )
+        """,
         "CREATE INDEX IF NOT EXISTS idx_events_status ON events(status)",
         "CREATE INDEX IF NOT EXISTS idx_events_center_status ON events(center, status)",
         "CREATE INDEX IF NOT EXISTS idx_observations_event ON observations(event_key, observed_at)",
         "CREATE INDEX IF NOT EXISTS idx_incident_comments_event_status ON incident_comments(event_key, status, created_at)",
         "CREATE INDEX IF NOT EXISTS idx_incident_comments_status ON incident_comments(status, created_at)",
         "CREATE INDEX IF NOT EXISTS idx_incident_media_comment_status ON incident_media(comment_id, status)",
+        "CREATE INDEX IF NOT EXISTS idx_push_subscriptions_active ON push_subscriptions(active, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_push_events_pending ON push_notification_events(completed_at, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_push_deliveries_event ON push_deliveries(event_key, delivered_at)",
     ]
     for statement in statements:
         conn.execute(statement)
@@ -1838,6 +1918,42 @@ def log_discovered_incident(row):
     )
 
 
+def deliver_push_notifications(args, incidents):
+    private_key = os.environ.get("VAPID_PRIVATE_KEY", "").strip()
+    if not private_key:
+        return
+    try:
+        from push_notifications import deliver_incidents
+
+        stats = deliver_incidents(
+            args.database,
+            args.database_url,
+            incidents,
+            os.environ.get("PUBLIC_URL", "https://crestmap.us/"),
+            private_key,
+            os.environ.get("VAPID_SUBJECT", "https://crestmap.us/"),
+        )
+        if incidents or stats["delivered"] or stats["failed"] or stats["expired"]:
+            log_event(
+                "info" if not stats["failed"] else "warning",
+                "Processed CHP push notifications",
+                **{
+                    "event.action": "push_notifications",
+                    "event.outcome": "success" if not stats["failed"] else "failure",
+                    "chp.push.events": stats["events"],
+                    "chp.push.delivered": stats["delivered"],
+                    "chp.push.failed": stats["failed"],
+                    "chp.push.expired": stats["expired"],
+                },
+            )
+    except Exception as exc:
+        log_exception(
+            "Failed to process CHP push notifications",
+            exc,
+            **{"event.action": "push_notifications", "event.outcome": "failure"},
+        )
+
+
 def insert_observation(conn, row, status):
     details_json = json.dumps(row["detail_entries"], ensure_ascii=False)
     params = {**row, "region": row.get("region", "forest"), "status": status, "details_json": details_json}
@@ -2064,6 +2180,7 @@ def scrape_once_xml(args):
 
     for incident in discovered_incidents:
         log_discovered_incident(incident)
+    deliver_push_notifications(args, discovered_incidents)
 
     region_counts = {
         region: {
@@ -2242,6 +2359,7 @@ def scrape_once_cad(args):
 
     for incident in discovered_incidents:
         log_discovered_incident(incident)
+    deliver_push_notifications(args, discovered_incidents)
 
     region_counts = {
         region: {

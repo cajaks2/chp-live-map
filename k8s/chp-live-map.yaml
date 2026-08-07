@@ -138,7 +138,7 @@ spec:
     spec:
       containers:
         - name: scrape
-          image: cajaks2/chp-live-map:0.1.147
+          image: cajaks2/chp-live-map:0.1.148
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -157,7 +157,7 @@ spec:
                   name: chp-live-map-db
                   key: DATABASE_URL
             - name: SERVICE_VERSION
-              value: "0.1.147"
+              value: "0.1.148"
             - name: CHP_USER_AGENT
               value: "chp-live-map/0.1 (+https://crestmap.us/)"
             - name: CHP_SOURCE_MODE
@@ -170,6 +170,16 @@ spec:
               value: 0.0.0.0
             - name: SCRAPER_METRICS_PORT
               value: "8081"
+            - name: PUBLIC_URL
+              value: https://crestmap.us/
+            - name: VAPID_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: chp-live-map-db
+                  key: VAPID_PRIVATE_KEY
+                  optional: true
+            - name: VAPID_SUBJECT
+              value: https://crestmap.us/
           resources:
             requests:
               cpu: 25m
@@ -221,7 +231,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: cajaks2/chp-live-map:0.1.147
+          image: cajaks2/chp-live-map:0.1.148
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -241,13 +251,19 @@ spec:
             - name: HTTP_PORT
               value: "8080"
             - name: SERVICE_VERSION
-              value: "0.1.147"
+              value: "0.1.148"
             - name: BASE_PATH
               value: /
             - name: PUBLIC_URL
               value: https://crestmap.us/
             - name: GOOGLE_ANALYTICS_ID
               value: ""
+            - name: VAPID_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: chp-live-map-db
+                  key: VAPID_PUBLIC_KEY
+                  optional: true
             - name: WEB_WORKERS
               value: "1"
             - name: ADMIN_USERNAME

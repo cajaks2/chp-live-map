@@ -230,6 +230,20 @@ Optional GA4 analytics can be enabled by setting `GOOGLE_ANALYTICS_ID` in `.env`
 
 For Postgres-backed deployments, the web service uses a small connection pool. Tune `DATABASE_POOL_MIN` and `DATABASE_POOL_MAX` in `.env`; production defaults are `1` and `5`. `WEB_WORKERS` controls gunicorn worker count and defaults to `1` so process-local Prometheus counters and DB pool sizing remain predictable. If workers are raised later, total possible Postgres connections become `WEB_WORKERS * DATABASE_POOL_MAX`.
 
+### Web Push notifications
+
+The app supports standards-based Web Push, including Home Screen web apps on iOS and iPadOS 16.4 or newer. Subscribers can select Forest or Malibu roads and collision, hazard, closure/weather, or other incident categories. Subscriptions are anonymous and stored in the application database. The scraper queues and deduplicates delivery when it discovers a new incident.
+
+Configure one stable VAPID key pair in the deployment environment:
+
+```text
+VAPID_PUBLIC_KEY=base64url-uncompressed-public-key
+VAPID_PRIVATE_KEY=base64url-32-byte-private-key
+VAPID_SUBJECT=mailto:ops@example.com
+```
+
+The public key is provided only to the web service; the private key is provided only to the scraper. Keep the same pair across deployments or existing browser subscriptions will need to be recreated. On iPhone and iPad, users add Crestmap to the Home Screen from Safari, open the Home Screen app, and tap **Alerts** before iOS will offer notification permission.
+
 Files for that deployment live in `deploy/digitalocean/`.
 
 For app-only updates after changing `VERSION` in `.env`, avoid restarting dependencies:

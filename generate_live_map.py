@@ -336,6 +336,310 @@ def app_path(base_path, suffix="/"):
     return suffix if base == "/" else f"{base}{suffix}"
 
 
+def pwa_head_html(base_path):
+    return (
+        f'  <link rel="manifest" href="{html.escape(app_path(base_path, "/manifest.webmanifest"))}">\n'
+        f'  <link rel="apple-touch-icon" href="{html.escape(app_path(base_path, "/apple-touch-icon-180x180.png"))}">\n'
+        '  <meta name="theme-color" content="#18392b">\n'
+        '  <meta name="apple-mobile-web-app-capable" content="yes">\n'
+        '  <meta name="apple-mobile-web-app-title" content="Crestmap">'
+    )
+
+
+def push_ui_css():
+    return """
+    .push-launcher {
+      position: fixed;
+      left: max(12px, env(safe-area-inset-left));
+      bottom: max(12px, env(safe-area-inset-bottom));
+      z-index: 4200;
+      min-height: 42px;
+      padding: 0 14px;
+      border: 1px solid #cbd6cc;
+      border-radius: 999px;
+      color: #174f32;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 5px 18px rgba(24, 32, 38, 0.2);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 850;
+      cursor: pointer;
+    }
+    .push-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 5000;
+      align-items: center;
+      justify-content: center;
+      overflow-y: auto;
+      padding: max(16px, env(safe-area-inset-top)) 14px max(16px, env(safe-area-inset-bottom));
+      background: rgba(14, 24, 19, 0.62);
+    }
+    .push-overlay.is-visible { display: flex; }
+    .push-card {
+      width: min(100%, 480px);
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      padding: 20px;
+      border-radius: 14px;
+      color: #182026;
+      background: #fbfcf8;
+      box-shadow: 0 18px 55px rgba(0, 0, 0, 0.34);
+    }
+    .push-card h2 { margin: 0 32px 8px 0; font-size: 23px; line-height: 1.15; }
+    .push-card p { margin: 8px 0; color: #46534b; font-size: 14px; line-height: 1.45; }
+    .push-card ol { margin: 12px 0; padding-left: 24px; color: #33443a; font-size: 14px; line-height: 1.55; }
+    .push-card-close {
+      float: right;
+      width: 34px;
+      height: 34px;
+      border: 0;
+      border-radius: 999px;
+      color: #35443c;
+      background: #e9eee7;
+      font-size: 20px;
+      cursor: pointer;
+    }
+    .push-choice-group { margin: 15px 0; padding: 0; border: 0; }
+    .push-choice-group legend { margin-bottom: 7px; font-size: 14px; font-weight: 850; }
+    .push-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+    .push-choice {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 39px;
+      padding: 0 10px;
+      border: 1px solid #d8ddd2;
+      border-radius: 8px;
+      background: #fff;
+      font-size: 13px;
+      font-weight: 750;
+    }
+    .push-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .push-actions button {
+      min-height: 40px;
+      padding: 0 13px;
+      border: 1px solid #277447;
+      border-radius: 8px;
+      color: #fff;
+      background: #277447;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 850;
+      cursor: pointer;
+    }
+    .push-actions button.is-secondary { color: #31523e; border-color: #cbd6cc; background: #fff; }
+    .push-actions button.is-danger { color: #8f1d21; border-color: #e5bbb5; background: #fff8f6; }
+    .push-actions button:disabled { opacity: 0.55; cursor: wait; }
+    .push-status { min-height: 20px; margin-top: 12px; color: #365443; font-size: 13px; font-weight: 750; }
+    .push-help-link { color: #1f6840; font-weight: 800; }
+    @media (max-width: 520px) {
+      .push-overlay { align-items: flex-end; padding: 0; }
+      .push-card { width: 100%; max-height: 88vh; padding: 19px 17px max(19px, env(safe-area-inset-bottom)); border-radius: 16px 16px 0 0; }
+      .push-choice-grid { grid-template-columns: 1fr; }
+    }
+    """
+
+
+def push_ui_html(base_path):
+    about_href = app_path(base_path, "/about") + "#push-notifications"
+    return f"""
+  <button type="button" class="push-launcher" data-open-push-settings hidden>Alerts</button>
+  <div class="push-overlay" id="ios-push-tutorial" role="dialog" aria-modal="true" aria-labelledby="ios-push-title">
+    <section class="push-card">
+      <button type="button" class="push-card-close" data-dismiss-ios-tutorial aria-label="Close">&times;</button>
+      <h2 id="ios-push-title">Get incident alerts on iPhone</h2>
+      <p>Install Crestmap from Safari first, then you can choose which CHP incident notifications you receive.</p>
+      <ol>
+        <li>Tap Safari's <strong>Share</strong> button.</li>
+        <li>Choose <strong>Add to Home Screen</strong>.</li>
+        <li>Open Crestmap from its new Home Screen icon.</li>
+        <li>Tap <strong>Alerts</strong> and allow notifications.</li>
+      </ol>
+      <p><a class="push-help-link" href="{html.escape(about_href)}">How notifications work</a></p>
+      <div class="push-actions">
+        <button type="button" data-dismiss-ios-tutorial>Got it</button>
+        <button type="button" class="is-secondary" data-dismiss-ios-tutorial>Remind me in 7 days</button>
+      </div>
+    </section>
+  </div>
+  <div class="push-overlay" id="push-settings" role="dialog" aria-modal="true" aria-labelledby="push-settings-title">
+    <section class="push-card">
+      <button type="button" class="push-card-close" data-close-push-settings aria-label="Close">&times;</button>
+      <h2 id="push-settings-title">Incident alerts</h2>
+      <p id="push-settings-intro">Choose which newly discovered CHP incidents should notify this device.</p>
+      <form id="push-preferences-form">
+        <fieldset class="push-choice-group">
+          <legend>Areas</legend>
+          <div class="push-choice-grid">
+            <label class="push-choice"><input type="checkbox" name="push_region" value="forest"> Angeles Forest roads</label>
+            <label class="push-choice"><input type="checkbox" name="push_region" value="malibu"> Malibu roads</label>
+          </div>
+        </fieldset>
+        <fieldset class="push-choice-group">
+          <legend>Incident categories</legend>
+          <div class="push-choice-grid">
+            <label class="push-choice"><input type="checkbox" name="push_category" value="collision"> Collisions</label>
+            <label class="push-choice"><input type="checkbox" name="push_category" value="hazard"> Traffic hazards</label>
+            <label class="push-choice"><input type="checkbox" name="push_category" value="closure"> Closures + weather</label>
+            <label class="push-choice"><input type="checkbox" name="push_category" value="other"> Other incidents</label>
+          </div>
+        </fieldset>
+        <div class="push-actions">
+          <button type="submit" id="push-save">Enable alerts</button>
+          <button type="button" class="is-danger" id="push-disable" hidden>Turn off alerts</button>
+          <button type="button" class="is-secondary" data-close-push-settings>Cancel</button>
+        </div>
+        <div class="push-status" id="push-status" role="status"></div>
+      </form>
+      <p><a class="push-help-link" href="{html.escape(about_href)}">Learn about delivery and privacy</a></p>
+    </section>
+  </div>
+"""
+
+
+def push_ui_script(base_path):
+    config_endpoint = app_path(base_path, "/api/v1/push/config")
+    subscription_endpoint = app_path(base_path, "/api/v1/push/subscription")
+    service_worker = app_path(base_path, "/sw.js")
+    return f"""
+  <script>
+  (() => {{
+    const configEndpoint = {json.dumps(config_endpoint)};
+    const subscriptionEndpoint = {json.dumps(subscription_endpoint)};
+    const serviceWorkerUrl = {json.dumps(service_worker)};
+    const tutorial = document.getElementById("ios-push-tutorial");
+    const settings = document.getElementById("push-settings");
+    const form = document.getElementById("push-preferences-form");
+    const status = document.getElementById("push-status");
+    const saveButton = document.getElementById("push-save");
+    const disableButton = document.getElementById("push-disable");
+    const launchers = document.querySelectorAll("[data-open-push-settings]");
+    const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+    const ua = navigator.userAgent;
+    const iosDevice = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    const safari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+    const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    let pushConfig = null;
+    let registration = null;
+    let currentSubscription = null;
+
+    function setVisible(element, visible) {{
+      element?.classList.toggle("is-visible", visible);
+      document.documentElement.style.overflow = visible ? "hidden" : "";
+    }}
+    function selected(name) {{ return [...form.querySelectorAll(`input[name="${{name}}"]:checked`)].map(input => input.value); }}
+    function selectValues(name, values) {{
+      form.querySelectorAll(`input[name="${{name}}"]`).forEach(input => {{ input.checked = values.includes(input.value); }});
+    }}
+    function setBusy(busy) {{ saveButton.disabled = busy; disableButton.disabled = busy; }}
+    function applicationServerKey(value) {{
+      const padding = "=".repeat((4 - value.length % 4) % 4);
+      const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
+      return Uint8Array.from(atob(base64), char => char.charCodeAt(0));
+    }}
+    async function postSubscription(action, subscription, preferences = {{}}) {{
+      const response = await fetch(subscriptionEndpoint, {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json", "Accept": "application/json" }},
+        body: JSON.stringify({{ action, subscription: subscription?.toJSON ? subscription.toJSON() : subscription, ...preferences }})
+      }});
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error?.message || `Request failed (${{response.status}})`);
+      return payload;
+    }}
+    async function refreshState() {{
+      registration = await navigator.serviceWorker.register(serviceWorkerUrl, {{ scope: "/" }});
+      await navigator.serviceWorker.ready;
+      currentSubscription = await registration.pushManager.getSubscription();
+      let preferences = pushConfig.defaults;
+      if (currentSubscription) {{
+        const state = await postSubscription("status", currentSubscription);
+        if (state.preferences) preferences = state.preferences;
+      }}
+      selectValues("push_region", preferences.regions);
+      selectValues("push_category", preferences.categories);
+      saveButton.textContent = currentSubscription ? "Save choices" : "Enable alerts";
+      disableButton.hidden = !currentSubscription;
+      status.textContent = currentSubscription ? "Alerts are enabled on this device." : "Alerts are not enabled on this device.";
+    }}
+    async function openSettings() {{
+      setVisible(settings, true);
+      if (iosDevice && !standalone) {{
+        status.textContent = "On iPhone, add Crestmap to your Home Screen and open it there before enabling alerts.";
+        saveButton.disabled = true;
+        return;
+      }}
+      if (!supported || !pushConfig?.enabled) {{
+        status.textContent = "Push notifications are not available in this browser yet.";
+        saveButton.disabled = true;
+        return;
+      }}
+      try {{ await refreshState(); }} catch (error) {{ status.textContent = error.message; }}
+    }}
+    launchers.forEach(button => button.addEventListener("click", openSettings));
+    document.querySelectorAll("[data-close-push-settings]").forEach(button => button.addEventListener("click", () => setVisible(settings, false)));
+    settings?.addEventListener("click", event => {{ if (event.target === settings) setVisible(settings, false); }});
+    document.querySelectorAll("[data-dismiss-ios-tutorial]").forEach(button => button.addEventListener("click", () => {{
+      localStorage.setItem("crestmapIosPushTutorialUntil", String(Date.now() + 7 * 24 * 60 * 60 * 1000));
+      setVisible(tutorial, false);
+    }}));
+    tutorial?.addEventListener("click", event => {{ if (event.target === tutorial) setVisible(tutorial, false); }});
+    form?.addEventListener("submit", async event => {{
+      event.preventDefault();
+      const regions = selected("push_region");
+      const categories = selected("push_category");
+      if (!regions.length || !categories.length) {{ status.textContent = "Choose at least one area and incident category."; return; }}
+      setBusy(true);
+      try {{
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") throw new Error("Notification permission was not granted. You can change it in Settings → Notifications.");
+        if (!registration) registration = await navigator.serviceWorker.ready;
+        currentSubscription = await registration.pushManager.getSubscription();
+        if (!currentSubscription) {{
+          currentSubscription = await registration.pushManager.subscribe({{
+            userVisibleOnly: true,
+            applicationServerKey: applicationServerKey(pushConfig.public_key)
+          }});
+        }}
+        await postSubscription("subscribe", currentSubscription, {{ regions, categories }});
+        status.textContent = "Alerts enabled. Your choices were saved.";
+        saveButton.textContent = "Save choices";
+        disableButton.hidden = false;
+      }} catch (error) {{ status.textContent = error.message; }} finally {{ setBusy(false); }}
+    }});
+    disableButton?.addEventListener("click", async () => {{
+      setBusy(true);
+      try {{
+        if (currentSubscription) {{
+          await postSubscription("unsubscribe", currentSubscription);
+          await currentSubscription.unsubscribe();
+        }}
+        currentSubscription = null;
+        status.textContent = "Alerts are turned off on this device.";
+        saveButton.textContent = "Enable alerts";
+        disableButton.hidden = true;
+      }} catch (error) {{ status.textContent = error.message; }} finally {{ setBusy(false); }}
+    }});
+
+    fetch(configEndpoint, {{ headers: {{ "Accept": "application/json" }}, cache: "no-store" }})
+      .then(response => response.json())
+      .then(config => {{
+        pushConfig = config;
+        if (!config.enabled) return;
+        launchers.forEach(button => button.hidden = false);
+        const dismissedUntil = Number(localStorage.getItem("crestmapIosPushTutorialUntil") || 0);
+        if (iosDevice && safari && !standalone && Date.now() >= dismissedUntil) {{
+          window.setTimeout(() => setVisible(tutorial, true), 900);
+        }}
+      }})
+      .catch(() => {{}});
+  }})();
+  </script>
+"""
+
+
 def href_with_query(href, **params):
     clean_params = {
         key: value
@@ -369,6 +673,12 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False):
         ("summary", "Summary", "Counts + trends", view_href(base_path, "/summary", hours, region)),
         ("history", "History", "Search incidents", view_href(base_path, "/history", hours, region)),
         ("about", "About", "Source + cadence", view_href(base_path, "/about", hours, region)),
+        (
+            "notifications",
+            "Notifications",
+            "iPhone setup + choices",
+            app_path(base_path, "/about") + "#push-notifications",
+        ),
         (
             "admin",
             "Admin tools" if admin_mode else "Admin login",
@@ -639,6 +949,7 @@ def build_html(
   <meta name="robots" content="index,follow,max-image-preview:large">
   <link rel="canonical" href="{html.escape(urls["canonical"])}">
   <link rel="icon" href="{html.escape(urls["favicon"])}" type="image/svg+xml">
+{pwa_head_html(base_path)}
   <meta property="og:type" content="website">
   <meta property="og:title" content="{html.escape(title)}">
   <meta property="og:description" content="{html.escape(description)}">
@@ -1752,6 +2063,7 @@ def build_html(
       }}
     }}
   </style>
+  <style>{push_ui_css()}</style>
 </head>
 <body>
   <div id="app">
@@ -1787,6 +2099,7 @@ def build_html(
     <main id="map"><button type="button" id="details-cue">Incident details below</button></main>
     <aside id="details"></aside>
   </div>
+{push_ui_html(base_path)}
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
@@ -2904,6 +3217,7 @@ def build_html(
     scrollIncidentsButton?.addEventListener("click", scrollIncidentListDown);
     window.addEventListener("resize", updateListScrollCue);
   </script>
+{push_ui_script(base_path)}
 </body>
 </html>
 """
@@ -3213,6 +3527,7 @@ def report_shell(
   <meta name="robots" content="index,follow,max-image-preview:large">
   <link rel="canonical" href="{html.escape(urls["canonical"])}">
   <link rel="icon" href="{html.escape(urls["favicon"])}" type="image/svg+xml">
+{pwa_head_html(base_path)}
   <style>
     html, body {{
       min-height: 100%;
@@ -3789,6 +4104,7 @@ def report_shell(
       }}
     }}
   </style>
+  <style>{push_ui_css()}</style>
 </head>
 <body>
   <div id="report-app" class="report-{html.escape(current)}">
@@ -3813,6 +4129,8 @@ def report_shell(
     </header>
     <main>{body}</main>
   </div>
+{push_ui_html(base_path)}
+{push_ui_script(base_path)}
 </body>
 </html>
 """
@@ -4042,6 +4360,14 @@ def build_about_html(
         <div class="result"><strong>Incident list</strong><span>Checked against CHP about once per minute.</span></div>
         <div class="result"><strong>Active incident details</strong><span>Unchanged active incidents are refreshed about every 3 minutes.</span></div>
         <div class="result"><strong>History</strong><span>Cleared incidents stay in the database and are shown when they fall inside the selected time window.</span></div>
+      </section>
+      <section class="section" id="push-notifications">
+        <h2>Push Notifications</h2>
+        <p class="empty-report">Crestmap can notify you when it discovers a new matching CHP incident. You choose Forest or Malibu roads and the incident categories you want: collisions, traffic hazards, closures and weather, or other incidents.</p>
+        <div class="result"><strong>iPhone and iPad</strong><span>In Safari, tap Share, choose Add to Home Screen, then open Crestmap from its Home Screen icon. Tap Alerts and approve the notification prompt. Apple requires the Home Screen web app for iPhone and iPad push delivery.</span></div>
+        <div class="result"><strong>Privacy</strong><span>A browser-generated push endpoint and your choices are stored. No email address, phone number, or account is required. Turning alerts off deactivates that device subscription.</span></div>
+        <div class="result"><strong>Delivery</strong><span>Notifications are sent only for newly discovered incidents after you subscribe. Delivery can be delayed or suppressed by Focus, Low Power settings, connectivity, or browser notification settings.</span></div>
+        <div class="filter-actions"><button type="button" data-open-push-settings>Manage alert choices</button></div>
       </section>
       <section class="section">
         <h2>Project Links</h2>

@@ -618,12 +618,12 @@ def push_ui_script(base_path):
       renderHeaderAlertState();
     }}
     async function openSettings() {{
-      setVisible(settings, true);
       if (iosDevice && !standalone) {{
-        status.textContent = "On iPhone, add Crestmap to your Home Screen and open it there before enabling alerts.";
-        saveButton.disabled = true;
+        setVisible(settings, false);
+        setVisible(tutorial, true);
         return;
       }}
+      setVisible(settings, true);
       if (!supported || !pushConfig?.enabled) {{
         status.textContent = "Push notifications are not available in this browser yet.";
         saveButton.disabled = true;

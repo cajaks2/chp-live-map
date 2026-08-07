@@ -124,6 +124,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert '<link rel="manifest" href="/manifest.webmanifest">' in body
         assert 'id="ios-push-tutorial"' in body
         assert 'Remind me in 7 days' in body
+        assert 'if (iosDevice && !standalone)' in body
+        assert 'setVisible(tutorial, true);' in body
         assert '<meta property="og:image" content="https://crestmap.us/og-image.png">' in body
         assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
         assert response.headers["Vary"] == "Cookie, Authorization"

@@ -348,23 +348,6 @@ def pwa_head_html(base_path):
 
 def push_ui_css():
     return """
-    .push-launcher {
-      position: fixed;
-      left: max(12px, env(safe-area-inset-left));
-      bottom: max(12px, env(safe-area-inset-bottom));
-      z-index: 4200;
-      min-height: 42px;
-      padding: 0 14px;
-      border: 1px solid #cbd6cc;
-      border-radius: 999px;
-      color: #174f32;
-      background: rgba(255, 255, 255, 0.96);
-      box-shadow: 0 5px 18px rgba(24, 32, 38, 0.2);
-      font: inherit;
-      font-size: 13px;
-      font-weight: 850;
-      cursor: pointer;
-    }
     .push-overlay {
       display: none;
       position: fixed;
@@ -445,7 +428,6 @@ def push_ui_css():
 def push_ui_html(base_path):
     about_href = app_path(base_path, "/about") + "#push-notifications"
     return f"""
-  <button type="button" class="push-launcher" data-open-push-settings hidden>Alerts</button>
   <div class="push-overlay" id="ios-push-tutorial" role="dialog" aria-modal="true" aria-labelledby="ios-push-title">
     <section class="push-card">
       <button type="button" class="push-card-close" data-dismiss-ios-tutorial aria-label="Close">&times;</button>
@@ -455,7 +437,7 @@ def push_ui_html(base_path):
         <li>Tap Safari's <strong>Share</strong> button.</li>
         <li>Choose <strong>Add to Home Screen</strong>.</li>
         <li>Open Crestmap from its new Home Screen icon.</li>
-        <li>Tap <strong>Alerts</strong> and allow notifications.</li>
+        <li>Open <strong>Notifications</strong> from the menu and allow notifications.</li>
       </ol>
       <p><a class="push-help-link" href="{html.escape(about_href)}">How notifications work</a></p>
       <div class="push-actions">
@@ -4377,7 +4359,7 @@ def build_about_html(
       <section class="section" id="push-notifications">
         <h2>Push Notifications</h2>
         <p class="empty-report">Crestmap can notify you when it discovers a new matching CHP incident. You choose Forest or Malibu roads and the incident categories you want: collisions, traffic hazards, closures and weather, or other incidents.</p>
-        <div class="result"><strong>iPhone and iPad</strong><span>In Safari, tap Share, choose Add to Home Screen, then open Crestmap from its Home Screen icon. Tap Alerts and approve the notification prompt. Apple requires the Home Screen web app for iPhone and iPad push delivery.</span></div>
+        <div class="result"><strong>iPhone and iPad</strong><span>In Safari, tap Share, choose Add to Home Screen, then open Crestmap from its Home Screen icon. Open Notifications from the menu, tap Manage alert choices, and approve the notification prompt. Apple requires the Home Screen web app for iPhone and iPad push delivery.</span></div>
         <div class="result"><strong>Privacy</strong><span>A browser-generated push endpoint and your choices are stored. No email address, phone number, or account is required. Turning alerts off deactivates that device subscription.</span></div>
         <div class="result"><strong>Delivery</strong><span>Notifications are sent only for newly discovered incidents after you subscribe. Delivery can be delayed or suppressed by Focus, Low Power settings, connectivity, or browser notification settings.</span></div>
         <div class="filter-actions"><button type="button" data-open-push-settings>Manage alert choices</button></div>

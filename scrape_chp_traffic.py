@@ -2324,8 +2324,7 @@ def scrape_once_cad(args):
                 if not region:
                     continue
                 if (
-                    region == "malibu"
-                    and merged.get("latitude") is not None
+                    merged.get("latitude") is not None
                     and merged.get("longitude") is not None
                     and not coordinates_in_region_bounds(merged.get("latitude"), merged.get("longitude"), region)
                 ):

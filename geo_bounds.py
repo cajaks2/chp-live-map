@@ -16,7 +16,7 @@ FOREST_FOOTHILL_BOUNDARY = [
 
 # Exclude the CA-14/Antelope Valley Freeway corridor north of the Angeles
 # Forest Highway interchange while preserving the forest road to its south.
-FOREST_CA14_CUTOFF_LAT = 34.49
+FOREST_CA14_CUTOFF_LAT = 34.50
 FOREST_CA14_CUTOFF_LON_MIN = -118.18
 FOREST_CA14_CUTOFF_LON_MAX = -118.04
 

@@ -819,6 +819,7 @@ def test_coordinate_bounds_keep_forest_points_and_reject_city_points():
     assert not coordinates_in_forest_bounds(34.161532, -118.141539)
     assert not coordinates_in_forest_bounds(34.505836, -118.114590)
     assert not coordinates_in_forest_bounds(34.557978, -118.132558)
+    assert coordinates_in_forest_bounds(34.495227, -118.115115)
     assert coordinates_in_forest_bounds(34.480000, -118.110000)
 
 

@@ -95,6 +95,10 @@ ROUTE_ALIAS_PATTERNS = {
     "sr39": re.compile(r"\bsr\s*39\b"),
     "sr 39": re.compile(r"\bsr\s*39\b"),
 }
+HIGHWAY_14_PRIMARY_PATTERN = re.compile(
+    r"^(?:la0*14\d*\s+)?(?:(?:sr|ca|hwy|highway)\s*-?\s*0*14\b|antelope valley (?:fwy|freeway)\b)",
+    re.IGNORECASE,
+)
 HIGHWAY_39_FOREST_CONTEXT = [
     "san gabriel canyon",
     "east fork",
@@ -1080,6 +1084,8 @@ def keyword_matches(keyword, haystack):
 
 
 def matching_regions(incident):
+    if is_highway_14_primary_roadway(incident):
+        return {}
     matches = {}
     for region, keywords in REGION_ROAD_KEYWORDS.items():
         region_matches = matching_keywords(incident, keywords)
@@ -1091,6 +1097,14 @@ def matching_regions(incident):
         if region_matches:
             matches[region] = region_matches
     return matches
+
+
+def is_highway_14_primary_roadway(incident):
+    for field in ("location", "location_desc"):
+        primary_roadway = str(incident.get(field) or "").split("/", 1)[0].strip()
+        if HIGHWAY_14_PRIMARY_PATTERN.search(primary_roadway):
+            return True
+    return False
 
 
 def incident_match_text(incident):

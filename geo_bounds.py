@@ -14,6 +14,12 @@ FOREST_FOOTHILL_BOUNDARY = [
     (-117.58, 34.150),
 ]
 
+# Exclude the CA-14/Antelope Valley Freeway corridor north of the Angeles
+# Forest Highway interchange while preserving the forest road to its south.
+FOREST_CA14_CUTOFF_LAT = 34.49
+FOREST_CA14_CUTOFF_LON_MIN = -118.18
+FOREST_CA14_CUTOFF_LON_MAX = -118.04
+
 # Malibu collection includes the Point Mugu-to-Santa Monica coastal corridor.
 MALIBU_LAT_MIN = 33.99
 MALIBU_LAT_MAX = 34.34
@@ -51,6 +57,7 @@ def coordinates_in_region_bounds(latitude, longitude, region="forest"):
         lat_min <= lat <= lat_max
         and lon_min <= lon <= lon_max
         and (region != "forest" or coordinates_north_of_forest_foothills(lat, lon))
+        and (region != "forest" or coordinates_outside_forest_ca14_cutoff(lat, lon))
         and (region != "malibu" or coordinates_south_of_malibu_101(lat, lon))
     )
 
@@ -60,6 +67,15 @@ def coordinates_north_of_forest_foothills(latitude, longitude):
     if boundary_lat is None:
         return True
     return float(latitude) >= boundary_lat
+
+
+def coordinates_outside_forest_ca14_cutoff(latitude, longitude):
+    lat = float(latitude)
+    lon = float(longitude)
+    return not (
+        lat >= FOREST_CA14_CUTOFF_LAT
+        and FOREST_CA14_CUTOFF_LON_MIN <= lon <= FOREST_CA14_CUTOFF_LON_MAX
+    )
 
 
 def coordinates_south_of_malibu_101(latitude, longitude):

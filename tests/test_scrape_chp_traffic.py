@@ -817,6 +817,43 @@ def test_coordinate_bounds_keep_forest_points_and_reject_city_points():
     assert coordinates_in_forest_bounds(34.151, -117.84)
     assert not coordinates_in_forest_bounds(34.129, -117.91)
     assert not coordinates_in_forest_bounds(34.161532, -118.141539)
+    assert not coordinates_in_forest_bounds(34.505836, -118.114590)
+    assert not coordinates_in_forest_bounds(34.557978, -118.132558)
+    assert coordinates_in_forest_bounds(34.480000, -118.110000)
+
+
+def test_matching_regions_excludes_highway_14_primary_roadway():
+    highway_14_incidents = [
+        {
+            "type": "Traffic Hazard",
+            "location": "SR14 N / Angeles Forest Hwy",
+            "location_desc": "NB 14 JNO ANGELES FOREST",
+            "area": "Antelope Valley",
+        },
+        {
+            "type": "Trfc Collision-No Inj",
+            "location": "La014545 Sr14 S / Angeles Forest Hwy",
+            "location_desc": "SB 14 JSO ANGELES FOREST HWY",
+            "area": "LAFSP",
+        },
+        {
+            "type": "Traffic Hazard",
+            "location": "Antelope Valley Freeway / Avenue S",
+            "location_desc": "",
+            "area": "Antelope Valley",
+        },
+    ]
+
+    for incident in highway_14_incidents:
+        assert matching_regions(incident) == {}
+
+    forest_road_incident = {
+        "type": "Traffic Hazard",
+        "location": "Angeles Forest Hwy / SR14 N",
+        "location_desc": "ON ANGELES FOREST HWY",
+        "area": "LAFSP",
+    }
+    assert matching_regions(forest_road_incident) == {"forest": ["angeles forest"]}
 
 
 def test_malibu_bounds_include_point_mugu_to_santa_monica_pch_and_reject_outside_points():

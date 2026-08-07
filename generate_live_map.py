@@ -386,6 +386,15 @@ def push_ui_css():
       background: #2d7d4d;
       box-shadow: 0 0 0 2px #dbeade;
     }
+    .header-alert-button.needs-install {
+      color: #8f1d21;
+      border-color: #e2b4ae;
+      background: #fff7f5;
+    }
+    .header-alert-button.needs-install .header-alert-status {
+      background: #b3262d;
+      box-shadow: 0 0 0 2px #f3d8d4;
+    }
     .push-overlay {
       display: none;
       position: fixed;
@@ -555,7 +564,7 @@ def push_ui_script(base_path):
     const testButton = document.getElementById("push-test");
     const disableButton = document.getElementById("push-disable");
     const launchers = document.querySelectorAll("[data-open-push-settings]");
-    const headerLaunchers = document.querySelectorAll("[data-standalone-push-launcher]");
+    const headerLaunchers = document.querySelectorAll("[data-header-push-launcher]");
     const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
     const ua = navigator.userAgent;
     const iosDevice = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
@@ -577,9 +586,11 @@ def push_ui_script(base_path):
     function setBusy(busy) {{ saveButton.disabled = busy; testButton.disabled = busy; disableButton.disabled = busy; }}
     function renderHeaderAlertState() {{
       headerLaunchers.forEach(button => {{
-        button.classList.toggle("is-enabled", serverSubscribed);
-        button.setAttribute("aria-label", serverSubscribed ? "Alerts enabled; manage alert choices" : "Set up incident alerts");
-        button.title = serverSubscribed ? "Alerts enabled" : "Alerts are not enabled";
+        const needsInstall = iosDevice && !standalone;
+        button.classList.toggle("needs-install", needsInstall);
+        button.classList.toggle("is-enabled", !needsInstall && serverSubscribed);
+        button.setAttribute("aria-label", needsInstall ? "Install the Home Screen app to enable alerts" : (serverSubscribed ? "Alerts enabled; manage alert choices" : "Set up incident alerts"));
+        button.title = needsInstall ? "Install the Home Screen app for alerts" : (serverSubscribed ? "Alerts enabled" : "Alerts are not enabled");
       }});
     }}
     function applicationServerKey(value) {{
@@ -708,19 +719,17 @@ def push_ui_script(base_path):
       .then(config => {{
         pushConfig = config;
         if (!config.enabled) return;
-        launchers.forEach(button => {{
-          const standaloneOnly = button.hasAttribute("data-standalone-push-launcher");
-          button.hidden = standaloneOnly && !(iosDevice && standalone);
-        }});
+        launchers.forEach(button => button.hidden = false);
+        renderHeaderAlertState();
         const dismissedUntil = Number(localStorage.getItem("crestmapIosPushTutorialUntil") || 0);
         if (iosDevice && safari && !standalone && Date.now() >= dismissedUntil) {{
           window.setTimeout(() => setVisible(tutorial, true), 900);
         }}
-        if (iosDevice && standalone && supported) {{
+        if (supported && !(iosDevice && !standalone)) {{
           const onboardingUntil = Number(localStorage.getItem("crestmapPushOnboardingUntil") || 0);
           refreshState()
             .then(() => {{
-              if (!serverSubscribed && Date.now() >= onboardingUntil) window.setTimeout(() => setVisible(onboarding, true), 650);
+              if (iosDevice && standalone && !serverSubscribed && Date.now() >= onboardingUntil) window.setTimeout(() => setVisible(onboarding, true), 650);
             }})
             .catch(() => {{}});
         }}
@@ -796,7 +805,7 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False):
     return (
         '<div class="view-header-actions">'
         '<button type="button" class="header-alert-button" data-open-push-settings '
-        'data-standalone-push-launcher hidden>'
+        'data-header-push-launcher hidden>'
         '<span>Alerts</span><span class="header-alert-status" aria-hidden="true"></span></button>'
         '<details class="view-menu">'
         '<summary aria-label="Open navigation menu">...</summary>'

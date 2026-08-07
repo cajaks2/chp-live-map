@@ -20,6 +20,7 @@ CREST_NOTIFICATION_KEYWORDS = (
 MAX_ENDPOINT_LENGTH = 2048
 MAX_KEY_LENGTH = 512
 MAX_DELIVERY_ATTEMPTS = 3
+HIGH_URGENCY_CATEGORIES = {"collision", "hazard", "closure"}
 
 
 class PushValidationError(ValueError):
@@ -371,6 +372,7 @@ def process_pending(conn, vapid_private_key, vapid_subject, sender=None, limit=2
                 vapid_private_key=vapid_private_key,
                 vapid_claims={"sub": vapid_subject},
                 ttl=300,
+                headers={"Urgency": "high"},
             )
         except Exception as exc:
             status = _http_status(exc)
@@ -409,6 +411,11 @@ def process_pending(conn, vapid_private_key, vapid_subject, sender=None, limit=2
                     vapid_private_key=vapid_private_key,
                     vapid_claims={"sub": vapid_subject},
                     ttl=300,
+                    headers={
+                        "Urgency": "high"
+                        if event["category"] in HIGH_URGENCY_CATEGORIES
+                        else "normal"
+                    },
                 )
             except Exception as exc:
                 status = _http_status(exc)

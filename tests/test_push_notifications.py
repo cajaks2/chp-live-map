@@ -163,6 +163,7 @@ def test_delivery_filters_preferences_and_deduplicates(tmp_path):
     assert payload["region"] == "forest"
     assert "incident=LACC%7C2026-08-06%7C0123" in payload["url"]
     assert calls[0]["ttl"] == 300
+    assert calls[0]["headers"] == {"Urgency": "high"}
     assert calls[0]["vapid_claims"] == {"sub": "mailto:test@example.test"}
     assert conn.execute("SELECT COUNT(*) AS count FROM push_deliveries").fetchone()["count"] == 1
     assert conn.execute("SELECT completed_at FROM push_notification_events").fetchone()["completed_at"]
@@ -186,9 +187,26 @@ def test_test_notification_targets_only_requesting_subscription(tmp_path):
     assert len(calls) == 1
     assert calls[0]["subscription_info"]["endpoint"] == endpoint
     assert calls[0]["vapid_claims"] == {"sub": "https://crestmap.us"}
+    assert calls[0]["headers"] == {"Urgency": "high"}
     payload = json.loads(calls[0]["data"])
     assert payload["title"] == "Crestmap alerts are working"
     assert payload["url"] == "https://crestmap.us/"
+
+
+def test_other_incidents_use_normal_push_urgency(tmp_path):
+    database = tmp_path / "push.sqlite"
+    conn = connect_database(database)
+    incident = event_row(incident_type="Disabled Vehicle")
+    upsert_active_event(conn, incident)
+    save_subscription(conn, subscription_payload(regions=["forest"], categories=["other"]))
+    enqueue_incidents(conn, [incident], "https://crestmap.us/")
+    conn.commit()
+
+    calls = []
+    process_pending(conn, "private-key", "https://crestmap.us/", sender=lambda **kwargs: calls.append(kwargs))
+
+    assert calls[0]["headers"] == {"Urgency": "normal"}
+    conn.close()
     conn.close()
 
 

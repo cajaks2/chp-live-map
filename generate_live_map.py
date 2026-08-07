@@ -437,7 +437,7 @@ def push_ui_html(base_path):
         <li>Tap Safari's <strong>Share</strong> button.</li>
         <li>Choose <strong>Add to Home Screen</strong>.</li>
         <li>Open Crestmap from its new Home Screen icon.</li>
-        <li>Open <strong>Notifications</strong> from the menu and allow notifications.</li>
+        <li>Open <strong>Alerts</strong> from the menu and allow notifications.</li>
       </ol>
       <p><a class="push-help-link" href="{html.escape(about_href)}">How notifications work</a></p>
       <div class="push-actions">
@@ -563,7 +563,10 @@ def push_ui_script(base_path):
       }}
       try {{ await refreshState(); }} catch (error) {{ status.textContent = error.message; }}
     }}
-    launchers.forEach(button => button.addEventListener("click", openSettings));
+    launchers.forEach(button => button.addEventListener("click", () => {{
+      button.closest("details")?.removeAttribute("open");
+      openSettings();
+    }}));
     document.querySelectorAll("[data-close-push-settings]").forEach(button => button.addEventListener("click", () => setVisible(settings, false)));
     settings?.addEventListener("click", event => {{ if (event.target === settings) setVisible(settings, false); }});
     document.querySelectorAll("[data-dismiss-ios-tutorial]").forEach(button => button.addEventListener("click", () => {{
@@ -668,12 +671,7 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False):
         ("summary", "Summary", "Counts + trends", view_href(base_path, "/summary", hours, region)),
         ("history", "History", "Search incidents", view_href(base_path, "/history", hours, region)),
         ("about", "About", "Source + cadence", view_href(base_path, "/about", hours, region)),
-        (
-            "notifications",
-            "Notifications",
-            "iPhone setup + choices",
-            app_path(base_path, "/about") + "#push-notifications",
-        ),
+        ("alerts", "Alerts", "Push notification choices", None),
         (
             "admin",
             "Admin tools" if admin_mode else "Admin login",
@@ -683,6 +681,12 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False):
     ]
     rows = []
     for key, label, description, href in items:
+        if key == "alerts":
+            rows.append(
+                '<button type="button" class="view-menu-row" data-open-push-settings>{} '
+                '<span>{}</span></button>'.format(html.escape(label), html.escape(description))
+            )
+            continue
         rows.append(
             '<a class="view-menu-row{}" href="{}">{} <span>{}</span></a>'.format(
                 " is-active" if key == current else "",
@@ -1126,6 +1130,12 @@ def build_html(
       font-size: 13px;
       font-weight: 800;
       text-decoration: none;
+      width: 100%;
+      border: 0;
+      background: transparent;
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
     }}
     .view-menu-row span {{
       color: #46534b;
@@ -3613,6 +3623,12 @@ def report_shell(
       font-size: 13px;
       font-weight: 800;
       text-decoration: none;
+      width: 100%;
+      border: 0;
+      background: transparent;
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
     }}
     .view-menu-row span {{
       color: #46534b;
@@ -4359,7 +4375,7 @@ def build_about_html(
       <section class="section" id="push-notifications">
         <h2>Push Notifications</h2>
         <p class="empty-report">Crestmap can notify you when it discovers a new matching CHP incident. You choose Forest or Malibu roads and the incident categories you want: collisions, traffic hazards, closures and weather, or other incidents.</p>
-        <div class="result"><strong>iPhone and iPad</strong><span>In Safari, tap Share, choose Add to Home Screen, then open Crestmap from its Home Screen icon. Open Notifications from the menu, tap Manage alert choices, and approve the notification prompt. Apple requires the Home Screen web app for iPhone and iPad push delivery.</span></div>
+        <div class="result"><strong>iPhone and iPad</strong><span>In Safari, tap Share, choose Add to Home Screen, then open Crestmap from its Home Screen icon. Open Alerts from the menu and approve the notification prompt. Apple requires the Home Screen web app for iPhone and iPad push delivery.</span></div>
         <div class="result"><strong>Privacy</strong><span>A browser-generated push endpoint and your choices are stored. No email address, phone number, or account is required. Turning alerts off deactivates that device subscription.</span></div>
         <div class="result"><strong>Delivery</strong><span>Notifications are sent only for newly discovered incidents after you subscribe. Delivery can be delayed or suppressed by Focus, Low Power settings, connectivity, or browser notification settings.</span></div>
         <div class="filter-actions"><button type="button" data-open-push-settings>Manage alert choices</button></div>

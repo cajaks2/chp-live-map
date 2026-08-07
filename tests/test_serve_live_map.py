@@ -178,6 +178,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert 'id="push-notifications"' in body
         assert "Manage alert choices" in body
         assert "push-launcher" not in body
+        assert '<button type="button" class="view-menu-row" data-open-push-settings>Alerts ' in body
         assert '<a class="range-tab is-active" href="?hours=24&amp;region=forest" aria-current="page">24h</a>' in body
         assert '<a class="view-tab is-active" href="/about?hours=24&amp;region=forest" aria-current="page">About</a>' in body
 

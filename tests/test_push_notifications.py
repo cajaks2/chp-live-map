@@ -117,6 +117,7 @@ def test_delivery_filters_preferences_and_deduplicates(tmp_path):
     assert payload["region"] == "forest"
     assert "incident=LACC%7C2026-08-06%7C0123" in payload["url"]
     assert calls[0]["ttl"] == 300
+    assert calls[0]["vapid_claims"] == {"sub": "mailto:test@example.test"}
     assert conn.execute("SELECT COUNT(*) AS count FROM push_deliveries").fetchone()["count"] == 1
     assert conn.execute("SELECT completed_at FROM push_notification_events").fetchone()["completed_at"]
     conn.close()
@@ -138,6 +139,7 @@ def test_test_notification_targets_only_requesting_subscription(tmp_path):
     assert stats == {"events": 1, "delivered": 1, "failed": 0, "expired": 0}
     assert len(calls) == 1
     assert calls[0]["subscription_info"]["endpoint"] == endpoint
+    assert calls[0]["vapid_claims"] == {"sub": "https://crestmap.us"}
     payload = json.loads(calls[0]["data"])
     assert payload["title"] == "Crestmap alerts are working"
     assert payload["url"] == "https://crestmap.us/"

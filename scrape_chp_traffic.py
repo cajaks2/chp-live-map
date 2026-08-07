@@ -1957,7 +1957,7 @@ def deliver_push_notifications(args, incidents):
             incidents,
             os.environ.get("PUBLIC_URL", "https://crestmap.us/"),
             private_key,
-            os.environ.get("VAPID_SUBJECT", "https://crestmap.us/"),
+            os.environ.get("VAPID_SUBJECT", "https://crestmap.us"),
         )
         if incidents or stats["delivered"] or stats["failed"] or stats["expired"]:
             log_event(

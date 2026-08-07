@@ -312,6 +312,7 @@ def process_pending(conn, vapid_private_key, vapid_subject, sender=None, limit=2
         from pywebpush import webpush
 
         sender = webpush
+    vapid_subject = (vapid_subject or "https://crestmap.us").rstrip("/")
     test_events = conn.execute(
         f"""
         SELECT test.*, subscriptions.endpoint, subscriptions.p256dh, subscriptions.auth

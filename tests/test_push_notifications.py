@@ -3,6 +3,7 @@ import json
 from push_notifications import (
     PushValidationError,
     enqueue_incidents,
+    enqueue_test_notification,
     incident_category,
     process_pending,
     save_subscription,
@@ -118,6 +119,28 @@ def test_delivery_filters_preferences_and_deduplicates(tmp_path):
     assert calls[0]["ttl"] == 300
     assert conn.execute("SELECT COUNT(*) AS count FROM push_deliveries").fetchone()["count"] == 1
     assert conn.execute("SELECT completed_at FROM push_notification_events").fetchone()["completed_at"]
+    conn.close()
+
+
+def test_test_notification_targets_only_requesting_subscription(tmp_path):
+    database = tmp_path / "push.sqlite"
+    conn = connect_database(database)
+    endpoint = "https://push.example.test/requesting-device"
+    save_subscription(conn, subscription_payload(endpoint, ["forest"], ["collision"]))
+    save_subscription(conn, subscription_payload("https://push.example.test/other-device"))
+    result = enqueue_test_notification(conn, endpoint, "https://crestmap.us/")
+    conn.commit()
+
+    calls = []
+    stats = process_pending(conn, "private-key", "https://crestmap.us/", sender=lambda **kwargs: calls.append(kwargs))
+
+    assert result["queued"] is True
+    assert stats == {"events": 1, "delivered": 1, "failed": 0, "expired": 0}
+    assert len(calls) == 1
+    assert calls[0]["subscription_info"]["endpoint"] == endpoint
+    payload = json.loads(calls[0]["data"])
+    assert payload["title"] == "Crestmap alerts are working"
+    assert payload["url"] == "https://crestmap.us/"
     conn.close()
 
 

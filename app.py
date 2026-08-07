@@ -44,6 +44,7 @@ from push_notifications import (
     DEFAULT_REGIONS,
     PushValidationError,
     deactivate_subscription,
+    enqueue_test_notification,
     save_subscription,
     subscription_preferences,
 )
@@ -845,6 +846,9 @@ async def handle_push_subscription_post(request):
             if action == "status":
                 preferences = subscription_preferences(conn, endpoint)
                 return json_response({"subscribed": bool(preferences), "preferences": preferences})
+            if action == "test":
+                result = enqueue_test_notification(conn, endpoint, settings.public_url)
+                return json_response(result, 202)
     except PushValidationError as exc:
         return api_error(str(exc), "invalid_subscription", 422)
     except Exception as exc:

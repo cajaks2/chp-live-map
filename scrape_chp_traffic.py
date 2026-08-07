@@ -1407,6 +1407,18 @@ def init_database_sqlite(conn):
             FOREIGN KEY (event_key) REFERENCES events(event_key)
         );
 
+        CREATE TABLE IF NOT EXISTS push_test_notifications (
+            event_key TEXT PRIMARY KEY,
+            subscription_id INTEGER NOT NULL,
+            payload_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            delivered_at TEXT,
+            last_error TEXT,
+            last_attempt_at TEXT,
+            FOREIGN KEY (subscription_id) REFERENCES push_subscriptions(id) ON DELETE CASCADE
+        );
+
         CREATE TABLE IF NOT EXISTS push_deliveries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             subscription_id INTEGER NOT NULL,
@@ -1429,6 +1441,7 @@ def init_database_sqlite(conn):
         CREATE INDEX IF NOT EXISTS idx_incident_media_comment_status ON incident_media(comment_id, status);
         CREATE INDEX IF NOT EXISTS idx_push_subscriptions_active ON push_subscriptions(active, created_at);
         CREATE INDEX IF NOT EXISTS idx_push_events_pending ON push_notification_events(completed_at, created_at);
+        CREATE INDEX IF NOT EXISTS idx_push_tests_pending ON push_test_notifications(delivered_at, created_at);
         CREATE INDEX IF NOT EXISTS idx_push_deliveries_event ON push_deliveries(event_key, delivered_at);
         """
     )
@@ -1599,6 +1612,18 @@ def init_database_postgres_locked(conn):
         )
         """,
         """
+        CREATE TABLE IF NOT EXISTS push_test_notifications (
+            event_key TEXT PRIMARY KEY,
+            subscription_id BIGINT NOT NULL REFERENCES push_subscriptions(id) ON DELETE CASCADE,
+            payload_json TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            delivered_at TEXT,
+            last_error TEXT,
+            last_attempt_at TEXT
+        )
+        """,
+        """
         CREATE TABLE IF NOT EXISTS push_deliveries (
             id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
             subscription_id BIGINT NOT NULL REFERENCES push_subscriptions(id) ON DELETE CASCADE,
@@ -1619,6 +1644,7 @@ def init_database_postgres_locked(conn):
         "CREATE INDEX IF NOT EXISTS idx_incident_media_comment_status ON incident_media(comment_id, status)",
         "CREATE INDEX IF NOT EXISTS idx_push_subscriptions_active ON push_subscriptions(active, created_at)",
         "CREATE INDEX IF NOT EXISTS idx_push_events_pending ON push_notification_events(completed_at, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_push_tests_pending ON push_test_notifications(delivered_at, created_at)",
         "CREATE INDEX IF NOT EXISTS idx_push_deliveries_event ON push_deliveries(event_key, delivered_at)",
     ]
     for statement in statements:

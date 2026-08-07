@@ -488,6 +488,7 @@ def push_ui_html(base_path):
         </fieldset>
         <div class="push-actions">
           <button type="submit" id="push-save">Enable alerts</button>
+          <button type="button" class="is-secondary" id="push-test" hidden>Send test notification</button>
           <button type="button" class="is-danger" id="push-disable" hidden>Turn off alerts</button>
           <button type="button" class="is-secondary" data-close-push-settings>Cancel</button>
         </div>
@@ -514,6 +515,7 @@ def push_ui_script(base_path):
     const form = document.getElementById("push-preferences-form");
     const status = document.getElementById("push-status");
     const saveButton = document.getElementById("push-save");
+    const testButton = document.getElementById("push-test");
     const disableButton = document.getElementById("push-disable");
     const launchers = document.querySelectorAll("[data-open-push-settings]");
     const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
@@ -533,7 +535,7 @@ def push_ui_script(base_path):
     function selectValues(name, values) {{
       form.querySelectorAll(`input[name="${{name}}"]`).forEach(input => {{ input.checked = values.includes(input.value); }});
     }}
-    function setBusy(busy) {{ saveButton.disabled = busy; disableButton.disabled = busy; }}
+    function setBusy(busy) {{ saveButton.disabled = busy; testButton.disabled = busy; disableButton.disabled = busy; }}
     function applicationServerKey(value) {{
       const padding = "=".repeat((4 - value.length % 4) % 4);
       const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -561,6 +563,7 @@ def push_ui_script(base_path):
       selectValues("push_region", preferences.regions);
       selectValues("push_category", preferences.categories);
       saveButton.textContent = currentSubscription ? "Save choices" : "Enable alerts";
+      testButton.hidden = !currentSubscription;
       disableButton.hidden = !currentSubscription;
       status.textContent = currentSubscription ? "Alerts are enabled on this device." : "Alerts are not enabled on this device.";
     }}
@@ -606,7 +609,16 @@ def push_ui_script(base_path):
         await postSubscription("subscribe", currentSubscription, {{ regions, categories }});
         status.textContent = "Alerts enabled. Your choices were saved.";
         saveButton.textContent = "Save choices";
+        testButton.hidden = false;
         disableButton.hidden = false;
+      }} catch (error) {{ status.textContent = error.message; }} finally {{ setBusy(false); }}
+    }});
+    testButton?.addEventListener("click", async () => {{
+      if (!currentSubscription) {{ status.textContent = "Enable alerts before sending a test."; return; }}
+      setBusy(true);
+      try {{
+        await postSubscription("test", currentSubscription);
+        status.textContent = "Test queued. It should arrive within about one minute.";
       }} catch (error) {{ status.textContent = error.message; }} finally {{ setBusy(false); }}
     }});
     disableButton?.addEventListener("click", async () => {{
@@ -619,6 +631,7 @@ def push_ui_script(base_path):
         currentSubscription = null;
         status.textContent = "Alerts are turned off on this device.";
         saveButton.textContent = "Enable alerts";
+        testButton.hidden = true;
         disableButton.hidden = true;
       }} catch (error) {{ status.textContent = error.message; }} finally {{ setBusy(false); }}
     }});

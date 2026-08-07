@@ -403,6 +403,13 @@ def test_push_subscription_api_saves_preferences_and_unsubscribes(tmp_path):
             "preferences": {"regions": ["forest"], "categories": ["closure", "collision"]},
         }
 
+        test_push = client.post(
+            "/api/v1/push/subscription",
+            json={"action": "test", "subscription": payload["subscription"]},
+        )
+        assert test_push.status_code == 202
+        assert test_push.json()["queued"] is True
+
         disabled = client.post(
             "/api/v1/push/subscription",
             json={"action": "unsubscribe", "subscription": payload["subscription"]},

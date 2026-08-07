@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+import uuid
 from urllib.parse import urlsplit
 
 
@@ -209,6 +210,45 @@ def enqueue_incidents(conn, incidents, public_url):
             )
 
 
+def enqueue_test_notification(conn, endpoint, public_url):
+    if not endpoint:
+        raise PushValidationError("an active subscription is required")
+    subscription = conn.execute(
+        f"SELECT id FROM push_subscriptions WHERE endpoint = {_placeholder(conn)} "
+        f"AND active = {_placeholder(conn)}",
+        (endpoint, True if _is_postgres(conn) else 1),
+    ).fetchone()
+    if not subscription:
+        raise PushValidationError("enable alerts on this device before sending a test")
+    cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=60)).isoformat(timespec="seconds")
+    recent = conn.execute(
+        f"SELECT 1 FROM push_test_notifications WHERE subscription_id = {_placeholder(conn)} "
+        f"AND created_at >= {_placeholder(conn)} LIMIT 1",
+        (subscription["id"], cutoff),
+    ).fetchone()
+    if recent:
+        raise PushValidationError("please wait a minute before sending another test")
+    base = (public_url or "https://crestmap.us/").rstrip("/") + "/"
+    event_key = f"push-test-{subscription['id']}-{uuid.uuid4().hex}"
+    payload = {
+        "event_key": event_key,
+        "title": "Crestmap alerts are working",
+        "body": "You’ll receive notifications here when a new incident matches your choices.",
+        "url": base,
+        "tag": event_key,
+    }
+    placeholders = ", ".join([_placeholder(conn)] * 4)
+    conn.execute(
+        f"""
+        INSERT INTO push_test_notifications
+            (event_key, subscription_id, payload_json, created_at)
+        VALUES ({placeholders})
+        """,
+        (event_key, subscription["id"], json.dumps(payload), _now_iso()),
+    )
+    return {"queued": True, "event_key": event_key}
+
+
 def _matching_subscriptions(conn, event):
     rows = conn.execute(
         "SELECT * FROM push_subscriptions WHERE active = {} AND created_at <= {}".format(
@@ -272,10 +312,56 @@ def process_pending(conn, vapid_private_key, vapid_subject, sender=None, limit=2
         from pywebpush import webpush
 
         sender = webpush
+    test_events = conn.execute(
+        f"""
+        SELECT test.*, subscriptions.endpoint, subscriptions.p256dh, subscriptions.auth
+        FROM push_test_notifications test
+        JOIN push_subscriptions subscriptions ON subscriptions.id = test.subscription_id
+        WHERE test.delivered_at IS NULL AND test.attempt_count < {MAX_DELIVERY_ATTEMPTS}
+          AND subscriptions.active = {_placeholder(conn)}
+        ORDER BY test.created_at LIMIT {int(limit)}
+        """,
+        (True if _is_postgres(conn) else 1,),
+    ).fetchall()
     events = conn.execute(
         f"SELECT * FROM push_notification_events WHERE completed_at IS NULL ORDER BY created_at LIMIT {int(limit)}"
     ).fetchall()
-    stats = {"events": len(events), "delivered": 0, "failed": 0, "expired": 0}
+    stats = {"events": len(test_events) + len(events), "delivered": 0, "failed": 0, "expired": 0}
+    for event in test_events:
+        subscription_info = {
+            "endpoint": event["endpoint"],
+            "keys": {"p256dh": event["p256dh"], "auth": event["auth"]},
+        }
+        delivered_at = None
+        error = ""
+        try:
+            sender(
+                subscription_info=subscription_info,
+                data=event["payload_json"],
+                vapid_private_key=vapid_private_key,
+                vapid_claims={"sub": vapid_subject},
+                ttl=300,
+            )
+        except Exception as exc:
+            status = _http_status(exc)
+            if status in {404, 410}:
+                deactivate_subscription(conn, event["endpoint"])
+                stats["expired"] += 1
+            else:
+                stats["failed"] += 1
+            error = f"{type(exc).__name__}: {exc}"
+        else:
+            delivered_at = _now_iso()
+            stats["delivered"] += 1
+        conn.execute(
+            f"""
+            UPDATE push_test_notifications
+            SET attempt_count = attempt_count + 1, delivered_at = {_placeholder(conn)},
+                last_error = {_placeholder(conn)}, last_attempt_at = {_placeholder(conn)}
+            WHERE event_key = {_placeholder(conn)}
+            """,
+            (delivered_at, error[:1000], _now_iso(), event["event_key"]),
+        )
     for event in events:
         subscriptions = _matching_subscriptions(conn, event)
         for subscription in subscriptions:

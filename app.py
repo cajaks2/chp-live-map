@@ -772,6 +772,51 @@ def pwa_manifest(settings):
 
 
 SERVICE_WORKER_JS = r"""const DEFAULT_URL = "/";
+const BADGE_DATABASE = "crestmap-notification-state";
+const BADGE_STORE = "state";
+const BADGE_KEY = "unread-count";
+const MAX_BADGE_COUNT = 99;
+
+function openBadgeDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(BADGE_DATABASE, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(BADGE_STORE);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function changeBadgeCount(reset = false) {
+  const database = await openBadgeDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(BADGE_STORE, "readwrite");
+    const store = transaction.objectStore(BADGE_STORE);
+    const request = store.get(BADGE_KEY);
+    let nextCount = 0;
+    request.onsuccess = () => {
+      nextCount = reset ? 0 : Math.min(Number(request.result || 0) + 1, MAX_BADGE_COUNT);
+      store.put(nextCount, BADGE_KEY);
+    };
+    transaction.oncomplete = () => {
+      database.close();
+      resolve(nextCount);
+    };
+    transaction.onerror = () => {
+      database.close();
+      reject(transaction.error);
+    };
+  });
+}
+
+async function incrementAppBadge() {
+  const count = await changeBadgeCount(false);
+  if ("setAppBadge" in navigator) await navigator.setAppBadge(count);
+}
+
+async function clearAppBadge() {
+  await changeBadgeCount(true);
+  if ("clearAppBadge" in navigator) await navigator.clearAppBadge();
+}
 
 self.addEventListener("push", (event) => {
   let payload = {};
@@ -789,13 +834,21 @@ self.addEventListener("push", (event) => {
     renotify: true,
     data: { url: payload.url || DEFAULT_URL }
   };
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(Promise.all([
+    self.registration.showNotification(title, options),
+    incrementAppBadge().catch(() => {})
+  ]));
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "CLEAR_BADGE") event.waitUntil(clearAppBadge().catch(() => {}));
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const target = new URL(event.notification.data?.url || DEFAULT_URL, self.location.origin).href;
   event.waitUntil((async () => {
+    await clearAppBadge().catch(() => {});
     const windows = await clients.matchAll({ type: "window", includeUncontrolled: true });
     for (const client of windows) {
       if ("navigate" in client) await client.navigate(target);

@@ -275,6 +275,10 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert response.status_code == 200
         assert response.headers["Service-Worker-Allowed"] == "/"
         assert 'self.addEventListener("push"' in response.text
+        assert "MAX_BADGE_COUNT = 99" in response.text
+        assert "navigator.setAppBadge(count)" in response.text
+        assert "navigator.clearAppBadge()" in response.text
+        assert 'event.data?.type === "CLEAR_BADGE"' in response.text
 
         response = client.get("/robots.txt")
         body = response.text

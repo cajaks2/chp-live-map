@@ -608,9 +608,17 @@ def push_ui_script(base_path):
       if (!response.ok) throw new Error(payload.error?.message || `Request failed (${{response.status}})`);
       return payload;
     }}
+    async function clearNotificationBadge() {{
+      if (!standalone || !registration) return;
+      try {{
+        if ("clearAppBadge" in navigator) await navigator.clearAppBadge();
+        (registration.active || navigator.serviceWorker.controller)?.postMessage({{ type: "CLEAR_BADGE" }});
+      }} catch (_error) {{}}
+    }}
     async function refreshState() {{
       registration = await navigator.serviceWorker.register(serviceWorkerUrl, {{ scope: "/" }});
       await navigator.serviceWorker.ready;
+      await clearNotificationBadge();
       currentSubscription = await registration.pushManager.getSubscription();
       let preferences = pushConfig.defaults;
       if (currentSubscription) {{

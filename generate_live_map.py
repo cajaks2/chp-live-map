@@ -432,18 +432,33 @@ def push_ui_html(base_path):
     <section class="push-card">
       <button type="button" class="push-card-close" data-dismiss-ios-tutorial aria-label="Close">&times;</button>
       <h2 id="ios-push-title">Get incident alerts on iPhone</h2>
-      <p>Install Crestmap from Safari first, then you can choose which CHP incident notifications you receive.</p>
+      <p>Install Crestmap as a Home Screen web app first. On current iOS versions, the option can be buried in Safari's menus:</p>
       <ol>
-        <li>Tap Safari's <strong>Share</strong> button.</li>
-        <li>Choose <strong>Add to Home Screen</strong>.</li>
-        <li>Open Crestmap from its new Home Screen icon.</li>
-        <li>Open <strong>Alerts</strong> from the menu and allow notifications.</li>
+        <li>Open Crestmap in <strong>Safari</strong>, not an in-app browser.</li>
+        <li>With Compact tabs, tap <strong>More (&hellip;)</strong>, then <strong>Share</strong>. With Bottom or Top tabs, tap Safari's <strong>Share</strong> button directly.</li>
+        <li>Scroll down the Share sheet and tap <strong>Add to Home Screen</strong>.</li>
+        <li>If it is missing, scroll to the very bottom, tap <strong>Edit Actions</strong>, then add <strong>Add to Home Screen</strong>.</li>
+        <li>Turn on <strong>Open as Web App</strong>, then tap <strong>Add</strong>.</li>
+        <li>Open Crestmap from its new Home Screen icon. Open <strong>Alerts</strong> from the menu and choose what you want.</li>
       </ol>
       <p><a class="push-help-link" href="{html.escape(about_href)}">How notifications work</a></p>
       <div class="push-actions">
         <button type="button" data-dismiss-ios-tutorial>Got it</button>
         <button type="button" class="is-secondary" data-dismiss-ios-tutorial>Remind me in 7 days</button>
       </div>
+    </section>
+  </div>
+  <div class="push-overlay" id="ios-push-onboarding" role="dialog" aria-modal="true" aria-labelledby="ios-push-onboarding-title">
+    <section class="push-card">
+      <button type="button" class="push-card-close" data-dismiss-push-onboarding aria-label="Close">&times;</button>
+      <h2 id="ios-push-onboarding-title">Turn on incident alerts?</h2>
+      <p>Crestmap can notify this iPhone when it discovers a new CHP incident matching the areas and categories you choose.</p>
+      <p>You stay in control: choose Forest or Malibu roads, select incident types, and turn alerts off here at any time.</p>
+      <div class="push-actions">
+        <button type="button" id="push-onboarding-setup">Choose alerts</button>
+        <button type="button" class="is-secondary" data-dismiss-push-onboarding>Not now</button>
+      </div>
+      <p><a class="push-help-link" href="{html.escape(about_href)}">How notifications work</a></p>
     </section>
   </div>
   <div class="push-overlay" id="push-settings" role="dialog" aria-modal="true" aria-labelledby="push-settings-title">
@@ -493,6 +508,8 @@ def push_ui_script(base_path):
     const subscriptionEndpoint = {json.dumps(subscription_endpoint)};
     const serviceWorkerUrl = {json.dumps(service_worker)};
     const tutorial = document.getElementById("ios-push-tutorial");
+    const onboarding = document.getElementById("ios-push-onboarding");
+    const onboardingSetup = document.getElementById("push-onboarding-setup");
     const settings = document.getElementById("push-settings");
     const form = document.getElementById("push-preferences-form");
     const status = document.getElementById("push-status");
@@ -508,6 +525,7 @@ def push_ui_script(base_path):
     let pushConfig = null;
     let registration = null;
     let currentSubscription = null;
+    let serverSubscribed = false;
 
     function setVisible(element, visible) {{
       element?.classList.toggle("is-visible", visible);
@@ -540,14 +558,17 @@ def push_ui_script(base_path):
       let preferences = pushConfig.defaults;
       if (currentSubscription) {{
         const state = await postSubscription("status", currentSubscription);
+        serverSubscribed = state.subscribed;
         if (state.preferences) preferences = state.preferences;
+      }} else {{
+        serverSubscribed = false;
       }}
       selectValues("push_region", preferences.regions);
       selectValues("push_category", preferences.categories);
-      saveButton.textContent = currentSubscription ? "Save choices" : "Enable alerts";
-      testButton.hidden = !currentSubscription;
-      disableButton.hidden = !currentSubscription;
-      status.textContent = currentSubscription ? "Alerts are enabled on this device." : "Alerts are not enabled on this device.";
+      saveButton.textContent = serverSubscribed ? "Save choices" : "Enable alerts";
+      testButton.hidden = !serverSubscribed;
+      disableButton.hidden = !serverSubscribed;
+      status.textContent = serverSubscribed ? "Alerts are enabled on this device." : "Alerts are not enabled on this device.";
     }}
     async function openSettings() {{
       setVisible(settings, true);
@@ -574,6 +595,16 @@ def push_ui_script(base_path):
       setVisible(tutorial, false);
     }}));
     tutorial?.addEventListener("click", event => {{ if (event.target === tutorial) setVisible(tutorial, false); }});
+    function deferOnboarding() {{
+      localStorage.setItem("crestmapPushOnboardingUntil", String(Date.now() + 7 * 24 * 60 * 60 * 1000));
+      setVisible(onboarding, false);
+    }}
+    document.querySelectorAll("[data-dismiss-push-onboarding]").forEach(button => button.addEventListener("click", deferOnboarding));
+    onboarding?.addEventListener("click", event => {{ if (event.target === onboarding) deferOnboarding(); }});
+    onboardingSetup?.addEventListener("click", () => {{
+      deferOnboarding();
+      openSettings();
+    }});
     form?.addEventListener("submit", async event => {{
       event.preventDefault();
       const regions = selected("push_region");
@@ -592,6 +623,7 @@ def push_ui_script(base_path):
           }});
         }}
         await postSubscription("subscribe", currentSubscription, {{ regions, categories }});
+        serverSubscribed = true;
         status.textContent = "Alerts enabled. Your choices were saved.";
         saveButton.textContent = "Save choices";
         testButton.hidden = false;
@@ -614,6 +646,7 @@ def push_ui_script(base_path):
           await currentSubscription.unsubscribe();
         }}
         currentSubscription = null;
+        serverSubscribed = false;
         status.textContent = "Alerts are turned off on this device.";
         saveButton.textContent = "Enable alerts";
         testButton.hidden = true;
@@ -630,6 +663,12 @@ def push_ui_script(base_path):
         const dismissedUntil = Number(localStorage.getItem("crestmapIosPushTutorialUntil") || 0);
         if (iosDevice && safari && !standalone && Date.now() >= dismissedUntil) {{
           window.setTimeout(() => setVisible(tutorial, true), 900);
+        }}
+        const onboardingUntil = Number(localStorage.getItem("crestmapPushOnboardingUntil") || 0);
+        if (iosDevice && standalone && supported && Date.now() >= onboardingUntil) {{
+          refreshState()
+            .then(() => {{ if (!serverSubscribed) window.setTimeout(() => setVisible(onboarding, true), 650); }})
+            .catch(() => {{}});
         }}
       }})
       .catch(() => {{}});
@@ -4406,7 +4445,7 @@ def build_about_html(
       <section class="section" id="push-notifications">
         <h2>Push Notifications</h2>
         <p class="empty-report">Crestmap can notify you when it discovers a new matching CHP incident. You choose Forest or Malibu roads and the incident categories you want: collisions, traffic hazards, closures and weather, or other incidents.</p>
-        <div class="result"><strong>iPhone and iPad</strong><span>In Safari, tap Share, choose Add to Home Screen, then open Crestmap from its Home Screen icon. Open Alerts from the menu and approve the notification prompt. Apple requires the Home Screen web app for iPhone and iPad push delivery.</span></div>
+        <div class="result"><strong>iPhone and iPad</strong><span>Open Crestmap in Safari. With Compact tabs, tap More (&hellip;) then Share; with Bottom or Top tabs, tap Share directly. Scroll down and choose Add to Home Screen. If it is missing, scroll to the bottom, open Edit Actions, and add it. Turn on Open as Web App, tap Add, then launch Crestmap from the new icon. Open Alerts from the menu and approve the notification prompt.</span></div>
         <div class="result"><strong>Privacy</strong><span>A browser-generated push endpoint and your choices are stored. No email address, phone number, or account is required. Turning alerts off deactivates that device subscription.</span></div>
         <div class="result"><strong>Delivery</strong><span>Notifications are sent only for newly discovered incidents after you subscribe. Delivery can be delayed or suppressed by Focus, Low Power settings, connectivity, or browser notification settings.</span></div>
         <div class="filter-actions"><button type="button" data-open-push-settings>Manage alert choices</button></div>

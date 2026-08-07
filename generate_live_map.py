@@ -348,6 +348,44 @@ def pwa_head_html(base_path):
 
 def push_ui_css():
     return """
+    .view-header-actions {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 7px;
+    }
+    .header-alert-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 34px;
+      padding: 0 10px;
+      border: 1px solid #d8ddd2;
+      border-radius: 7px;
+      color: #31523e;
+      background: #fff;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 850;
+      cursor: pointer;
+    }
+    .header-alert-button[hidden] { display: none; }
+    .header-alert-status {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #d39a32;
+      box-shadow: 0 0 0 2px #f7ead0;
+    }
+    .header-alert-button.is-enabled {
+      color: #1f6840;
+      border-color: #b8d1bd;
+      background: #f2f8f2;
+    }
+    .header-alert-button.is-enabled .header-alert-status {
+      background: #2d7d4d;
+      box-shadow: 0 0 0 2px #dbeade;
+    }
     .push-overlay {
       display: none;
       position: fixed;
@@ -517,6 +555,7 @@ def push_ui_script(base_path):
     const testButton = document.getElementById("push-test");
     const disableButton = document.getElementById("push-disable");
     const launchers = document.querySelectorAll("[data-open-push-settings]");
+    const headerLaunchers = document.querySelectorAll("[data-standalone-push-launcher]");
     const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
     const ua = navigator.userAgent;
     const iosDevice = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
@@ -536,6 +575,13 @@ def push_ui_script(base_path):
       form.querySelectorAll(`input[name="${{name}}"]`).forEach(input => {{ input.checked = values.includes(input.value); }});
     }}
     function setBusy(busy) {{ saveButton.disabled = busy; testButton.disabled = busy; disableButton.disabled = busy; }}
+    function renderHeaderAlertState() {{
+      headerLaunchers.forEach(button => {{
+        button.classList.toggle("is-enabled", serverSubscribed);
+        button.setAttribute("aria-label", serverSubscribed ? "Alerts enabled; manage alert choices" : "Set up incident alerts");
+        button.title = serverSubscribed ? "Alerts enabled" : "Alerts are not enabled";
+      }});
+    }}
     function applicationServerKey(value) {{
       const padding = "=".repeat((4 - value.length % 4) % 4);
       const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -569,6 +615,7 @@ def push_ui_script(base_path):
       testButton.hidden = !serverSubscribed;
       disableButton.hidden = !serverSubscribed;
       status.textContent = serverSubscribed ? "Alerts are enabled on this device." : "Alerts are not enabled on this device.";
+      renderHeaderAlertState();
     }}
     async function openSettings() {{
       setVisible(settings, true);
@@ -624,6 +671,7 @@ def push_ui_script(base_path):
         }}
         await postSubscription("subscribe", currentSubscription, {{ regions, categories }});
         serverSubscribed = true;
+        renderHeaderAlertState();
         status.textContent = "Alerts enabled. Your choices were saved.";
         saveButton.textContent = "Save choices";
         testButton.hidden = false;
@@ -647,6 +695,7 @@ def push_ui_script(base_path):
         }}
         currentSubscription = null;
         serverSubscribed = false;
+        renderHeaderAlertState();
         status.textContent = "Alerts are turned off on this device.";
         saveButton.textContent = "Enable alerts";
         testButton.hidden = true;
@@ -659,15 +708,20 @@ def push_ui_script(base_path):
       .then(config => {{
         pushConfig = config;
         if (!config.enabled) return;
-        launchers.forEach(button => button.hidden = false);
+        launchers.forEach(button => {{
+          const standaloneOnly = button.hasAttribute("data-standalone-push-launcher");
+          button.hidden = standaloneOnly && !(iosDevice && standalone);
+        }});
         const dismissedUntil = Number(localStorage.getItem("crestmapIosPushTutorialUntil") || 0);
         if (iosDevice && safari && !standalone && Date.now() >= dismissedUntil) {{
           window.setTimeout(() => setVisible(tutorial, true), 900);
         }}
-        const onboardingUntil = Number(localStorage.getItem("crestmapPushOnboardingUntil") || 0);
-        if (iosDevice && standalone && supported && Date.now() >= onboardingUntil) {{
+        if (iosDevice && standalone && supported) {{
+          const onboardingUntil = Number(localStorage.getItem("crestmapPushOnboardingUntil") || 0);
           refreshState()
-            .then(() => {{ if (!serverSubscribed) window.setTimeout(() => setVisible(onboarding, true), 650); }})
+            .then(() => {{
+              if (!serverSubscribed && Date.now() >= onboardingUntil) window.setTimeout(() => setVisible(onboarding, true), 650);
+            }})
             .catch(() => {{}});
         }}
       }})
@@ -740,11 +794,15 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False):
             )
         )
     return (
+        '<div class="view-header-actions">'
+        '<button type="button" class="header-alert-button" data-open-push-settings '
+        'data-standalone-push-launcher hidden>'
+        '<span>Alerts</span><span class="header-alert-status" aria-hidden="true"></span></button>'
         '<details class="view-menu">'
         '<summary aria-label="Open navigation menu">...</summary>'
         '<div class="view-menu-popover">'
         + "".join(rows)
-        + "</div></details>"
+        + "</div></details></div>"
     )
 
 

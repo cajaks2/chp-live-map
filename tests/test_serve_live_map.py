@@ -177,9 +177,11 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert "Update Cadence" in body
         assert 'id="push-notifications"' in body
         assert "Manage alert choices" in body
-        assert "push-launcher" not in body
+        assert 'class="push-launcher"' not in body
         assert '<button type="button" class="view-menu-row" data-open-push-settings>' in body
         assert '<span class="view-menu-label">Alerts</span>' in body
+        assert 'class="header-alert-button"' in body
+        assert "data-standalone-push-launcher" in body
         assert 'id="ios-push-onboarding"' in body
         assert "Edit Actions" in body
         assert "Open as Web App" in body

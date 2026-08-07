@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from comments import COMMENT_SUBMISSIONS_TOTAL, pending_count
 from ecs_logging import log_event, log_exception, run_main
+from push_notifications import CATEGORIES as PUSH_CATEGORIES, REGIONS as PUSH_AREAS
 from generate_live_map import (
     build_about_html,
     build_history_html,
@@ -320,8 +321,103 @@ def empty_metric_status(hours):
     }
 
 
+def empty_push_metric_status():
+    return {
+        "subscriptions": {"active": 0, "inactive": 0},
+        "areas": {area: 0 for area in sorted(PUSH_AREAS)},
+        "categories": {category: 0 for category in sorted(PUSH_CATEGORIES)},
+        "events": {},
+        "deliveries": {},
+        "attempts": {},
+        "tests": {"pending": 0, "delivered": 0, "failed": 0},
+        "last_delivery_at": "",
+        "last_test_delivery_at": "",
+    }
+
+
+def load_push_metric_status(conn):
+    status = empty_push_metric_status()
+    subscriptions = conn.execute(
+        "SELECT active, regions_json, categories_json FROM push_subscriptions"
+    ).fetchall()
+    for subscription in subscriptions:
+        state = "active" if subscription["active"] else "inactive"
+        status["subscriptions"][state] += 1
+        if state != "active":
+            continue
+        try:
+            areas = json.loads(subscription["regions_json"])
+            categories = json.loads(subscription["categories_json"])
+        except (TypeError, json.JSONDecodeError):
+            continue
+        for area in set(areas).intersection(PUSH_AREAS):
+            status["areas"][area] += 1
+        for category in set(categories).intersection(PUSH_CATEGORIES):
+            status["categories"][category] += 1
+
+    event_rows = conn.execute(
+        """
+        SELECT region, category,
+               CASE WHEN completed_at IS NULL THEN 'pending' ELSE 'completed' END AS metric_status,
+               COUNT(*) AS metric_count
+        FROM push_notification_events
+        GROUP BY region, category, metric_status
+        """
+    ).fetchall()
+    for row in event_rows:
+        status["events"][(row["region"], row["category"], row["metric_status"])] = int(
+            row["metric_count"] or 0
+        )
+
+    delivery_rows = conn.execute(
+        """
+        SELECT event.region, event.category,
+               CASE
+                   WHEN delivery.delivered_at IS NOT NULL THEN 'delivered'
+                   WHEN COALESCE(delivery.last_error, '') <> '' THEN 'failed'
+                   ELSE 'pending'
+               END AS metric_status,
+               COUNT(*) AS metric_count,
+               COALESCE(SUM(delivery.attempt_count), 0) AS attempt_count,
+               MAX(COALESCE(delivery.delivered_at, '')) AS last_delivery_at
+        FROM push_deliveries delivery
+        JOIN push_notification_events event ON event.event_key = delivery.event_key
+        GROUP BY event.region, event.category, metric_status
+        """
+    ).fetchall()
+    for row in delivery_rows:
+        key = (row["region"], row["category"], row["metric_status"])
+        status["deliveries"][key] = int(row["metric_count"] or 0)
+        attempt_key = (row["region"], row["category"])
+        status["attempts"][attempt_key] = status["attempts"].get(attempt_key, 0) + int(
+            row["attempt_count"] or 0
+        )
+        if (row["last_delivery_at"] or "") > status["last_delivery_at"]:
+            status["last_delivery_at"] = row["last_delivery_at"]
+
+    test_rows = conn.execute(
+        """
+        SELECT CASE
+                   WHEN delivered_at IS NOT NULL THEN 'delivered'
+                   WHEN COALESCE(last_error, '') <> '' THEN 'failed'
+                   ELSE 'pending'
+               END AS metric_status,
+               COUNT(*) AS metric_count,
+               MAX(COALESCE(delivered_at, '')) AS last_delivery_at
+        FROM push_test_notifications
+        GROUP BY metric_status
+        """
+    ).fetchall()
+    for row in test_rows:
+        status["tests"][row["metric_status"]] = int(row["metric_count"] or 0)
+        if (row["last_delivery_at"] or "") > status["last_test_delivery_at"]:
+            status["last_test_delivery_at"] = row["last_delivery_at"]
+    return status
+
+
 def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None):
     comments_pending = 0
+    push_status = empty_push_metric_status()
     if not database_url and not database.exists():
         status = empty_metric_status(hours)
         region_statuses = {region: empty_metric_status(hours) for region in METRIC_REGIONS}
@@ -350,6 +446,7 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
                 for region in METRIC_REGIONS
             }
             comments_pending = pending_count(conn)
+            push_status = load_push_metric_status(conn)
         finally:
             if should_close:
                 conn.close()
@@ -466,6 +563,93 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
         )
     lines.extend(
         [
+            "# HELP chp_live_map_push_subscriptions Stored Web Push subscriptions by status.",
+            "# TYPE chp_live_map_push_subscriptions gauge",
+            *[
+                metric_line("chp_live_map_push_subscriptions", push_status["subscriptions"][state], {"status": state})
+                for state in ("active", "inactive")
+            ],
+            "# HELP chp_live_map_push_subscription_areas Active subscriptions selecting each notification area.",
+            "# TYPE chp_live_map_push_subscription_areas gauge",
+            *[
+                metric_line("chp_live_map_push_subscription_areas", push_status["areas"][area], {"area": area})
+                for area in sorted(PUSH_AREAS)
+            ],
+            "# HELP chp_live_map_push_subscription_categories Active subscriptions selecting each incident category.",
+            "# TYPE chp_live_map_push_subscription_categories gauge",
+            *[
+                metric_line(
+                    "chp_live_map_push_subscription_categories",
+                    push_status["categories"][category],
+                    {"category": category},
+                )
+                for category in sorted(PUSH_CATEGORIES)
+            ],
+            "# HELP chp_live_map_push_notification_events Stored incident notification events by queue status.",
+            "# TYPE chp_live_map_push_notification_events gauge",
+        ]
+    )
+    for region in METRIC_REGIONS:
+        for category in sorted(PUSH_CATEGORIES):
+            for event_status in ("pending", "completed"):
+                lines.append(
+                    metric_line(
+                        "chp_live_map_push_notification_events",
+                        push_status["events"].get((region, category, event_status), 0),
+                        {"region": region, "category": category, "status": event_status},
+                    )
+                )
+    lines.extend(
+        [
+            "# HELP chp_live_map_push_deliveries Stored incident push deliveries by outcome.",
+            "# TYPE chp_live_map_push_deliveries gauge",
+        ]
+    )
+    for region in METRIC_REGIONS:
+        for category in sorted(PUSH_CATEGORIES):
+            for delivery_status in ("pending", "delivered", "failed"):
+                lines.append(
+                    metric_line(
+                        "chp_live_map_push_deliveries",
+                        push_status["deliveries"].get((region, category, delivery_status), 0),
+                        {"region": region, "category": category, "status": delivery_status},
+                    )
+                )
+    lines.extend(
+        [
+            "# HELP chp_live_map_push_delivery_attempts Stored incident push delivery attempts.",
+            "# TYPE chp_live_map_push_delivery_attempts gauge",
+        ]
+    )
+    for region in METRIC_REGIONS:
+        for category in sorted(PUSH_CATEGORIES):
+            lines.append(
+                metric_line(
+                    "chp_live_map_push_delivery_attempts",
+                    push_status["attempts"].get((region, category), 0),
+                    {"region": region, "category": category},
+                )
+            )
+    lines.extend(
+        [
+            "# HELP chp_live_map_push_test_notifications Stored test notifications by outcome.",
+            "# TYPE chp_live_map_push_test_notifications gauge",
+            *[
+                metric_line("chp_live_map_push_test_notifications", push_status["tests"][state], {"status": state})
+                for state in ("pending", "delivered", "failed")
+            ],
+            "# HELP chp_live_map_push_last_delivery_timestamp_seconds Latest successful incident push delivery timestamp.",
+            "# TYPE chp_live_map_push_last_delivery_timestamp_seconds gauge",
+            metric_line(
+                "chp_live_map_push_last_delivery_timestamp_seconds",
+                f"{parse_timestamp(push_status['last_delivery_at']):.3f}",
+            ),
+            "# HELP chp_live_map_push_last_test_delivery_timestamp_seconds Latest successful test push delivery timestamp.",
+            "# TYPE chp_live_map_push_last_test_delivery_timestamp_seconds gauge",
+            metric_line(
+                "chp_live_map_push_last_test_delivery_timestamp_seconds",
+                f"{parse_timestamp(push_status['last_test_delivery_at']):.3f}",
+            ),
             "# HELP chp_live_map_comments_submitted_total Comment submissions by outcome.",
             "# TYPE chp_live_map_comments_submitted_total counter",
         ]

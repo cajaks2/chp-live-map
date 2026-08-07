@@ -12,6 +12,13 @@ from app import (
     create_app,
     valid_admin_session_token,
 )
+from push_notifications import (
+    deactivate_subscription,
+    enqueue_incidents,
+    enqueue_test_notification,
+    process_pending,
+    save_subscription,
+)
 from serve_live_map import (
     ASSET_CACHE_CONTROL,
     CONTENT_SECURITY_POLICY,
@@ -313,6 +320,10 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert "chp_live_map_http_requests_total" in body
         assert "chp_live_map_db_pool_connections" not in body
         assert "chp_live_map_comments_pending 0" in body
+        assert 'chp_live_map_push_subscriptions{status="active"} 0' in body
+        assert 'chp_live_map_push_subscription_areas{area="crest"} 0' in body
+        assert 'chp_live_map_push_deliveries{region="forest",category="hazard",status="delivered"} 0' in body
+        assert 'chp_live_map_push_test_notifications{status="failed"} 0' in body
 
         response = client.head("/")
         assert response.status_code == 200
@@ -386,6 +397,59 @@ def test_prometheus_metrics_include_pool_stats(tmp_path):
     assert 'chp_live_map_db_pool_connections{state="available"} 2' in body
     assert 'chp_live_map_db_pool_connections{state="in_use"} 1' in body
     assert "chp_live_map_db_pool_requests_waiting 4" in body
+
+
+def test_prometheus_metrics_include_push_breakdowns(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    conn = connect_database(database)
+    incident = sample_event()
+    active_endpoint = "https://web.push.apple.com/active-device"
+    inactive_endpoint = "https://web.push.apple.com/inactive-device"
+    upsert_active_event(conn, incident)
+    save_subscription(
+        conn,
+        {
+            "subscription": {
+                "endpoint": active_endpoint,
+                "keys": {"p256dh": "active-public-key", "auth": "active-auth"},
+            },
+            "regions": ["crest"],
+            "categories": ["closure", "hazard"],
+        },
+    )
+    save_subscription(
+        conn,
+        {
+            "subscription": {
+                "endpoint": inactive_endpoint,
+                "keys": {"p256dh": "inactive-public-key", "auth": "inactive-auth"},
+            },
+            "regions": ["forest"],
+            "categories": ["collision"],
+        },
+    )
+    deactivate_subscription(conn, inactive_endpoint)
+    enqueue_incidents(conn, [incident], "https://crestmap.us/")
+    process_pending(conn, "private-key", "https://crestmap.us/", sender=lambda **_kwargs: None)
+    enqueue_test_notification(conn, active_endpoint, "https://crestmap.us/")
+    process_pending(conn, "private-key", "https://crestmap.us/", sender=lambda **_kwargs: None)
+    conn.commit()
+    conn.close()
+
+    body = prometheus_metrics(database, None, 72.0).decode("utf-8")
+
+    assert 'chp_live_map_push_subscriptions{status="active"} 1' in body
+    assert 'chp_live_map_push_subscriptions{status="inactive"} 1' in body
+    assert 'chp_live_map_push_subscription_areas{area="crest"} 1' in body
+    assert 'chp_live_map_push_subscription_areas{area="forest"} 0' in body
+    assert 'chp_live_map_push_subscription_categories{category="closure"} 1' in body
+    assert 'chp_live_map_push_subscription_categories{category="hazard"} 1' in body
+    assert 'chp_live_map_push_notification_events{region="forest",category="hazard",status="completed"} 1' in body
+    assert 'chp_live_map_push_deliveries{region="forest",category="hazard",status="delivered"} 1' in body
+    assert 'chp_live_map_push_delivery_attempts{region="forest",category="hazard"} 1' in body
+    assert 'chp_live_map_push_test_notifications{status="delivered"} 1' in body
+    assert "chp_live_map_push_last_delivery_timestamp_seconds 0.000" not in body
+    assert "chp_live_map_push_last_test_delivery_timestamp_seconds 0.000" not in body
 
 
 def test_push_subscription_api_saves_preferences_and_unsubscribes(tmp_path):

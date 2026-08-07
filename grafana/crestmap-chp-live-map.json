@@ -2130,6 +2130,358 @@
         ],
         "title": "Last source comparison by region",
         "type": "bargauge"
+      },
+      {
+        "id": 1013,
+        "type": "row",
+        "title": "Push Notifications",
+        "collapsed": false,
+        "gridPos": {
+          "x": 0,
+          "y": 79,
+          "w": 24,
+          "h": 1
+        },
+        "panels": []
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Current active Web Push subscription endpoints.",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 80,
+          "w": 4,
+          "h": 4
+        },
+        "id": 59,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_push_subscriptions{site=~\"$site\",status=\"active\"}",
+            "legendFormat": "Active",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Active subscribers",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Successful incident push deliveries stored in the database.",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 4,
+          "y": 80,
+          "w": 4,
+          "h": 4
+        },
+        "id": 61,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "sum(chp_live_map_push_deliveries{site=~\"$site\",status=\"delivered\"})",
+            "legendFormat": "Delivered",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Successful pushes",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Incident push deliveries whose latest attempt failed.",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 8,
+          "y": 80,
+          "w": 4,
+          "h": 4
+        },
+        "id": 63,
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto",
+          "wideLayout": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "sum(chp_live_map_push_deliveries{site=~\"$site\",status=\"failed\"})",
+            "legendFormat": "Failed",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Failed pushes",
+        "type": "stat"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Active subscription choices by notification area.",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 80,
+          "w": 6,
+          "h": 6
+        },
+        "id": 65,
+        "options": {
+          "displayMode": "gradient",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "fields": "",
+            "values": false
+          },
+          "showUnfilled": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_push_subscription_areas{site=~\"$site\"}",
+            "legendFormat": "{{area}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Subscribers by area",
+        "type": "bargauge"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Active subscription choices by incident category.",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 18,
+          "y": 80,
+          "w": 6,
+          "h": 6
+        },
+        "id": 67,
+        "options": {
+          "displayMode": "gradient",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": ["lastNotNull"],
+            "fields": "",
+            "values": false
+          },
+          "showUnfilled": true
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_push_subscription_categories{site=~\"$site\"}",
+            "legendFormat": "{{category}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Subscribers by category",
+        "type": "bargauge"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Stored incident push delivery outcomes by region and category.",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 0,
+          "y": 86,
+          "w": 12,
+          "h": 7
+        },
+        "id": 69,
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_push_deliveries{site=~\"$site\"}",
+            "legendFormat": "{{region}} {{category}} {{status}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "title": "Push delivery outcomes",
+        "type": "timeseries"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "description": "Incident notification queue and test notification outcomes.",
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "gridPos": {
+          "x": 12,
+          "y": 86,
+          "w": 12,
+          "h": 7
+        },
+        "id": 71,
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          }
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "sum by (status) (chp_live_map_push_notification_events{site=~\"$site\"})",
+            "legendFormat": "events {{status}}",
+            "range": true,
+            "refId": "A"
+          },
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "chp_live_map_push_test_notifications{site=~\"$site\"}",
+            "legendFormat": "tests {{status}}",
+            "range": true,
+            "refId": "B"
+          }
+        ],
+        "title": "Push queues and tests",
+        "type": "timeseries"
       }
     ],
     "refresh": "30s",
@@ -2233,10 +2585,10 @@
     "timezone": "browser",
     "title": "Crestmap CHP Live Map",
     "uid": "crestmap-chp-live-map",
-    "version": 6,
-    "description": "Operational dashboard for crestmap.us: scraper freshness, XML/CAD source behavior, Loki access traffic, Postgres pool health, and incident data quality."
+    "version": 7,
+    "description": "Operational dashboard for crestmap.us: scraper freshness, XML/CAD source behavior, Loki access traffic, Postgres pool health, incident data quality, and Web Push delivery."
   },
   "folderUid": "bfo1wv4abcd1cd",
   "overwrite": true,
-  "message": "Add Loki access traffic panels"
+  "message": "Add Web Push notification metrics"
 }

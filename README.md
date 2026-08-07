@@ -353,6 +353,15 @@ Prometheus metrics:
 | `chp_live_map_db_pool_requests_waiting` | gauge | Web requests currently waiting for a Postgres pool connection. |
 | `chp_live_map_comments_submitted_total{outcome}` | counter | Comment submissions grouped by outcome such as `pending`, `rate_limited`, `honeypot`, or validation errors. |
 | `chp_live_map_comments_pending` | gauge | Comments currently waiting for moderation. |
+| `chp_live_map_push_subscriptions{status}` | gauge | Stored Web Push subscriptions, split into active and inactive records. |
+| `chp_live_map_push_subscription_areas{area}` | gauge | Active subscriptions selecting Forest, Crest/west, or Malibu. |
+| `chp_live_map_push_subscription_categories{category}` | gauge | Active subscriptions selecting each incident category. |
+| `chp_live_map_push_notification_events{region,category,status}` | gauge | Incident notification events split into pending and completed queue states. |
+| `chp_live_map_push_deliveries{region,category,status}` | gauge | Incident push deliveries split into pending, delivered, and failed outcomes. |
+| `chp_live_map_push_delivery_attempts{region,category}` | gauge | Total stored incident push attempts by region and category. |
+| `chp_live_map_push_test_notifications{status}` | gauge | Test notifications split into pending, delivered, and failed outcomes. |
+| `chp_live_map_push_last_delivery_timestamp_seconds` | gauge | Unix timestamp of the latest successful incident push delivery. |
+| `chp_live_map_push_last_test_delivery_timestamp_seconds` | gauge | Unix timestamp of the latest successful test push delivery. |
 | `chp_live_map_scrape_last_run_timestamp_seconds` | gauge | Unix timestamp for the latest completed CHP scrape. |
 | `chp_live_map_scrape_last_run_duration_seconds` | gauge | Duration of the latest completed CHP scrape. |
 | `chp_live_map_scrape_last_run_incidents{kind}` | gauge | Latest scrape incident counts: total CHP incidents seen, matched incidents acquired, and mapped matched incidents. |

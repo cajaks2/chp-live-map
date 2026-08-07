@@ -44,12 +44,12 @@
               "mode": "absolute",
               "steps": [
                 {
-                  "color": null,
-                  "value": "red"
+                  "color": "red",
+                  "value": null
                 },
                 {
-                  "color": 1,
-                  "value": "green"
+                  "color": "green",
+                  "value": 1
                 }
               ]
             },
@@ -107,12 +107,12 @@
               "mode": "absolute",
               "steps": [
                 {
-                  "color": null,
-                  "value": "red"
+                  "color": "red",
+                  "value": null
                 },
                 {
-                  "color": 1,
-                  "value": "green"
+                  "color": "green",
+                  "value": 1
                 }
               ]
             },
@@ -170,16 +170,16 @@
               "mode": "absolute",
               "steps": [
                 {
-                  "color": null,
-                  "value": "green"
+                  "color": "green",
+                  "value": null
                 },
                 {
-                  "color": 180,
-                  "value": "yellow"
+                  "color": "yellow",
+                  "value": 180
                 },
                 {
-                  "color": 600,
-                  "value": "red"
+                  "color": "red",
+                  "value": 600
                 }
               ]
             },
@@ -237,16 +237,16 @@
               "mode": "absolute",
               "steps": [
                 {
-                  "color": null,
-                  "value": "green"
+                  "color": "green",
+                  "value": null
                 },
                 {
-                  "color": 300,
-                  "value": "yellow"
+                  "color": "yellow",
+                  "value": 300
                 },
                 {
-                  "color": 900,
-                  "value": "red"
+                  "color": "red",
+                  "value": 900
                 }
               ]
             },
@@ -304,16 +304,16 @@
               "mode": "absolute",
               "steps": [
                 {
-                  "color": null,
-                  "value": "green"
+                  "color": "green",
+                  "value": null
                 },
                 {
-                  "color": 900,
-                  "value": "yellow"
+                  "color": "yellow",
+                  "value": 900
                 },
                 {
-                  "color": 3600,
-                  "value": "red"
+                  "color": "red",
+                  "value": 3600
                 }
               ]
             },
@@ -371,16 +371,16 @@
               "mode": "absolute",
               "steps": [
                 {
-                  "color": null,
-                  "value": "green"
+                  "color": "green",
+                  "value": null
                 },
                 {
-                  "color": 1,
-                  "value": "yellow"
+                  "color": "yellow",
+                  "value": 1
                 },
                 {
-                  "color": 3,
-                  "value": "red"
+                  "color": "red",
+                  "value": 3
                 }
               ]
             },
@@ -2585,10 +2585,10 @@
     "timezone": "browser",
     "title": "Crestmap CHP Live Map",
     "uid": "crestmap-chp-live-map",
-    "version": 7,
+    "version": 8,
     "description": "Operational dashboard for crestmap.us: scraper freshness, XML/CAD source behavior, Loki access traffic, Postgres pool health, incident data quality, and Web Push delivery."
   },
   "folderUid": "bfo1wv4abcd1cd",
   "overwrite": true,
-  "message": "Add Web Push notification metrics"
+  "message": "Publish push metrics and fix status colors"
 }

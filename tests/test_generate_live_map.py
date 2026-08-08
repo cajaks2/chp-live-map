@@ -390,6 +390,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "Mission not confirmed" in aircraft_html
     assert 'viewBox="0 0 32 24"' in aircraft_html
     assert "&#128641;" not in aircraft_html
+    assert 'className: "aircraft-map-popup"' in aircraft_html
 
     admin_html = build_html(
         incidents,

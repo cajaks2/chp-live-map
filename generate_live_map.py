@@ -1705,17 +1705,19 @@ def build_html(
       display: flex;
       align-items: center;
       justify-content: center;
-      border: 2px solid #ffd43b;
+      border: 1px solid rgba(103, 77, 0, 0.72);
       border-radius: 50%;
-      color: #ffd43b;
-      background: #4a3b08;
-      box-shadow: 0 2px 8px rgba(24, 32, 38, 0.42);
+      color: #d6a000;
+      background: rgba(255, 220, 72, 0.58);
+      box-shadow: 0 1px 4px rgba(24, 32, 38, 0.28);
       line-height: 1;
+      backdrop-filter: blur(1px);
+      -webkit-backdrop-filter: blur(1px);
     }}
     .aircraft-marker svg {{
       display: block;
-      width: 26px;
-      height: 21px;
+      width: 19px;
+      height: 15px;
       overflow: visible;
       fill: currentColor;
       stroke: currentColor;
@@ -1724,12 +1726,29 @@ def build_html(
     }}
     .aircraft-popup-title {{
       margin-bottom: 3px;
+      font-size: 13px;
       font-weight: 900;
     }}
     .aircraft-popup-note {{
       margin-top: 5px;
       color: #72510e;
       font-weight: 800;
+    }}
+    .aircraft-map-popup .leaflet-popup-content-wrapper {{
+      border: 1px solid rgba(93, 104, 96, 0.28);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 3px 12px rgba(24, 32, 38, 0.22);
+    }}
+    .aircraft-map-popup .leaflet-popup-content {{
+      min-width: 165px;
+      max-width: 215px;
+      margin: 9px 11px;
+      font-size: 12px;
+      line-height: 1.35;
+    }}
+    .aircraft-map-popup .leaflet-popup-tip {{
+      background: rgba(255, 255, 255, 0.94);
     }}
     @keyframes selected-marker-pulse {{
       from {{
@@ -2908,7 +2927,7 @@ def build_html(
     }}
 
     function aircraftIcon(aircraft) {{
-      const size = 34;
+      const size = 25;
       return L.divIcon({{
         className: "aircraft-marker",
         iconSize: [size, size],
@@ -2957,7 +2976,11 @@ def build_html(
           title: `${{item.display_name || "LASD rescue helicopter"}} ${{item.registration || ""}}`.trim(),
           zIndexOffset: 1000
         }}).addTo(map);
-        marker.bindPopup(aircraftPopup(item), {{ closeButton: true }});
+        marker.bindPopup(aircraftPopup(item), {{
+          className: "aircraft-map-popup",
+          closeButton: true,
+          maxWidth: 230
+        }});
         aircraftMarkers.set(item.icao24, marker);
       }});
     }}

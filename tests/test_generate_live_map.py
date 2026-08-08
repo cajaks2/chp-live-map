@@ -101,7 +101,7 @@ def test_build_html_does_not_count_linked_incident_in_window_total():
     linked = incident_row("LACC|2026-05-30|1883", "cleared", "2026-05-30T08:00:00-07:00", "1883")
     linked["_linked_outside_window"] = True
 
-    html = build_html([linked, current], "2026-05-31T08:05:00-07:00", 72)
+    html = build_html([linked, current], "2026-05-31T08:05:00-07:00", 72, app_version="test-1")
 
     assert "0 active · 1 in last 72h · 1 mapped" in html
     assert "Linked" in html
@@ -271,6 +271,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
             "forest": {"active_count": 1},
             "malibu": {"active_count": 0},
         },
+        app_version="test-1",
     )
 
     assert "CHP Forest Incidents (1 active, 2 total)" in html
@@ -352,6 +353,10 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "fetchIncidentData()" in html
     assert 'url.searchParams.set("v", version)' in html
     assert "window.location.reload" not in html
+    assert 'const appVersion = "test-1"' in html
+    assert "reloadForAppVersion(latest.app_version)" in html
+    assert 'reloadUrl.searchParams.set("app_version", latestVersion)' in html
+    assert "window.location.replace(reloadUrl.href)" in html
     assert "Traffic <Hazard>" not in html
     assert "Traffic \\u003cHazard" not in html
     assert "function formatGeneratedAt" in html

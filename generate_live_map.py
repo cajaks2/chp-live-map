@@ -972,6 +972,7 @@ def build_html(
     media_max_video_bytes=100 * 1024 * 1024,
     media_max_video_seconds=60,
     aircraft_tracking_enabled=False,
+    app_version="dev",
 ):
     region = normalize_region(region)
     map_label = region_label(region)
@@ -2305,6 +2306,7 @@ def build_html(
     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script>
     const initialDataStatus = {json.dumps(status, ensure_ascii=False)};
+    const appVersion = {json.dumps(app_version)};
     const statusEndpoint = "{html.escape(status_endpoint)}";
     const incidentsEndpoint = "{html.escape(incidents_endpoint)}";
     const aircraftEndpoint = "{html.escape(aircraft_endpoint)}";
@@ -2543,6 +2545,20 @@ def build_html(
       const hideNotice = () => {{
         notice.classList.remove("is-visible");
       }};
+      const reloadForAppVersion = (latestVersion) => {{
+        if (!latestVersion || latestVersion === appVersion) {{
+          return false;
+        }}
+        const reloadKey = `crestmap-app-reload:${{latestVersion}}`;
+        if (window.sessionStorage.getItem(reloadKey) === "attempted") {{
+          return false;
+        }}
+        window.sessionStorage.setItem(reloadKey, "attempted");
+        const reloadUrl = new URL(window.location.href);
+        reloadUrl.searchParams.set("app_version", latestVersion);
+        window.location.replace(reloadUrl.href);
+        return true;
+      }};
       const refreshAfterResume = async () => {{
         const now = Date.now();
         if (resumeRefreshInFlight || now - lastResumeRefreshAt < 15000) {{
@@ -2551,7 +2567,7 @@ def build_html(
         resumeRefreshInFlight = true;
         lastResumeRefreshAt = now;
         try {{
-          await fetchIncidentData({{ force: true, preserveViewport: true }});
+          await checkForUpdates({{ force: true, refreshData: true }});
           dismissed = false;
           lastHealthyCheckAt = Date.now();
           hideNotice();
@@ -2561,12 +2577,13 @@ def build_html(
           resumeRefreshInFlight = false;
         }}
       }};
-      const checkForUpdates = async () => {{
-        if (dismissed || checkInFlight) {{
+      const checkForUpdates = async (options = {{}}) => {{
+        const force = Boolean(options.force);
+        if (checkInFlight) {{
           return;
         }}
         const now = Date.now();
-        if (now - lastCheckedAt < 30000) {{
+        if (!force && now - lastCheckedAt < 30000) {{
           return;
         }}
         checkInFlight = true;
@@ -2585,17 +2602,22 @@ def build_html(
           }}
           const latest = await response.json();
           lastHealthyCheckAt = Date.now();
+          if (reloadForAppVersion(latest.app_version)) {{
+            return;
+          }}
           if (latest.checked_at) {{
             setCheckedAt(latest.checked_at);
           }}
           setLastScrape(latest.last_scrape);
           updateRegionCounts(latest.region_statuses);
-          if (latest.version && latest.version !== currentDataStatus.version) {{
-            if (autoRefreshToggle.checked) {{
+          if (options.refreshData || (latest.version && latest.version !== currentDataStatus.version)) {{
+            if (options.refreshData || autoRefreshToggle.checked) {{
               await fetchIncidentData({{ force: true, preserveViewport: true, status: latest }});
               return;
             }}
-            showNotice("New incident data is available.");
+            if (!dismissed) {{
+              showNotice("New incident data is available.");
+            }}
           }} else {{
             hideNotice();
           }}
@@ -2606,16 +2628,13 @@ def build_html(
         }}
       }};
       const update = () => {{
-        if (dismissed) {{
-          return;
-        }}
         const now = Date.now();
         const pageAgeMs = now - generatedTime;
         const healthAgeMs = now - lastHealthyCheckAt;
         if (pageAgeMs > 60000 && document.visibilityState === "visible") {{
           checkForUpdates();
         }}
-        if (healthAgeMs > 180000 && !notice.classList.contains("is-visible")) {{
+        if (!dismissed && healthAgeMs > 180000 && !notice.classList.contains("is-visible")) {{
           showNotice("Data may be stale. Background status checks are not confirming current data.");
         }}
       }};

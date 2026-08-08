@@ -46,6 +46,7 @@ def make_client(database, **overrides):
         base_path=overrides.pop("base_path", "/"),
         public_url=overrides.pop("public_url", "https://crestmap.us/"),
         google_analytics_id=overrides.pop("google_analytics_id", None),
+        service_version=overrides.pop("service_version", "test-1"),
         **overrides,
     )
     return TestClient(create_app(settings))
@@ -211,6 +212,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert '"region": "forest"' in body
         assert '"total_count": 0' in body
         assert '"version":' in body
+        assert payload["app_version"] == "test-1"
         assert payload["region_statuses"]["forest"]["active_count"] == 0
         assert payload["region_statuses"]["malibu"]["active_count"] == 0
         assert payload["last_scrape"]["observed_at"] == "2026-05-31T08:00:00-07:00"

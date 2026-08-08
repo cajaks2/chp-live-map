@@ -95,6 +95,7 @@ class WebSettings:
     aircraft_tracking_enabled: bool = False
     aircraft_display_delay_seconds: int = 60
     aircraft_max_age_seconds: int = 300
+    service_version: str = "dev"
 
     @classmethod
     def from_env(cls):
@@ -127,6 +128,7 @@ class WebSettings:
                 0, int(os.environ.get("AIRCRAFT_DISPLAY_DELAY_SECONDS", "60"))
             ),
             aircraft_max_age_seconds=max(60, int(os.environ.get("AIRCRAFT_MAX_AGE_SECONDS", "300"))),
+            service_version=os.environ.get("SERVICE_VERSION", "dev"),
         )
 
 
@@ -1089,6 +1091,7 @@ def dispatch_request(request, send_body=True):
                 last_scrape = load_last_scrape_run(settings.database, settings.database_url, conn=conn)
                 payload = {
                     **incident_status(incidents, hours),
+                    "app_version": settings.service_version,
                     "region": region,
                     "region_statuses": region_statuses(settings, hours, conn=conn),
                     "checked_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -1271,6 +1274,7 @@ def dispatch_request(request, send_body=True):
                 media_max_video_bytes=settings.media_max_video_bytes,
                 media_max_video_seconds=settings.media_max_video_seconds,
                 aircraft_tracking_enabled=settings.aircraft_tracking_enabled,
+                app_version=settings.service_version,
             ).encode("utf-8")
     except Exception as exc:
         web.log_exception(

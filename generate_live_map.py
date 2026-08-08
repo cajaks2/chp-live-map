@@ -1705,17 +1705,22 @@ def build_html(
       display: flex;
       align-items: center;
       justify-content: center;
-      border: 2px solid #6f4b00;
+      border: 2px solid #ffd43b;
       border-radius: 50%;
-      color: #392600;
-      background: #f6c84d;
+      color: #ffd43b;
+      background: #4a3b08;
       box-shadow: 0 2px 8px rgba(24, 32, 38, 0.42);
-      font-size: 17px;
       line-height: 1;
     }}
-    .aircraft-marker span {{
+    .aircraft-marker svg {{
       display: block;
-      transform: translateY(-1px);
+      width: 26px;
+      height: 21px;
+      overflow: visible;
+      fill: currentColor;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }}
     .aircraft-popup-title {{
       margin-bottom: 3px;
@@ -2908,7 +2913,15 @@ def build_html(
         className: "aircraft-marker",
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
-        html: '<span aria-hidden="true">&#128641;</span>'
+        html: `<svg viewBox="0 0 32 24" aria-hidden="true" focusable="false">
+          <path d="M4 2.5h23" fill="none" stroke-width="2.4" />
+          <path d="M14.5 3.5v4" fill="none" stroke-width="2.4" />
+          <path d="M11 7.5h7.2c4.3 0 7.8 3.5 7.8 7.8v1.2H11a4.5 4.5 0 0 1 0-9Z" stroke="none" />
+          <path d="m11 11.3-7.5-3-.8 2.1 8.3 5.2Z" stroke="none" />
+          <path d="M3.2 6.7v6.2M1.2 9.8h4" fill="none" stroke-width="1.8" />
+          <path d="M9.5 20.5h15M12 16.5v4M22 16.5v4" fill="none" stroke-width="2" />
+          <path d="M19 9.6c2.2.3 4 2 4.7 4.1H19Z" fill="#fff4b8" stroke="none" />
+        </svg>`
       }});
     }}
 

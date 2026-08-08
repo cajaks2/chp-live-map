@@ -388,6 +388,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'const aircraftEndpoint = "/api/v1/aircraft"' in aircraft_html
     assert "function fetchAircraftData" in aircraft_html
     assert "Mission not confirmed" in aircraft_html
+    assert 'viewBox="0 0 32 24"' in aircraft_html
+    assert "&#128641;" not in aircraft_html
 
     admin_html = build_html(
         incidents,

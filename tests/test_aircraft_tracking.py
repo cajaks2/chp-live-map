@@ -82,6 +82,7 @@ def test_run_once_persists_delayed_position_and_tracker_status(tmp_path):
     assert visible[0]["speed_kt"] == 107
     assert visible[0]["age_seconds"] == 90
     assert visible[0]["mission_confirmed"] is False
+    assert visible[0]["trail"] == [[34.31, -118.12]]
     assert tracker["last_run_success"] == 1
     assert tracker["rate_limit_remaining"] == 3988
     assert tracker["requests_total"] == 1

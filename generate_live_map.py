@@ -2359,13 +2359,14 @@ def build_html(
 
     const markers = new Map();
     const aircraftMarkers = new Map();
+    const aircraftTrails = new Map();
     let aircraftLayerVisible = window.localStorage.getItem("crestmap-aircraft-layer") !== "hidden";
     const listShell = document.getElementById("incident-list-shell");
     const list = document.getElementById("incident-list");
     const scrollIncidentsButton = document.getElementById("scroll-incidents");
     const detailsPanel = document.getElementById("details");
     const detailsCue = document.getElementById("details-cue");
-    window.chpLiveMap = {{ map, markers, aircraftMarkers, incidents, status: currentDataStatus }};
+    window.chpLiveMap = {{ map, markers, aircraftMarkers, aircraftTrails, incidents, status: currentDataStatus }};
 
     const mobileViewport = window.matchMedia("(max-width: 760px)");
 
@@ -3012,6 +3013,8 @@ def build_html(
     function clearAircraftMarkers() {{
       aircraftMarkers.forEach((marker) => marker.remove());
       aircraftMarkers.clear();
+      aircraftTrails.forEach((segments) => segments.forEach((segment) => segment.remove()));
+      aircraftTrails.clear();
     }}
 
     function renderAircraft(aircraft) {{
@@ -3019,6 +3022,24 @@ def build_html(
       if (!aircraftLayerVisible) return;
       (aircraft || []).forEach((item) => {{
         if (item.latitude == null || item.longitude == null) return;
+        const trailPoints = (item.trail || []).filter((point) =>
+          Array.isArray(point) && point.length === 2 && point[0] != null && point[1] != null
+        );
+        if (trailPoints.length > 1) {{
+          const segments = [];
+          for (let index = 1; index < trailPoints.length; index += 1) {{
+            const progress = index / (trailPoints.length - 1);
+            segments.push(L.polyline([trailPoints[index - 1], trailPoints[index]], {{
+              color: "#d6a000",
+              weight: 3,
+              opacity: 0.12 + (0.48 * progress),
+              interactive: false,
+              lineCap: "round",
+              lineJoin: "round"
+            }}).addTo(map));
+          }}
+          aircraftTrails.set(item.icao24, segments);
+        }}
         const marker = L.marker([item.latitude, item.longitude], {{
           icon: aircraftIcon(item),
           keyboard: false,

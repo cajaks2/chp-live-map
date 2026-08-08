@@ -396,6 +396,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'viewBox="0 0 32 24"' in aircraft_html
     assert "&#128641;" not in aircraft_html
     assert 'className: "aircraft-map-popup"' in aircraft_html
+    assert "const aircraftTrails = new Map()" in aircraft_html
+    assert "L.polyline([trailPoints[index - 1], trailPoints[index]]" in aircraft_html
+    assert "0.12 + (0.48 * progress)" in aircraft_html
 
     admin_html = build_html(
         incidents,

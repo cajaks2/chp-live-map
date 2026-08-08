@@ -283,6 +283,13 @@ def load_visible_aircraft(conn, now=None, delay_seconds=60, max_age_seconds=300)
     ).fetchall()
     aircraft = []
     seen = set()
+    trails = {}
+    for raw_row in rows:
+        row = dict(raw_row)
+        point = [row["latitude"], row["longitude"]]
+        trail = trails.setdefault(row["icao24"], [])
+        if not trail or trail[-1] != point:
+            trail.append(point)
     for raw_row in rows:
         row = dict(raw_row)
         if row["icao24"] in seen:
@@ -309,6 +316,7 @@ def load_visible_aircraft(conn, now=None, delay_seconds=60, max_age_seconds=300)
                 else None,
                 "heading": round(float(row["true_track"])) if row["true_track"] is not None else None,
                 "mission_confirmed": False,
+                "trail": list(reversed(trails.get(row["icao24"], []))),
             }
         )
     return aircraft

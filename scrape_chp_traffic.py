@@ -1447,6 +1447,42 @@ def init_database_sqlite(conn):
             FOREIGN KEY (event_key) REFERENCES push_notification_events(event_key) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS aircraft_positions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            icao24 TEXT NOT NULL,
+            registration TEXT NOT NULL,
+            aircraft_type TEXT NOT NULL,
+            display_name TEXT NOT NULL,
+            callsign TEXT,
+            observed_at TEXT NOT NULL,
+            fetched_at TEXT NOT NULL,
+            longitude REAL NOT NULL,
+            latitude REAL NOT NULL,
+            baro_altitude_m REAL,
+            geometric_altitude_m REAL,
+            velocity_mps REAL,
+            true_track REAL,
+            vertical_rate_mps REAL,
+            on_ground INTEGER NOT NULL DEFAULT 0,
+            source TEXT NOT NULL,
+            UNIQUE (icao24, observed_at)
+        );
+
+        CREATE TABLE IF NOT EXISTS aircraft_tracker_status (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            provider TEXT NOT NULL,
+            last_attempt_at TEXT NOT NULL,
+            last_success_at TEXT,
+            last_error TEXT NOT NULL DEFAULT '',
+            rate_limit_remaining INTEGER,
+            aircraft_in_box INTEGER NOT NULL DEFAULT 0,
+            matched_aircraft INTEGER NOT NULL DEFAULT 0,
+            candidate_callsigns INTEGER NOT NULL DEFAULT 0,
+            requests_total INTEGER NOT NULL DEFAULT 0,
+            errors_total INTEGER NOT NULL DEFAULT 0,
+            last_run_success INTEGER NOT NULL DEFAULT 0
+        );
+
         CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
         CREATE INDEX IF NOT EXISTS idx_events_center_status ON events(center, status);
         CREATE INDEX IF NOT EXISTS idx_observations_event ON observations(event_key, observed_at);
@@ -1457,6 +1493,8 @@ def init_database_sqlite(conn):
         CREATE INDEX IF NOT EXISTS idx_push_events_pending ON push_notification_events(completed_at, created_at);
         CREATE INDEX IF NOT EXISTS idx_push_tests_pending ON push_test_notifications(delivered_at, created_at);
         CREATE INDEX IF NOT EXISTS idx_push_deliveries_event ON push_deliveries(event_key, delivered_at);
+        CREATE INDEX IF NOT EXISTS idx_aircraft_positions_observed ON aircraft_positions(observed_at);
+        CREATE INDEX IF NOT EXISTS idx_aircraft_positions_identity ON aircraft_positions(icao24, observed_at);
         """
     )
     ensure_column_sqlite(conn, "scrape_runs", "total_seen", "INTEGER NOT NULL DEFAULT 0")
@@ -1650,6 +1688,44 @@ def init_database_postgres_locked(conn):
             UNIQUE (subscription_id, event_key)
         )
         """,
+        """
+        CREATE TABLE IF NOT EXISTS aircraft_positions (
+            id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            icao24 TEXT NOT NULL,
+            registration TEXT NOT NULL,
+            aircraft_type TEXT NOT NULL,
+            display_name TEXT NOT NULL,
+            callsign TEXT,
+            observed_at TEXT NOT NULL,
+            fetched_at TEXT NOT NULL,
+            longitude DOUBLE PRECISION NOT NULL,
+            latitude DOUBLE PRECISION NOT NULL,
+            baro_altitude_m DOUBLE PRECISION,
+            geometric_altitude_m DOUBLE PRECISION,
+            velocity_mps DOUBLE PRECISION,
+            true_track DOUBLE PRECISION,
+            vertical_rate_mps DOUBLE PRECISION,
+            on_ground BOOLEAN NOT NULL DEFAULT FALSE,
+            source TEXT NOT NULL,
+            UNIQUE (icao24, observed_at)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS aircraft_tracker_status (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            provider TEXT NOT NULL,
+            last_attempt_at TEXT NOT NULL,
+            last_success_at TEXT,
+            last_error TEXT NOT NULL DEFAULT '',
+            rate_limit_remaining INTEGER,
+            aircraft_in_box INTEGER NOT NULL DEFAULT 0,
+            matched_aircraft INTEGER NOT NULL DEFAULT 0,
+            candidate_callsigns INTEGER NOT NULL DEFAULT 0,
+            requests_total BIGINT NOT NULL DEFAULT 0,
+            errors_total BIGINT NOT NULL DEFAULT 0,
+            last_run_success BOOLEAN NOT NULL DEFAULT FALSE
+        )
+        """,
         "CREATE INDEX IF NOT EXISTS idx_events_status ON events(status)",
         "CREATE INDEX IF NOT EXISTS idx_events_center_status ON events(center, status)",
         "CREATE INDEX IF NOT EXISTS idx_observations_event ON observations(event_key, observed_at)",
@@ -1660,6 +1736,8 @@ def init_database_postgres_locked(conn):
         "CREATE INDEX IF NOT EXISTS idx_push_events_pending ON push_notification_events(completed_at, created_at)",
         "CREATE INDEX IF NOT EXISTS idx_push_tests_pending ON push_test_notifications(delivered_at, created_at)",
         "CREATE INDEX IF NOT EXISTS idx_push_deliveries_event ON push_deliveries(event_key, delivered_at)",
+        "CREATE INDEX IF NOT EXISTS idx_aircraft_positions_observed ON aircraft_positions(observed_at)",
+        "CREATE INDEX IF NOT EXISTS idx_aircraft_positions_identity ON aircraft_positions(icao24, observed_at)",
     ]
     for statement in statements:
         conn.execute(statement)

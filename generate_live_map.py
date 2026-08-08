@@ -770,7 +770,7 @@ def view_href(base_path, suffix, hours, region="forest"):
     return href_with_query(app_path(base_path, suffix), hours=f"{hours:g}", region=normalize_region(region))
 
 
-def view_menu(base_path, current, hours, region="forest", admin_mode=False):
+def view_menu(base_path, current, hours, region="forest", admin_mode=False, aircraft_tracking_enabled=False):
     current_suffix = {
         "map": "/",
         "summary": "/summary",
@@ -795,12 +795,23 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False):
             admin_href,
         ),
     ]
+    if current == "map" and aircraft_tracking_enabled:
+        items.insert(4, ("aircraft", "LASD helicopter", "Shown when airborne", None))
     rows = []
     for key, label, description, href in items:
         if key == "alerts":
             rows.append(
                 '<button type="button" class="view-menu-row" data-open-push-settings>'
                 '<span class="view-menu-label">{}</span>'
+                '<span class="view-menu-description">{}</span></button>'.format(
+                    html.escape(label), html.escape(description)
+                )
+            )
+            continue
+        if key == "aircraft":
+            rows.append(
+                '<button type="button" class="view-menu-row is-active" data-aircraft-layer-toggle '
+                'aria-pressed="true"><span class="view-menu-label">{}</span>'
                 '<span class="view-menu-description">{}</span></button>'.format(
                     html.escape(label), html.escape(description)
                 )
@@ -960,6 +971,7 @@ def build_html(
     media_enabled=False,
     media_max_video_bytes=100 * 1024 * 1024,
     media_max_video_seconds=60,
+    aircraft_tracking_enabled=False,
 ):
     region = normalize_region(region)
     map_label = region_label(region)
@@ -988,9 +1000,11 @@ def build_html(
         public_path = urlsplit(public_url).path.rstrip("/")
         status_endpoint = f"{public_path}/status.json" if public_path else "/status.json"
         incidents_endpoint = f"{public_path}/incidents.json" if public_path else "/incidents.json"
+        aircraft_endpoint = f"{public_path}/api/v1/aircraft" if public_path else "/api/v1/aircraft"
     else:
         status_endpoint = f"{asset_base}/status.json"
         incidents_endpoint = f"{asset_base}/incidents.json"
+        aircraft_endpoint = f"{asset_base}/api/v1/aircraft"
     admin_details_base = admin_details_base.rstrip("/")
     media_form_markup = """
                 <label class="comment-field media-picker">
@@ -1687,6 +1701,31 @@ def build_html(
     .incident-marker.is-pulsing.is-cleared .incident-marker-dot::after {{
       border-color: rgba(31, 104, 64, 0.62);
     }}
+    .aircraft-marker {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #6f4b00;
+      border-radius: 50%;
+      color: #392600;
+      background: #f6c84d;
+      box-shadow: 0 2px 8px rgba(24, 32, 38, 0.42);
+      font-size: 17px;
+      line-height: 1;
+    }}
+    .aircraft-marker span {{
+      display: block;
+      transform: translateY(-1px);
+    }}
+    .aircraft-popup-title {{
+      margin-bottom: 3px;
+      font-weight: 900;
+    }}
+    .aircraft-popup-note {{
+      margin-top: 5px;
+      color: #72510e;
+      font-weight: 800;
+    }}
     @keyframes selected-marker-pulse {{
       from {{
         opacity: 0.82;
@@ -2214,7 +2253,7 @@ def build_html(
       <header>
         <div class="title-row">
           <h1>CHP {html.escape(map_label)} Incidents</h1>
-          {view_menu(base_path, "map", hours, region, admin_mode=admin_mode)}
+          {view_menu(base_path, "map", hours, region, admin_mode=admin_mode, aircraft_tracking_enabled=aircraft_tracking_enabled)}
         </div>
         <div class="meta">{active_count} active · {status['total_count']} in last {hours:g}h · {mapped_count} mapped</div>
         <div class="meta checked-meta"><span>View last updated <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span><span aria-hidden="true">·</span>{scrape_meta_html(last_scrape)}<span aria-hidden="true">·</span>
@@ -2249,6 +2288,8 @@ def build_html(
     const initialDataStatus = {json.dumps(status, ensure_ascii=False)};
     const statusEndpoint = "{html.escape(status_endpoint)}";
     const incidentsEndpoint = "{html.escape(incidents_endpoint)}";
+    const aircraftEndpoint = "{html.escape(aircraft_endpoint)}";
+    const aircraftTrackingEnabled = {json.dumps(bool(aircraft_tracking_enabled))};
     const commentsBaseEndpoint = "/api/v1/incidents";
     const mediaEnabled = {json.dumps(bool(media_enabled))};
     const mediaMaxVideoBytes = {int(media_max_video_bytes)};
@@ -2296,12 +2337,14 @@ def build_html(
     baseLayer.addTo(map);
 
     const markers = new Map();
+    const aircraftMarkers = new Map();
+    let aircraftLayerVisible = window.localStorage.getItem("crestmap-aircraft-layer") !== "hidden";
     const listShell = document.getElementById("incident-list-shell");
     const list = document.getElementById("incident-list");
     const scrollIncidentsButton = document.getElementById("scroll-incidents");
     const detailsPanel = document.getElementById("details");
     const detailsCue = document.getElementById("details-cue");
-    window.chpLiveMap = {{ map, markers, incidents, status: currentDataStatus }};
+    window.chpLiveMap = {{ map, markers, aircraftMarkers, incidents, status: currentDataStatus }};
 
     const mobileViewport = window.matchMedia("(max-width: 760px)");
 
@@ -2859,6 +2902,89 @@ def build_html(
       }});
     }}
 
+    function aircraftIcon(aircraft) {{
+      const size = 34;
+      return L.divIcon({{
+        className: "aircraft-marker",
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+        html: '<span aria-hidden="true">&#128641;</span>'
+      }});
+    }}
+
+    function aircraftPopup(aircraft) {{
+      const detail = [
+        aircraft.callsign ? `Callsign ${{escapeHtml(aircraft.callsign)}}` : null,
+        aircraft.altitude_ft != null ? `${{aircraft.altitude_ft.toLocaleString()}} ft` : null,
+        aircraft.speed_kt != null ? `${{aircraft.speed_kt}} kt` : null,
+        aircraft.heading != null ? `${{aircraft.heading}}&deg;` : null
+      ].filter(Boolean).join(" · ");
+      return `
+        <div class="aircraft-popup-title">${{escapeHtml(aircraft.display_name || "LASD rescue helicopter")}}</div>
+        <div>${{escapeHtml(aircraft.registration || aircraft.icao24)}} · ${{escapeHtml(aircraft.aircraft_type || "")}}</div>
+        ${{detail ? `<div>${{detail}}</div>` : ""}}
+        <div>Position ${{Math.max(1, Math.round(Number(aircraft.age_seconds || 0) / 60))}} min old</div>
+        <div class="aircraft-popup-note">Mission not confirmed</div>
+      `;
+    }}
+
+    function clearAircraftMarkers() {{
+      aircraftMarkers.forEach((marker) => marker.remove());
+      aircraftMarkers.clear();
+    }}
+
+    function renderAircraft(aircraft) {{
+      clearAircraftMarkers();
+      if (!aircraftLayerVisible) return;
+      (aircraft || []).forEach((item) => {{
+        if (item.latitude == null || item.longitude == null) return;
+        const marker = L.marker([item.latitude, item.longitude], {{
+          icon: aircraftIcon(item),
+          keyboard: false,
+          title: `${{item.display_name || "LASD rescue helicopter"}} ${{item.registration || ""}}`.trim(),
+          zIndexOffset: 1000
+        }}).addTo(map);
+        marker.bindPopup(aircraftPopup(item), {{ closeButton: true }});
+        aircraftMarkers.set(item.icao24, marker);
+      }});
+    }}
+
+    async function fetchAircraftData() {{
+      if (!aircraftTrackingEnabled || document.visibilityState !== "visible") return;
+      try {{
+        const response = await fetch(aircraftEndpoint, {{
+          cache: "no-store",
+          headers: {{ "Accept": "application/json" }}
+        }});
+        if (!response.ok) return;
+        const payload = await response.json();
+        renderAircraft(payload.aircraft || []);
+      }} catch (_error) {{
+        // Keep the last visible position during transient API failures.
+      }}
+    }}
+
+    function setupAircraftLayer() {{
+      const button = document.querySelector("[data-aircraft-layer-toggle]");
+      if (!aircraftTrackingEnabled || !button) return;
+      const updateButton = () => {{
+        button.classList.toggle("is-active", aircraftLayerVisible);
+        button.setAttribute("aria-pressed", aircraftLayerVisible ? "true" : "false");
+        const description = button.querySelector(".view-menu-description");
+        if (description) description.textContent = aircraftLayerVisible ? "Shown when airborne" : "Hidden";
+      }};
+      updateButton();
+      button.addEventListener("click", () => {{
+        aircraftLayerVisible = !aircraftLayerVisible;
+        window.localStorage.setItem("crestmap-aircraft-layer", aircraftLayerVisible ? "shown" : "hidden");
+        updateButton();
+        if (aircraftLayerVisible) fetchAircraftData();
+        else clearAircraftMarkers();
+      }});
+      fetchAircraftData();
+      window.setInterval(fetchAircraftData, 30000);
+    }}
+
     function bindMarkerInteraction(marker, incident) {{
       let lastSelect = 0;
       const selectFromMarker = (event) => {{
@@ -3356,6 +3482,7 @@ def build_html(
     setupStaleRefresh();
     setupDoubleTapZoom();
     setupDetailsCuePosition();
+    setupAircraftLayer();
     list.addEventListener("scroll", updateListScrollCue, {{ passive: true }});
     scrollIncidentsButton?.addEventListener("click", scrollIncidentListDown);
     window.addEventListener("resize", updateListScrollCue);

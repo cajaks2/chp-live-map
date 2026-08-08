@@ -14,7 +14,7 @@ services:
       retries: 5
 
   web:
-    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.163}
+    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.164}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -26,7 +26,7 @@ services:
       HTTP_PORT: "8080"
       BASE_PATH: /
       PUBLIC_URL: https://crestmap.us/
-      SERVICE_VERSION: ${VERSION:-0.1.163}
+      SERVICE_VERSION: ${VERSION:-0.1.164}
       GOOGLE_ANALYTICS_ID: ${GOOGLE_ANALYTICS_ID:-}
       DATABASE_POOL_MIN: ${DATABASE_POOL_MIN:-1}
       DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-5}
@@ -40,18 +40,21 @@ services:
       R2_BUCKET: ${R2_BUCKET:-crestmap-media}
       R2_UPLOAD_TOKEN_SECRET: ${R2_UPLOAD_TOKEN_SECRET:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      AIRCRAFT_TRACKING_ENABLED: "true"
+      AIRCRAFT_DISPLAY_DELAY_SECONDS: ${AIRCRAFT_DISPLAY_DELAY_SECONDS:-60}
+      AIRCRAFT_MAX_AGE_SECONDS: ${AIRCRAFT_MAX_AGE_SECONDS:-300}
     ports:
       - "127.0.0.1:8080:8080"
 
   scrape:
-    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.163}
+    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.164}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      SERVICE_VERSION: ${VERSION:-0.1.163}
+      SERVICE_VERSION: ${VERSION:-0.1.164}
       CHP_SOURCE_MODE: ${CHP_SOURCE_MODE:-xml}
       CHP_XML_MAX_AGE_MINUTES: ${CHP_XML_MAX_AGE_MINUTES:-5}
       CHP_XML_SHADOW_COMPARE: ${CHP_XML_SHADOW_COMPARE:-false}
@@ -70,6 +73,23 @@ services:
       - "60"
       - --detail-refresh-minutes
       - "3"
+
+  aircraft:
+    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.164}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SERVICE_VERSION: ${VERSION:-0.1.164}
+      OPENSKY_CLIENT_ID: ${OPENSKY_CLIENT_ID:-}
+      OPENSKY_CLIENT_SECRET: ${OPENSKY_CLIENT_SECRET:-}
+      AIRCRAFT_POLL_SECONDS: ${AIRCRAFT_POLL_SECONDS:-30}
+      AIRCRAFT_RETENTION_HOURS: ${AIRCRAFT_RETENTION_HOURS:-24}
+    command:
+      - python3
+      - /app/aircraft_tracking.py
 
   postgres-backup:
     image: postgres:16

@@ -7,7 +7,7 @@ SCRAPER_HEALTH_URL ?= http://127.0.0.1:8081/healthz
 PUBLIC_URL ?= https://crestmap.us/
 ENV_FILE ?= .env
 
-.PHONY: help init ps pull up deploy deploy-app deploy-full restart-web restart-scrape logs logs-web logs-scrape health verify metrics backup set-version
+.PHONY: help init ps pull up deploy deploy-app deploy-full restart-web restart-scrape restart-aircraft logs logs-web logs-scrape logs-aircraft health verify metrics backup set-version
 
 help:
 	@printf '%s\n' \
@@ -21,9 +21,11 @@ help:
 		'  make deploy-full          Recreate the full stack, including dependencies' \
 		'  make restart-web          Restart only web without dependencies' \
 		'  make restart-scrape       Restart only scrape without dependencies' \
+		'  make restart-aircraft     Restart only aircraft tracking without dependencies' \
 		'  make logs                 Tail all service logs' \
 		'  make logs-web             Tail web logs' \
 		'  make logs-scrape          Tail scraper logs' \
+		'  make logs-aircraft        Tail aircraft tracker logs' \
 		'  make health               Check local web and scraper health endpoints' \
 		'  make verify               Check health and public page' \
 		'  make metrics              Print web and scraper metrics headers' \
@@ -37,7 +39,7 @@ ps:
 	$(COMPOSE) ps
 
 pull:
-	$(COMPOSE) pull web scrape
+	$(COMPOSE) pull web scrape aircraft
 
 up: init
 	$(COMPOSE) up -d
@@ -46,7 +48,7 @@ up: init
 deploy: set-version pull deploy-app verify
 
 deploy-app:
-	$(COMPOSE) up -d --no-deps web scrape
+	$(COMPOSE) up -d --no-deps web scrape aircraft
 	$(COMPOSE) up -d --no-deps postgres-backup
 	$(COMPOSE) ps
 
@@ -64,6 +66,10 @@ restart-scrape:
 	$(COMPOSE) up -d --no-deps --force-recreate scrape
 	$(MAKE) health
 
+restart-aircraft:
+	$(COMPOSE) up -d --no-deps --force-recreate aircraft
+	$(COMPOSE) ps aircraft
+
 logs:
 	$(COMPOSE) logs -f --tail=100
 
@@ -72,6 +78,9 @@ logs-web:
 
 logs-scrape:
 	$(COMPOSE) logs -f --tail=100 scrape
+
+logs-aircraft:
+	$(COMPOSE) logs -f --tail=100 aircraft
 
 health:
 	curl -fsS "$(WEB_HEALTH_URL)"

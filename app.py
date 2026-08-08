@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, unquote, urlencode, urlsplit
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 
+from aircraft_tracking import load_tracker_status, load_visible_aircraft
 from comments import (
     CommentValidationError,
     comment_status_counts,
@@ -91,6 +92,9 @@ class WebSettings:
     media_max_video_bytes: int = 100 * 1024 * 1024
     media_max_video_seconds: int = 60
     vapid_public_key: str | None = None
+    aircraft_tracking_enabled: bool = False
+    aircraft_display_delay_seconds: int = 60
+    aircraft_max_age_seconds: int = 300
 
     @classmethod
     def from_env(cls):
@@ -117,6 +121,12 @@ class WebSettings:
             media_max_video_bytes=int(os.environ.get("MEDIA_MAX_VIDEO_BYTES", str(100 * 1024 * 1024))),
             media_max_video_seconds=int(os.environ.get("MEDIA_MAX_VIDEO_SECONDS", "60")),
             vapid_public_key=os.environ.get("VAPID_PUBLIC_KEY") or None,
+            aircraft_tracking_enabled=os.environ.get("AIRCRAFT_TRACKING_ENABLED", "false").lower()
+            in {"1", "true", "yes", "on"},
+            aircraft_display_delay_seconds=max(
+                0, int(os.environ.get("AIRCRAFT_DISPLAY_DELAY_SECONDS", "60"))
+            ),
+            aircraft_max_age_seconds=max(60, int(os.environ.get("AIRCRAFT_MAX_AGE_SECONDS", "300"))),
         )
 
 
@@ -218,6 +228,8 @@ def route_label(path, settings):
         return "status"
     if path in {"/incidents.json", f"{asset_base}/incidents.json"}:
         return "incidents"
+    if path in {"/api/v1/aircraft", f"{asset_base}/api/v1/aircraft"}:
+        return "aircraft"
     if path in {"/admin/comments", f"{asset_base}/admin/comments"}:
         return "admin_comments"
     if path in {
@@ -927,6 +939,7 @@ def dispatch_request(request, send_body=True):
     about_paths = {"/about", f"{asset_base}/about"}
     status_paths = {"/status.json", f"{asset_base}/status.json"}
     incidents_paths = {"/incidents.json", f"{asset_base}/incidents.json"}
+    aircraft_paths = {"/api/v1/aircraft", f"{asset_base}/api/v1/aircraft"}
     robots_paths = {"/robots.txt", f"{asset_base}/robots.txt"}
     sitemap_paths = {"/sitemap.xml", f"{asset_base}/sitemap.xml"}
     metrics_paths = {"/metrics", f"{asset_base}/metrics"}
@@ -1150,6 +1163,43 @@ def dispatch_request(request, send_body=True):
             )
         return json_response(payload, cache_control=web.INCIDENTS_CACHE_CONTROL, send_body=send_body)
 
+    if path in aircraft_paths:
+        now = dt.datetime.now(dt.timezone.utc)
+        try:
+            with writable_database_connection(request.app) as conn:
+                aircraft = (
+                    load_visible_aircraft(
+                        conn,
+                        now=now,
+                        delay_seconds=settings.aircraft_display_delay_seconds,
+                        max_age_seconds=settings.aircraft_max_age_seconds,
+                    )
+                    if settings.aircraft_tracking_enabled and conn is not None
+                    else []
+                )
+                tracker = load_tracker_status(conn) if conn is not None else None
+        except Exception as exc:
+            web.log_exception("Failed to render aircraft API", exc, **{"event.action": "aircraft_api"})
+            return api_error("aircraft data is unavailable", "aircraft_unavailable", 503, send_body)
+        return json_response(
+            {
+                "enabled": settings.aircraft_tracking_enabled,
+                "aircraft": aircraft,
+                "checked_at": now.isoformat(timespec="seconds"),
+                "display_delay_seconds": settings.aircraft_display_delay_seconds,
+                "max_age_seconds": settings.aircraft_max_age_seconds,
+                "tracker": {
+                    "provider": tracker.get("provider"),
+                    "last_success_at": tracker.get("last_success_at"),
+                    "last_run_success": bool(tracker.get("last_run_success")),
+                }
+                if tracker
+                else None,
+            },
+            cache_control="private, max-age=10",
+            send_body=send_body,
+        )
+
     if path not in map_paths and path not in summary_paths and path not in history_paths and path not in about_paths:
         return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404, send_body=send_body)
 
@@ -1220,6 +1270,7 @@ def dispatch_request(request, send_body=True):
                 media_enabled=media_enabled(settings),
                 media_max_video_bytes=settings.media_max_video_bytes,
                 media_max_video_seconds=settings.media_max_video_seconds,
+                aircraft_tracking_enabled=settings.aircraft_tracking_enabled,
             ).encode("utf-8")
     except Exception as exc:
         web.log_exception(

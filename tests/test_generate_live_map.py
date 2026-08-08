@@ -378,6 +378,17 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "data-hidden-details-toggle" in html
     assert "const adminMode = false" in html
 
+    aircraft_html = build_html(
+        incidents,
+        "2026-05-31T08:05:00-07:00",
+        72,
+        aircraft_tracking_enabled=True,
+    )
+    assert 'data-aircraft-layer-toggle' in aircraft_html
+    assert 'const aircraftEndpoint = "/api/v1/aircraft"' in aircraft_html
+    assert "function fetchAircraftData" in aircraft_html
+    assert "Mission not confirmed" in aircraft_html
+
     admin_html = build_html(
         incidents,
         "2026-05-31T08:05:00-07:00",

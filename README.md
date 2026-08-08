@@ -170,7 +170,7 @@ docker run --rm -p 8080:8080 -v "$PWD:/data" chp-live-map:latest \
   sh -c 'DATABASE=/data/chp_traffic.sqlite exec gunicorn app:app -k uvicorn.workers.UvicornWorker --workers 1 --bind 0.0.0.0:8080 --access-logfile /dev/null --error-logfile -'
 ```
 
-The default container command serves the dynamic FastAPI web app through gunicorn on port `8080`. In Kubernetes, scraping is handled by a separate long-lived scraper Deployment that polls every minute and exposes metrics on port `8081`.
+The default container command serves the dynamic FastAPI web app through gunicorn on port `8080`. In Kubernetes, scraping and rescue-aircraft tracking run as separate long-lived Deployments so either upstream feed can fail independently.
 
 For the pushed Kubernetes image workflow, use the Makefile:
 
@@ -206,6 +206,7 @@ The manifest creates:
 - PVC `chp-live-map-postgres-data`
 - Postgres StatefulSet and service
 - scraper Deployment that runs continuously, polls every minute, and exposes metrics
+- OpenSky aircraft tracker Deployment that polls every 30 seconds
 - web Deployment and service
 
 Edit `POSTGRES_PASSWORD` and `DATABASE_URL` in the manifest before using it outside a local/private cluster.
@@ -222,7 +223,20 @@ docker compose up -d
 
 The VM needs Docker Compose and `make` installed for the checked-in deployment helpers.
 
-The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, a long-lived XML-mode scraper service that polls every minute and exposes scraper metrics on `127.0.0.1:8081`, and a Postgres backup sidecar. nginx should remain the TLS front door and proxy `crestmap.us` to `http://127.0.0.1:8080`.
+The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, a long-lived XML-mode scraper, an OpenSky aircraft tracker, and a Postgres backup sidecar. nginx should remain the TLS front door and proxy `crestmap.us` to `http://127.0.0.1:8080`.
+
+### LASD rescue-aircraft tracking
+
+The optional map layer tracks the verified LASD AS332L1 registrations N950JE, N951LB, and N952JH. Positions are fetched server-side from OpenSky, delayed by 60 seconds, hidden after five minutes, and labeled as mission-unconfirmed. Configure the tracker with:
+
+```sh
+OPENSKY_CLIENT_ID=your-client-id
+OPENSKY_CLIENT_SECRET=your-client-secret
+AIRCRAFT_TRACKING_ENABLED=true
+AIRCRAFT_POLL_SECONDS=30
+```
+
+The browser reads delayed positions from `/api/v1/aircraft`; OpenSky credentials are never sent to clients.
 
 Backups are written as compressed custom-format `pg_dump` files under `/opt/chp-live-map/backups/postgres` every six hours by default. Tune `BACKUP_INTERVAL_SECONDS` and `BACKUP_RETENTION_DAYS` in `.env`.
 
@@ -262,7 +276,7 @@ make logs-web
 make backup
 ```
 
-The checked-in helper `deploy/digitalocean/deploy-compose.sh` runs `make deploy`. The deploy target uses `docker compose up -d --no-deps web scrape` so Postgres stays running during normal web/scraper deploys and the visible site interruption window is smaller.
+The checked-in helper `deploy/digitalocean/deploy-compose.sh` runs `make deploy`. The deploy target uses `docker compose up -d --no-deps web scrape aircraft` so Postgres stays running during normal app deploys and the visible site interruption window is smaller.
 
 The web service also exposes:
 

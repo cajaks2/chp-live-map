@@ -13,6 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
+from aircraft_tracking import load_tracker_status, load_visible_aircraft
 from comments import COMMENT_SUBMISSIONS_TOTAL, pending_count
 from ecs_logging import log_event, log_exception, run_main
 from push_notifications import CATEGORIES as PUSH_CATEGORIES, REGIONS as PUSH_AREAS
@@ -418,6 +419,8 @@ def load_push_metric_status(conn):
 def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None):
     comments_pending = 0
     push_status = empty_push_metric_status()
+    aircraft_status = None
+    visible_aircraft = 0
     if not database_url and not database.exists():
         status = empty_metric_status(hours)
         region_statuses = {region: empty_metric_status(hours) for region in METRIC_REGIONS}
@@ -447,6 +450,8 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
             }
             comments_pending = pending_count(conn)
             push_status = load_push_metric_status(conn)
+            aircraft_status = load_tracker_status(conn)
+            visible_aircraft = len(load_visible_aircraft(conn))
         finally:
             if should_close:
                 conn.close()
@@ -561,6 +566,58 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
                 ),
             ]
         )
+    lines.extend(
+        [
+            "# HELP chp_live_map_aircraft_tracker_up Whether the latest aircraft tracker poll succeeded.",
+            "# TYPE chp_live_map_aircraft_tracker_up gauge",
+            metric_line(
+                "chp_live_map_aircraft_tracker_up",
+                1 if aircraft_status and aircraft_status.get("last_run_success") else 0,
+            ),
+            "# HELP chp_live_map_aircraft_tracker_requests_total OpenSky tracker requests attempted.",
+            "# TYPE chp_live_map_aircraft_tracker_requests_total counter",
+            metric_line(
+                "chp_live_map_aircraft_tracker_requests_total",
+                aircraft_status.get("requests_total", 0) if aircraft_status else 0,
+            ),
+            "# HELP chp_live_map_aircraft_tracker_errors_total OpenSky tracker request failures.",
+            "# TYPE chp_live_map_aircraft_tracker_errors_total counter",
+            metric_line(
+                "chp_live_map_aircraft_tracker_errors_total",
+                aircraft_status.get("errors_total", 0) if aircraft_status else 0,
+            ),
+            "# HELP chp_live_map_aircraft_tracker_rate_limit_remaining OpenSky credits remaining.",
+            "# TYPE chp_live_map_aircraft_tracker_rate_limit_remaining gauge",
+            metric_line(
+                "chp_live_map_aircraft_tracker_rate_limit_remaining",
+                aircraft_status.get("rate_limit_remaining", 0) if aircraft_status else 0,
+            ),
+            "# HELP chp_live_map_aircraft_tracker_aircraft Aircraft counts from the latest poll and public delayed view.",
+            "# TYPE chp_live_map_aircraft_tracker_aircraft gauge",
+            metric_line(
+                "chp_live_map_aircraft_tracker_aircraft",
+                aircraft_status.get("aircraft_in_box", 0) if aircraft_status else 0,
+                {"kind": "in_box"},
+            ),
+            metric_line(
+                "chp_live_map_aircraft_tracker_aircraft",
+                aircraft_status.get("matched_aircraft", 0) if aircraft_status else 0,
+                {"kind": "matched"},
+            ),
+            metric_line(
+                "chp_live_map_aircraft_tracker_aircraft",
+                aircraft_status.get("candidate_callsigns", 0) if aircraft_status else 0,
+                {"kind": "candidate_callsigns"},
+            ),
+            metric_line("chp_live_map_aircraft_tracker_aircraft", visible_aircraft, {"kind": "visible"}),
+            "# HELP chp_live_map_aircraft_tracker_last_success_timestamp_seconds Latest successful OpenSky poll.",
+            "# TYPE chp_live_map_aircraft_tracker_last_success_timestamp_seconds gauge",
+            metric_line(
+                "chp_live_map_aircraft_tracker_last_success_timestamp_seconds",
+                f"{parse_timestamp(aircraft_status.get('last_success_at') if aircraft_status else None):.3f}",
+            ),
+        ]
+    )
     lines.extend(
         [
             "# HELP chp_live_map_push_subscriptions Stored Web Push subscriptions by status.",

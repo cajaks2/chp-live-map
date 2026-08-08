@@ -17,6 +17,8 @@ stringData:
   ADMIN_USERNAME: admin
   ADMIN_PASSWORD: change-me
   ADMIN_SESSION_SECRET: change-me-too
+  OPENSKY_CLIENT_ID: ""
+  OPENSKY_CLIENT_SECRET: ""
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -138,7 +140,7 @@ spec:
     spec:
       containers:
         - name: scrape
-          image: cajaks2/chp-live-map:0.1.163
+          image: cajaks2/chp-live-map:0.1.164
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -157,7 +159,7 @@ spec:
                   name: chp-live-map-db
                   key: DATABASE_URL
             - name: SERVICE_VERSION
-              value: "0.1.163"
+              value: "0.1.164"
             - name: CHP_USER_AGENT
               value: "chp-live-map/0.1 (+https://crestmap.us/)"
             - name: CHP_SOURCE_MODE
@@ -217,6 +219,60 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: chp-live-map-aircraft
+  namespace: chp-live-map
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: chp-live-map-aircraft
+  template:
+    metadata:
+      labels:
+        app: chp-live-map-aircraft
+    spec:
+      containers:
+        - name: aircraft
+          image: cajaks2/chp-live-map:0.1.164
+          imagePullPolicy: IfNotPresent
+          command:
+            - python3
+            - /app/aircraft_tracking.py
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: chp-live-map-db
+                  key: DATABASE_URL
+            - name: SERVICE_VERSION
+              value: "0.1.164"
+            - name: OPENSKY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: chp-live-map-db
+                  key: OPENSKY_CLIENT_ID
+            - name: OPENSKY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: chp-live-map-db
+                  key: OPENSKY_CLIENT_SECRET
+            - name: AIRCRAFT_POLL_SECONDS
+              value: "30"
+            - name: AIRCRAFT_RETENTION_HOURS
+              value: "24"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 48Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
   name: chp-live-map-web
   namespace: chp-live-map
 spec:
@@ -231,7 +287,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: cajaks2/chp-live-map:0.1.163
+          image: cajaks2/chp-live-map:0.1.164
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -251,7 +307,7 @@ spec:
             - name: HTTP_PORT
               value: "8080"
             - name: SERVICE_VERSION
-              value: "0.1.163"
+              value: "0.1.164"
             - name: BASE_PATH
               value: /
             - name: PUBLIC_URL
@@ -264,6 +320,12 @@ spec:
                   name: chp-live-map-db
                   key: VAPID_PUBLIC_KEY
                   optional: true
+            - name: AIRCRAFT_TRACKING_ENABLED
+              value: "true"
+            - name: AIRCRAFT_DISPLAY_DELAY_SECONDS
+              value: "60"
+            - name: AIRCRAFT_MAX_AGE_SECONDS
+              value: "300"
             - name: WEB_WORKERS
               value: "1"
             - name: ADMIN_USERNAME

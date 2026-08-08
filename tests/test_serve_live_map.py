@@ -1,5 +1,6 @@
 import json
 import base64
+import datetime as dt
 
 from fastapi.testclient import TestClient
 
@@ -12,6 +13,7 @@ from app import (
     create_app,
     valid_admin_session_token,
 )
+from aircraft_tracking import save_position
 from push_notifications import (
     deactivate_subscription,
     enqueue_incidents,
@@ -397,6 +399,45 @@ def test_prometheus_metrics_include_pool_stats(tmp_path):
     assert 'chp_live_map_db_pool_connections{state="available"} 2' in body
     assert 'chp_live_map_db_pool_connections{state="in_use"} 1' in body
     assert "chp_live_map_db_pool_requests_waiting 4" in body
+
+
+def test_aircraft_api_returns_delayed_verified_position(tmp_path):
+    database = tmp_path / "chp.sqlite"
+    conn = connect_database(database)
+    observed_at = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=90)).isoformat(timespec="seconds")
+    save_position(
+        conn,
+        {
+            "icao24": "ad395a",
+            "registration": "N951LB",
+            "aircraft_type": "AS332L1",
+            "display_name": "LASD rescue helicopter",
+            "callsign": "AIR5",
+            "observed_at": observed_at,
+            "fetched_at": observed_at,
+            "longitude": -118.12,
+            "latitude": 34.31,
+            "baro_altitude_m": 1200.0,
+            "geometric_altitude_m": 1250.0,
+            "velocity_mps": 55.0,
+            "true_track": 275.0,
+            "vertical_rate_mps": 1.5,
+            "on_ground": False,
+            "source": "opensky",
+        },
+    )
+    conn.commit()
+    conn.close()
+
+    with make_client(database, aircraft_tracking_enabled=True) as client:
+        response = client.get("/api/v1/aircraft")
+        map_response = client.get("/")
+
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "private, max-age=10"
+    assert response.json()["aircraft"][0]["registration"] == "N951LB"
+    assert response.json()["aircraft"][0]["mission_confirmed"] is False
+    assert 'data-aircraft-layer-toggle' in map_response.text
 
 
 def test_prometheus_metrics_include_push_breakdowns(tmp_path):

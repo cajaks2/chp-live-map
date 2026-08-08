@@ -2523,6 +2523,9 @@ def build_html(
       let checkInFlight = false;
       let lastCheckedAt = 0;
       let lastHealthyCheckAt = generatedTime;
+      let hiddenAt = document.visibilityState === "hidden" ? Date.now() : 0;
+      let resumeRefreshInFlight = false;
+      let lastResumeRefreshAt = 0;
       autoRefreshToggle.checked = window.localStorage.getItem("chp-auto-refresh") === "enabled";
       const refresh = () => fetchIncidentData({{ force: true, preserveViewport: true }});
       refreshButton.addEventListener("click", refresh);
@@ -2539,6 +2542,24 @@ def build_html(
       }};
       const hideNotice = () => {{
         notice.classList.remove("is-visible");
+      }};
+      const refreshAfterResume = async () => {{
+        const now = Date.now();
+        if (resumeRefreshInFlight || now - lastResumeRefreshAt < 15000) {{
+          return;
+        }}
+        resumeRefreshInFlight = true;
+        lastResumeRefreshAt = now;
+        try {{
+          await fetchIncidentData({{ force: true, preserveViewport: true }});
+          dismissed = false;
+          lastHealthyCheckAt = Date.now();
+          hideNotice();
+        }} catch (_error) {{
+          // The normal stale checker will surface persistent connection failures.
+        }} finally {{
+          resumeRefreshInFlight = false;
+        }}
       }};
       const checkForUpdates = async () => {{
         if (dismissed || checkInFlight) {{
@@ -2600,6 +2621,21 @@ def build_html(
       }};
       update();
       window.setInterval(update, 15000);
+      document.addEventListener("visibilitychange", () => {{
+        if (document.visibilityState === "hidden") {{
+          hiddenAt = Date.now();
+          return;
+        }}
+        if (hiddenAt) {{
+          hiddenAt = 0;
+          refreshAfterResume();
+        }}
+      }});
+      window.addEventListener("pageshow", (event) => {{
+        if (event.persisted) {{
+          refreshAfterResume();
+        }}
+      }});
     }}
 
     function formatIncidentWhen(incident) {{

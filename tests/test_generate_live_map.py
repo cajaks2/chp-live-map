@@ -447,6 +447,12 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'dismissButton.addEventListener("click"' in html
     assert "function setupStaleRefresh" in html
     assert "healthAgeMs > 180000" in html
+    assert 'document.addEventListener("visibilitychange"' in html
+    assert 'window.addEventListener("pageshow"' in html
+    assert "event.persisted" in html
+    assert "function setupStaleRefresh" in html
+    assert "refreshAfterResume" in html
+    assert "lastResumeRefreshAt < 15000" in html
     assert "function focusedCommentFormFor" in html
     assert "preserveFocusedComment: true" in html
     assert "detailsPanel.dataset.selectedIncidentKey === incident.event_key" in html

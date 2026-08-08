@@ -1729,11 +1729,6 @@ def build_html(
       font-size: 13px;
       font-weight: 900;
     }}
-    .aircraft-popup-note {{
-      margin-top: 5px;
-      color: #72510e;
-      font-weight: 800;
-    }}
     .aircraft-map-popup .leaflet-popup-content-wrapper {{
       border: 1px solid rgba(93, 104, 96, 0.28);
       border-radius: 10px;
@@ -2956,7 +2951,6 @@ def build_html(
         <div>${{escapeHtml(aircraft.registration || aircraft.icao24)}} · ${{escapeHtml(aircraft.aircraft_type || "")}}</div>
         ${{detail ? `<div>${{detail}}</div>` : ""}}
         <div>Position ${{Math.max(1, Math.round(Number(aircraft.age_seconds || 0) / 60))}} min old</div>
-        <div class="aircraft-popup-note">Mission not confirmed</div>
       `;
     }}
 

@@ -227,16 +227,19 @@ The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, a long-lived X
 
 ### LASD rescue-aircraft tracking
 
-The optional map layer tracks the verified LASD AS332L1 registrations N950JE, N951LB, and N952JH. Positions are fetched server-side from OpenSky, delayed by 60 seconds, hidden after five minutes, and labeled as mission-unconfirmed. Configure the tracker with:
+The optional map layer tracks the verified LASD AS332L1 registrations N950JE, N951LB, and N952JH. Positions are fetched server-side from OpenSky and delayed by 60 seconds. A helicopter disappears when its latest delayed position is more than five minutes old; while it is current, the map shows up to 30 minutes of delayed trail history. Configure the tracker with:
 
 ```sh
 OPENSKY_CLIENT_ID=your-client-id
 OPENSKY_CLIENT_SECRET=your-client-secret
 AIRCRAFT_TRACKING_ENABLED=true
 AIRCRAFT_POLL_SECONDS=30
+AIRCRAFT_MAX_AGE_SECONDS=300
+AIRCRAFT_TRAIL_AGE_SECONDS=1800
+AIRCRAFT_RETENTION_HOURS=24
 ```
 
-The browser reads delayed positions from `/api/v1/aircraft`; OpenSky credentials are never sent to clients.
+The browser reads delayed positions from `/api/v1/aircraft`; OpenSky credentials are never sent to clients. The tracker deletes database positions older than `AIRCRAFT_RETENTION_HOURS` after each successful poll.
 
 Backups are written as compressed custom-format `pg_dump` files under `/opt/chp-live-map/backups/postgres` every six hours by default. Tune `BACKUP_INTERVAL_SECONDS` and `BACKUP_RETENTION_DAYS` in `.env`.
 

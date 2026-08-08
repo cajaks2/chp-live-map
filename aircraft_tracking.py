@@ -268,35 +268,44 @@ def cleanup_positions(conn, before):
     )
 
 
-def load_visible_aircraft(conn, now=None, delay_seconds=60, max_age_seconds=300):
+def load_visible_aircraft(
+    conn,
+    now=None,
+    delay_seconds=60,
+    max_age_seconds=300,
+    trail_age_seconds=1800,
+):
     now = now or utc_now()
     newest = iso_timestamp(now - dt.timedelta(seconds=max(0, delay_seconds)))
-    oldest = iso_timestamp(now - dt.timedelta(seconds=max_age_seconds))
+    trail_age_seconds = max(max_age_seconds, trail_age_seconds)
+    oldest = iso_timestamp(now - dt.timedelta(seconds=trail_age_seconds))
     marker = placeholder(conn)
     rows = conn.execute(
         f"""
         SELECT * FROM aircraft_positions
-        WHERE observed_at <= {marker} AND observed_at >= {marker} AND on_ground = {marker}
+        WHERE observed_at <= {marker} AND observed_at >= {marker}
         ORDER BY observed_at DESC
         """,
-        (newest, oldest, False if is_postgres(conn) else 0),
+        (newest, oldest),
     ).fetchall()
     aircraft = []
-    seen = set()
-    trails = {}
+    positions = {}
     for raw_row in rows:
         row = dict(raw_row)
-        point = [row["latitude"], row["longitude"]]
-        trail = trails.setdefault(row["icao24"], [])
-        if not trail or trail[-1] != point:
-            trail.append(point)
-    for raw_row in rows:
-        row = dict(raw_row)
-        if row["icao24"] in seen:
-            continue
-        seen.add(row["icao24"])
+        positions.setdefault(row["icao24"], []).append(row)
+    for aircraft_rows in positions.values():
+        row = aircraft_rows[0]
         observed = dt.datetime.fromisoformat(row["observed_at"])
         age_seconds = max(0, int((now - observed).total_seconds()))
+        if age_seconds > max_age_seconds or row["on_ground"]:
+            continue
+        trail = []
+        for trail_row in reversed(aircraft_rows):
+            if trail_row["on_ground"]:
+                continue
+            point = [trail_row["latitude"], trail_row["longitude"]]
+            if not trail or trail[-1] != point:
+                trail.append(point)
         aircraft.append(
             {
                 "icao24": row["icao24"],
@@ -316,7 +325,7 @@ def load_visible_aircraft(conn, now=None, delay_seconds=60, max_age_seconds=300)
                 else None,
                 "heading": round(float(row["true_track"])) if row["true_track"] is not None else None,
                 "mission_confirmed": False,
-                "trail": list(reversed(trails.get(row["icao24"], []))),
+                "trail": trail,
             }
         )
     return aircraft

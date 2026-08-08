@@ -114,3 +114,42 @@ def test_visible_aircraft_respects_delay_and_stale_cutoff(tmp_path):
     conn = connect_database(database)
     assert load_visible_aircraft(conn, now=now, delay_seconds=60, max_age_seconds=300) == []
     conn.close()
+
+
+def test_visible_aircraft_keeps_longer_trail_behind_fresh_marker(tmp_path):
+    now = dt.datetime(2026, 8, 7, 21, 35, tzinfo=dt.timezone.utc)
+
+    class FakeClient:
+        def __init__(self, observed_at, latitude, longitude):
+            self.observed_at = observed_at
+            self.latitude = latitude
+            self.longitude = longitude
+
+        def states(self, _bounds):
+            return {
+                "states": [
+                    state_vector(
+                        observed_at=int(self.observed_at.timestamp()),
+                        latitude=self.latitude,
+                        longitude=self.longitude,
+                    )
+                ]
+            }, "3900"
+
+    database = tmp_path / "aircraft-trail.sqlite"
+    settings = TrackerSettings(database=database)
+    run_once(settings, client=FakeClient(now - dt.timedelta(minutes=20), 34.20, -118.20), now=now)
+    run_once(settings, client=FakeClient(now - dt.timedelta(seconds=90), 34.31, -118.12), now=now)
+
+    conn = connect_database(database)
+    visible = load_visible_aircraft(
+        conn,
+        now=now,
+        delay_seconds=60,
+        max_age_seconds=300,
+        trail_age_seconds=1800,
+    )
+    conn.close()
+
+    assert visible[0]["age_seconds"] == 90
+    assert visible[0]["trail"] == [[34.2, -118.2], [34.31, -118.12]]

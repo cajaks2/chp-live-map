@@ -440,6 +440,7 @@ def test_aircraft_api_returns_delayed_verified_position(tmp_path):
     assert response.json()["aircraft"][0]["registration"] == "N951LB"
     assert response.json()["aircraft"][0]["mission_confirmed"] is False
     assert response.json()["aircraft"][0]["trail"] == [[34.31, -118.12]]
+    assert response.json()["trail_age_seconds"] == 1800
     assert 'data-aircraft-layer-toggle' in map_response.text
 
 

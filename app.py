@@ -95,6 +95,7 @@ class WebSettings:
     aircraft_tracking_enabled: bool = False
     aircraft_display_delay_seconds: int = 60
     aircraft_max_age_seconds: int = 300
+    aircraft_trail_age_seconds: int = 1800
     service_version: str = "dev"
 
     @classmethod
@@ -128,6 +129,9 @@ class WebSettings:
                 0, int(os.environ.get("AIRCRAFT_DISPLAY_DELAY_SECONDS", "60"))
             ),
             aircraft_max_age_seconds=max(60, int(os.environ.get("AIRCRAFT_MAX_AGE_SECONDS", "300"))),
+            aircraft_trail_age_seconds=max(
+                60, int(os.environ.get("AIRCRAFT_TRAIL_AGE_SECONDS", "1800"))
+            ),
             service_version=os.environ.get("SERVICE_VERSION", "dev"),
         )
 
@@ -1176,6 +1180,7 @@ def dispatch_request(request, send_body=True):
                         now=now,
                         delay_seconds=settings.aircraft_display_delay_seconds,
                         max_age_seconds=settings.aircraft_max_age_seconds,
+                        trail_age_seconds=settings.aircraft_trail_age_seconds,
                     )
                     if settings.aircraft_tracking_enabled and conn is not None
                     else []
@@ -1191,6 +1196,7 @@ def dispatch_request(request, send_body=True):
                 "checked_at": now.isoformat(timespec="seconds"),
                 "display_delay_seconds": settings.aircraft_display_delay_seconds,
                 "max_age_seconds": settings.aircraft_max_age_seconds,
+                "trail_age_seconds": settings.aircraft_trail_age_seconds,
                 "tracker": {
                     "provider": tracker.get("provider"),
                     "last_success_at": tracker.get("last_success_at"),

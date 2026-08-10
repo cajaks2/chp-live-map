@@ -19,9 +19,76 @@ OPENSKY_TOKEN_URL = (
 OPENSKY_STATES_URL = "https://opensky-network.org/api/states/all"
 DEFAULT_BOUNDS = (33.60, 34.80, -119.10, -117.30)
 DEFAULT_RESCUE_AIRCRAFT = {
-    "ad3574": {"registration": "N950JE", "aircraft_type": "AS332L1"},
-    "ad395a": {"registration": "N951LB", "aircraft_type": "AS332L1"},
-    "ad3ce5": {"registration": "N952JH", "aircraft_type": "AS332L1"},
+    "ad3574": {
+        "registration": "N950JE",
+        "aircraft_type": "AS332L1",
+        "display_name": "LASD rescue helicopter",
+    },
+    "ad395a": {
+        "registration": "N951LB",
+        "aircraft_type": "AS332L1",
+        "display_name": "LASD rescue helicopter",
+    },
+    "ad3ce5": {
+        "registration": "N952JH",
+        "aircraft_type": "AS332L1",
+        "display_name": "LASD rescue helicopter",
+    },
+    "a02d2e": {
+        "registration": "N110LA",
+        "aircraft_type": "Bell 412EP",
+        "display_name": "LA County Fire helicopter",
+    },
+    "a054ad": {
+        "registration": "N120LA",
+        "aircraft_type": "Bell 412EP",
+        "display_name": "LA County Fire helicopter",
+    },
+    "a0a152": {
+        "registration": "N14LA",
+        "aircraft_type": "Bell 412EP",
+        "display_name": "LA County Fire helicopter",
+    },
+    "a0c8d1": {
+        "registration": "N15LA",
+        "aircraft_type": "S-70A Firehawk",
+        "display_name": "LA County Fire helicopter",
+    },
+    "a0f2a9": {
+        "registration": "N160LA",
+        "aircraft_type": "S-70A Firehawk",
+        "display_name": "LA County Fire helicopter",
+    },
+    "a117cf": {
+        "registration": "N17LA",
+        "aircraft_type": "Bell 412HP",
+        "display_name": "LA County Fire helicopter",
+    },
+    "a13f4e": {
+        "registration": "N18LA",
+        "aircraft_type": "Bell 412HP",
+        "display_name": "LA County Fire helicopter",
+    },
+    "a16926": {
+        "registration": "N190LA",
+        "aircraft_type": "S-70A Firehawk",
+        "display_name": "LA County Fire helicopter",
+    },
+    "a08751": {
+        "registration": "N133LA",
+        "aircraft_type": "Bell 412EPX",
+        "display_name": "LA County Fire helicopter",
+    },
+    "ab358d": {
+        "registration": "N821LA",
+        "aircraft_type": "S-70i Firehawk",
+        "display_name": "LA County Fire helicopter",
+    },
+    "ab3944": {
+        "registration": "N822LA",
+        "aircraft_type": "S-70i Firehawk",
+        "display_name": "LA County Fire helicopter",
+    },
 }
 DISCOVERY_CALLSIGN_PATTERN = re.compile(r"(?:AIR\s*5|RESCUE|SHERIFF)", re.IGNORECASE)
 
@@ -136,7 +203,7 @@ def parse_state_vector(state, fetched_at=None):
         "icao24": icao24,
         "registration": identity["registration"],
         "aircraft_type": identity["aircraft_type"],
-        "display_name": "LASD rescue helicopter",
+        "display_name": identity["display_name"],
         "callsign": callsign,
         "observed_at": observed_at,
         "fetched_at": iso_timestamp(fetched_at or utc_now()),
@@ -367,7 +434,9 @@ def run_once(settings, client=None, now=None):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Track LASD rescue helicopters using OpenSky state vectors.")
+    parser = argparse.ArgumentParser(
+        description="Track LA County public-safety helicopters using OpenSky state vectors."
+    )
     parser.add_argument("--once", action="store_true", help="Poll once and exit.")
     parser.add_argument("--interval", type=int, help="Seconds between polls.")
     args = parser.parse_args(argv)

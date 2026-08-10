@@ -796,7 +796,7 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False, airc
         ),
     ]
     if current == "map" and aircraft_tracking_enabled:
-        items.insert(4, ("aircraft", "LASD helicopter", "Shown when airborne", None))
+        items.insert(4, ("aircraft", "Rescue helicopters", "Shown when airborne", None))
     rows = []
     for key, label, description, href in items:
         if key == "alerts":
@@ -3003,7 +3003,7 @@ def build_html(
         aircraft.heading != null ? `${{aircraft.heading}}&deg;` : null
       ].filter(Boolean).join(" · ");
       return `
-        <div class="aircraft-popup-title">${{escapeHtml(aircraft.display_name || "LASD rescue helicopter")}}</div>
+        <div class="aircraft-popup-title">${{escapeHtml(aircraft.display_name || "County rescue helicopter")}}</div>
         <div>${{escapeHtml(aircraft.registration || aircraft.icao24)}} · ${{escapeHtml(aircraft.aircraft_type || "")}}</div>
         ${{detail ? `<div>${{detail}}</div>` : ""}}
         <div>Position ${{Math.max(1, Math.round(Number(aircraft.age_seconds || 0) / 60))}} min old</div>
@@ -3043,7 +3043,7 @@ def build_html(
         const marker = L.marker([item.latitude, item.longitude], {{
           icon: aircraftIcon(item),
           keyboard: false,
-          title: `${{item.display_name || "LASD rescue helicopter"}} ${{item.registration || ""}}`.trim(),
+          title: `${{item.display_name || "County rescue helicopter"}} ${{item.registration || ""}}`.trim(),
           zIndexOffset: 1000
         }}).addTo(map);
         marker.bindPopup(aircraftPopup(item), {{

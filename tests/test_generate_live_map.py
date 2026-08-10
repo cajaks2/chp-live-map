@@ -390,6 +390,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
         aircraft_tracking_enabled=True,
     )
     assert 'data-aircraft-layer-toggle' in aircraft_html
+    assert "Rescue helicopters" in aircraft_html
     assert 'const aircraftEndpoint = "/api/v1/aircraft"' in aircraft_html
     assert "function fetchAircraftData" in aircraft_html
     assert "Mission not confirmed" not in aircraft_html

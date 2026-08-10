@@ -227,7 +227,9 @@ The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, a long-lived X
 
 ### LASD rescue-aircraft tracking
 
-The optional map layer tracks the verified LASD AS332L1 registrations N950JE, N951LB, and N952JH. Positions are fetched server-side from OpenSky and delayed by 60 seconds. A helicopter disappears when its latest delayed position is more than five minutes old; while it is current, the map shows up to 30 minutes of delayed trail history. Configure the tracker with:
+The optional map layer tracks verified LA County public-safety helicopters. The LASD rescue fleet includes N950JE, N951LB, and N952JH. The LA County Fire fleet includes N110LA, N120LA, N14LA, N15LA, N160LA, N17LA, N18LA, N190LA, N821LA, and N822LA, plus temporary Copter 17 registration N133LA during its 2026 transition. LACoFD describes this fleet as supporting paramedic transport, hoist rescue, and wildland firefighting; the two agencies are labeled separately in map popups.
+
+Positions are fetched server-side from OpenSky and delayed by 60 seconds. A helicopter disappears when its latest delayed position is more than five minutes old; while it is current, the map shows up to 30 minutes of delayed trail history. Configure the tracker with:
 
 ```sh
 OPENSKY_CLIENT_ID=your-client-id

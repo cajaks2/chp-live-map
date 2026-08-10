@@ -46,6 +46,7 @@ def test_parse_states_matches_verified_aircraft_and_discovers_callsigns():
         {
             "states": [
                 state_vector(),
+                state_vector(icao24="ab358d", callsign="COPT21"),
                 state_vector(icao24="abcdef", callsign="SHERIFF12"),
                 state_vector(icao24="123456", callsign="UAL100"),
             ]
@@ -53,9 +54,12 @@ def test_parse_states_matches_verified_aircraft_and_discovers_callsigns():
         fetched_at=now,
     )
 
-    assert count == 3
+    assert count == 4
     assert positions[0]["registration"] == "N951LB"
     assert positions[0]["icao24"] == "ad395a"
+    assert positions[1]["registration"] == "N821LA"
+    assert positions[1]["display_name"] == "LA County Fire helicopter"
+    assert positions[1]["aircraft_type"] == "S-70i Firehawk"
     assert candidates == [{"icao24": "abcdef", "callsign": "SHERIFF12"}]
 
 

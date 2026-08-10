@@ -1725,6 +1725,10 @@ def build_html(
       stroke-linecap: round;
       stroke-linejoin: round;
     }}
+    .aircraft-marker.is-stale {{
+      opacity: 0.52;
+      filter: saturate(0.62);
+    }}
     .aircraft-popup-title {{
       margin-bottom: 3px;
       font-size: 13px;
@@ -2980,7 +2984,7 @@ def build_html(
     function aircraftIcon(aircraft) {{
       const size = 25;
       return L.divIcon({{
-        className: "aircraft-marker",
+        className: `aircraft-marker${{Number(aircraft.age_seconds || 0) > 300 ? " is-stale" : ""}}`,
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
         html: `<svg viewBox="0 0 32 24" aria-hidden="true" focusable="false">

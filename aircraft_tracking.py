@@ -339,7 +339,7 @@ def load_visible_aircraft(
     conn,
     now=None,
     delay_seconds=60,
-    max_age_seconds=300,
+    max_age_seconds=900,
     trail_age_seconds=1800,
 ):
     now = now or utc_now()

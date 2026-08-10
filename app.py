@@ -94,7 +94,7 @@ class WebSettings:
     vapid_public_key: str | None = None
     aircraft_tracking_enabled: bool = False
     aircraft_display_delay_seconds: int = 60
-    aircraft_max_age_seconds: int = 300
+    aircraft_max_age_seconds: int = 900
     aircraft_trail_age_seconds: int = 1800
     service_version: str = "dev"
 
@@ -128,7 +128,7 @@ class WebSettings:
             aircraft_display_delay_seconds=max(
                 0, int(os.environ.get("AIRCRAFT_DISPLAY_DELAY_SECONDS", "60"))
             ),
-            aircraft_max_age_seconds=max(60, int(os.environ.get("AIRCRAFT_MAX_AGE_SECONDS", "300"))),
+            aircraft_max_age_seconds=max(60, int(os.environ.get("AIRCRAFT_MAX_AGE_SECONDS", "900"))),
             aircraft_trail_age_seconds=max(
                 60, int(os.environ.get("AIRCRAFT_TRAIL_AGE_SECONDS", "1800"))
             ),

@@ -400,8 +400,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "const aircraftTrails = new Map()" in aircraft_html
     assert '.aircraft-marker.is-stale' in aircraft_html
     assert 'Number(aircraft.age_seconds || 0) > 300 ? " is-stale"' in aircraft_html
-    assert "L.polyline([trailPoints[index - 1], trailPoints[index]]" in aircraft_html
-    assert "0.12 + (0.48 * progress)" in aircraft_html
+    assert "L.polyline(trailPoints" in aircraft_html
+    assert "opacity: 0.42" in aircraft_html
+    assert "smoothFactor: 1.25" in aircraft_html
 
     admin_html = build_html(
         incidents,

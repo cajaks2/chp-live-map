@@ -3017,7 +3017,7 @@ def build_html(
     function clearAircraftMarkers() {{
       aircraftMarkers.forEach((marker) => marker.remove());
       aircraftMarkers.clear();
-      aircraftTrails.forEach((segments) => segments.forEach((segment) => segment.remove()));
+      aircraftTrails.forEach((trail) => trail.remove());
       aircraftTrails.clear();
     }}
 
@@ -3030,19 +3030,16 @@ def build_html(
           Array.isArray(point) && point.length === 2 && point[0] != null && point[1] != null
         );
         if (trailPoints.length > 1) {{
-          const segments = [];
-          for (let index = 1; index < trailPoints.length; index += 1) {{
-            const progress = index / (trailPoints.length - 1);
-            segments.push(L.polyline([trailPoints[index - 1], trailPoints[index]], {{
-              color: "#d6a000",
-              weight: 3,
-              opacity: 0.12 + (0.48 * progress),
-              interactive: false,
-              lineCap: "round",
-              lineJoin: "round"
-            }}).addTo(map));
-          }}
-          aircraftTrails.set(item.icao24, segments);
+          const trail = L.polyline(trailPoints, {{
+            color: "#d6a000",
+            weight: 3,
+            opacity: 0.42,
+            interactive: false,
+            lineCap: "round",
+            lineJoin: "round",
+            smoothFactor: 1.25
+          }}).addTo(map);
+          aircraftTrails.set(item.icao24, trail);
         }}
         const marker = L.marker([item.latitude, item.longitude], {{
           icon: aircraftIcon(item),

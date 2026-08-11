@@ -2,7 +2,7 @@ import datetime as dt
 from types import SimpleNamespace
 
 import scrape_wildweb_incidents
-from scrape_chp_traffic import connect_database
+from scrape_chp_traffic import ScraperMetrics, connect_database
 from scrape_wildweb_incidents import normalize_incident
 
 
@@ -156,3 +156,53 @@ def test_database_backfills_chp_source_identity(tmp_path):
 
     assert {"source", "source_event_id", "source_status", "source_reported_at", "coordinate_confidence"} <= columns
     conn.close()
+
+
+def test_wildweb_main_publishes_shared_provider_labeled_scraper_metrics(monkeypatch):
+    metrics = ScraperMetrics(provider="wildweb", source_defaults=("api",))
+    args = SimpleNamespace(metrics_port=0, metrics_host=None, interval=0, center=["CAANCC"])
+    monkeypatch.setattr(scrape_wildweb_incidents, "WILDWEB_METRICS", metrics)
+    monkeypatch.setattr(scrape_wildweb_incidents, "parse_args", lambda: args)
+    monkeypatch.setattr(
+        scrape_wildweb_incidents,
+        "scrape_once",
+        lambda _args: {
+            "observed_at": "2026-08-11T12:00:00-07:00",
+            "total_seen": 25,
+            "matched": 8,
+            "mapped": 6,
+            "changed": 2,
+            "discovered": 1,
+            "duration_seconds": 0.75,
+            "source_bytes": 4096,
+            "region_counts": {
+                "forest": {"matched": 7, "mapped": 5},
+                "malibu": {"matched": 1, "mapped": 1},
+            },
+            "retrieved_at": "2026-08-11T19:00:00+00:00",
+        },
+    )
+    monkeypatch.setattr(scrape_wildweb_incidents, "log_event", lambda *args, **kwargs: None)
+
+    scrape_wildweb_incidents.main()
+
+    body = metrics.render().decode("utf-8")
+    assert 'chp_live_map_scraper_up{provider="wildweb"} 1' in body
+    assert (
+        'chp_live_map_scraper_source_attempts_total{provider="wildweb",source="api",mode="primary",outcome="success"} 1'
+        in body
+    )
+    assert (
+        'chp_live_map_scraper_last_run_incidents{provider="wildweb",kind="matched"} 8'
+        in body
+    )
+    assert (
+        'chp_live_map_scraper_last_run_region_incidents{provider="wildweb",region="forest",kind="mapped"} 5'
+        in body
+    )
+    assert (
+        'chp_live_map_scraper_last_run_source_response_bytes{provider="wildweb",source="api"} 4096'
+        in body
+    )
+    assert "chp_live_map_scraper_xml_feed_age_seconds" not in body
+    assert "chp_live_map_scraper_chp_http_requests_total" not in body

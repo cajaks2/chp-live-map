@@ -140,7 +140,7 @@ spec:
     spec:
       containers:
         - name: scrape
-          image: cajaks2/chp-live-map:0.1.180
+          image: cajaks2/chp-live-map:0.1.181
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -159,7 +159,7 @@ spec:
                   name: chp-live-map-db
                   key: DATABASE_URL
             - name: SERVICE_VERSION
-              value: "0.1.180"
+              value: "0.1.181"
             - name: CHP_USER_AGENT
               value: "chp-live-map/0.1 (+https://crestmap.us/)"
             - name: CHP_SOURCE_MODE
@@ -235,11 +235,14 @@ spec:
     spec:
       containers:
         - name: wildweb
-          image: cajaks2/chp-live-map:0.1.180
+          image: cajaks2/chp-live-map:0.1.181
           imagePullPolicy: IfNotPresent
           command:
             - python3
             - /app/scrape_wildweb_incidents.py
+          ports:
+            - name: metrics
+              containerPort: 8082
           env:
             - name: DATABASE_URL
               valueFrom:
@@ -247,7 +250,7 @@ spec:
                   name: chp-live-map-db
                   key: DATABASE_URL
             - name: SERVICE_VERSION
-              value: "0.1.180"
+              value: "0.1.181"
             - name: WILDWEB_INTERVAL_SECONDS
               value: "120"
             - name: WILDWEB_MAX_AGE_HOURS
@@ -256,6 +259,10 @@ spec:
               value: "crestmap-wildweb/0.1 (+https://crestmap.us/)"
             - name: WILDWEB_PUSH_NOTIFICATIONS
               value: "true"
+            - name: WILDWEB_METRICS_HOST
+              value: 0.0.0.0
+            - name: WILDWEB_METRICS_PORT
+              value: "8082"
             - name: PUBLIC_URL
               value: https://crestmap.us/
             - name: VAPID_PRIVATE_KEY
@@ -273,6 +280,32 @@ spec:
             limits:
               cpu: 100m
               memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: chp-live-map-wildweb
+  namespace: chp-live-map
+spec:
+  type: ClusterIP
+  selector:
+    app: chp-live-map-wildweb
+  ports:
+    - name: metrics
+      port: 8082
+      targetPort: metrics
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -293,7 +326,7 @@ spec:
     spec:
       containers:
         - name: aircraft
-          image: cajaks2/chp-live-map:0.1.180
+          image: cajaks2/chp-live-map:0.1.181
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -305,7 +338,7 @@ spec:
                   name: chp-live-map-db
                   key: DATABASE_URL
             - name: SERVICE_VERSION
-              value: "0.1.180"
+              value: "0.1.181"
             - name: OPENSKY_CLIENT_ID
               valueFrom:
                 secretKeyRef:
@@ -345,7 +378,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: cajaks2/chp-live-map:0.1.180
+          image: cajaks2/chp-live-map:0.1.181
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -365,7 +398,7 @@ spec:
             - name: HTTP_PORT
               value: "8080"
             - name: SERVICE_VERSION
-              value: "0.1.180"
+              value: "0.1.181"
             - name: BASE_PATH
               value: /
             - name: PUBLIC_URL

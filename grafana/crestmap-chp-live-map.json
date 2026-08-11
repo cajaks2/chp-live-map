@@ -149,7 +149,8 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_up{site=~\"$site\"}",
+            "expr": "chp_live_map_scraper_up{site=~\"$site\",provider=~\"$provider\"}",
+            "legendFormat": "{{provider}}",
             "range": true,
             "refId": "C"
           }
@@ -216,7 +217,8 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "time() - max(chp_live_map_scraper_last_run_timestamp_seconds{site=~\"$site\"})",
+            "expr": "time() - chp_live_map_scraper_last_run_timestamp_seconds{site=~\"$site\",provider=~\"$provider\"}",
+            "legendFormat": "{{provider}} {{outcome}}",
             "range": true,
             "refId": "K"
           }
@@ -283,7 +285,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "max(chp_live_map_scraper_xml_feed_age_seconds{site=~\"$site\"})",
+            "expr": "max(chp_live_map_scraper_xml_feed_age_seconds{site=~\"$site\",provider=\"chp\"})",
             "range": true,
             "refId": "A"
           }
@@ -483,7 +485,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_xml_feed_age_seconds{site=~\"$site\"}",
+            "expr": "chp_live_map_scraper_xml_feed_age_seconds{site=~\"$site\",provider=\"chp\"}",
             "legendFormat": "{{timestamp_source}}",
             "range": true,
             "refId": "A"
@@ -542,8 +544,8 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (source,mode,outcome) (rate(chp_live_map_scraper_source_attempts_total{site=~\"$site\",source=~\"$source\"}[$__rate_interval]))",
-            "legendFormat": "{{source}} {{mode}} {{outcome}}",
+            "expr": "sum by (provider,source,mode,outcome) (rate(chp_live_map_scraper_source_attempts_total{site=~\"$site\",provider=~\"$provider\",source=~\"$source\"}[$__rate_interval]))",
+            "legendFormat": "{{provider}} {{source}} {{mode}} {{outcome}}",
             "range": true,
             "refId": "A"
           }
@@ -614,8 +616,8 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_last_run_source_duration_seconds{site=~\"$site\",source=~\"$source\"}",
-            "legendFormat": "{{source}}",
+            "expr": "chp_live_map_scraper_last_run_source_duration_seconds{site=~\"$site\",provider=~\"$provider\",source=~\"$source\"}",
+            "legendFormat": "{{provider}} {{source}}",
             "range": true,
             "refId": "V"
           }
@@ -673,8 +675,8 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_last_run_source_response_bytes{site=~\"$site\",source=~\"$source\"}",
-            "legendFormat": "{{source}}",
+            "expr": "chp_live_map_scraper_last_run_source_response_bytes{site=~\"$site\",provider=~\"$provider\",source=~\"$source\"}",
+            "legendFormat": "{{provider}} {{source}}",
             "range": true,
             "refId": "X"
           }
@@ -732,7 +734,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (method,route,status) (rate(chp_live_map_scraper_chp_http_requests_total{site=~\"$site\"}[$__rate_interval]))",
+            "expr": "sum by (method,route,status) (rate(chp_live_map_scraper_chp_http_requests_total{site=~\"$site\",provider=\"chp\"}[$__rate_interval]))",
             "legendFormat": "{{method}} {{route}} {{status}}",
             "range": true,
             "refId": "`"
@@ -791,8 +793,8 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (outcome) (rate(chp_live_map_scraper_scrapes_total{site=~\"$site\"}[$__rate_interval]))",
-            "legendFormat": "{{outcome}}",
+            "expr": "sum by (provider,outcome) (rate(chp_live_map_scraper_scrapes_total{site=~\"$site\",provider=~\"$provider\"}[$__rate_interval]))",
+            "legendFormat": "{{provider}} {{outcome}}",
             "range": true,
             "refId": "Z"
           }
@@ -851,7 +853,8 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_last_run_observations_inserted{site=~\"$site\"}",
+            "expr": "chp_live_map_scraper_last_run_observations_inserted{site=~\"$site\",provider=~\"$provider\"}",
+            "legendFormat": "{{provider}}",
             "range": true,
             "refId": "n"
           }
@@ -909,7 +912,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_last_run_details{site=~\"$site\"}",
+            "expr": "chp_live_map_scraper_last_run_details{site=~\"$site\",provider=\"chp\"}",
             "legendFormat": "{{result}}",
             "range": true,
             "refId": "p"
@@ -1574,7 +1577,8 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "time() - chp_live_map_scraper_process_start_time_seconds{site=~\"$site\"}",
+            "expr": "time() - chp_live_map_scraper_process_start_time_seconds{site=~\"$site\",provider=~\"$provider\"}",
+            "legendFormat": "{{provider}}",
             "range": true,
             "refId": "j"
           }
@@ -1761,8 +1765,8 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_last_run_incidents{site=~\"$site\"}",
-            "legendFormat": "{{kind}}",
+            "expr": "chp_live_map_scraper_last_run_incidents{site=~\"$site\",provider=~\"$provider\"}",
+            "legendFormat": "{{provider}} {{kind}}",
             "range": true,
             "refId": "\\"
           }
@@ -1818,8 +1822,8 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_last_run_region_incidents{site=~\"$site\",region=~\"$region\"}",
-            "legendFormat": "{{region}} {{kind}}",
+            "expr": "chp_live_map_scraper_last_run_region_incidents{site=~\"$site\",provider=~\"$provider\",region=~\"$region\"}",
+            "legendFormat": "{{provider}} {{region}} {{kind}}",
             "range": true,
             "refId": "^"
           }
@@ -1936,8 +1940,8 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_last_run_incidents{site=~\"$site\"}",
-            "legendFormat": "{{kind}}",
+            "expr": "chp_live_map_scraper_last_run_incidents{site=~\"$site\",provider=~\"$provider\"}",
+            "legendFormat": "{{provider}} {{kind}}",
             "range": true,
             "refId": "r"
           }
@@ -2008,7 +2012,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (outcome) (rate(chp_live_map_scraper_source_compare_runs_total{site=~\"$site\"}[$__rate_interval]))",
+            "expr": "sum by (outcome) (rate(chp_live_map_scraper_source_compare_runs_total{site=~\"$site\",provider=\"chp\"}[$__rate_interval]))",
             "legendFormat": "{{outcome}}",
             "range": true,
             "refId": "b"
@@ -2065,7 +2069,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_source_compare_last_run_incidents{site=~\"$site\"}",
+            "expr": "chp_live_map_scraper_source_compare_last_run_incidents{site=~\"$site\",provider=\"chp\"}",
             "legendFormat": "{{source}} {{kind}}",
             "range": true,
             "refId": "d"
@@ -2122,7 +2126,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_source_compare_last_run_region_incidents{site=~\"$site\",region=~\"$region\"}",
+            "expr": "chp_live_map_scraper_source_compare_last_run_region_incidents{site=~\"$site\",provider=\"chp\",region=~\"$region\"}",
             "legendFormat": "{{source}} {{region}} {{kind}}",
             "range": true,
             "refId": "f"
@@ -2570,8 +2574,26 @@
             "uid": "mkJbCvK4z"
           },
           "includeAll": true,
+          "name": "provider",
+          "query": "label_values(chp_live_map_scraper_up{site=~\"$site\"}, provider)",
+          "refresh": 1,
+          "sort": 1,
+          "type": "query"
+        },
+        {
+          "allValue": ".*",
+          "current": {
+            "selected": true,
+            "text": "All",
+            "value": ".*"
+          },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "mkJbCvK4z"
+          },
+          "includeAll": true,
           "name": "source",
-          "query": "label_values(chp_live_map_scraper_last_run_source_duration_seconds, source)",
+          "query": "label_values(chp_live_map_scraper_last_run_source_duration_seconds{site=~\"$site\",provider=~\"$provider\"}, source)",
           "refresh": 1,
           "sort": 1,
           "type": "query"
@@ -2585,10 +2607,10 @@
     "timezone": "browser",
     "title": "Crestmap CHP Live Map",
     "uid": "crestmap-chp-live-map",
-    "version": 8,
-    "description": "Operational dashboard for crestmap.us: scraper freshness, XML/CAD source behavior, Loki access traffic, Postgres pool health, incident data quality, and Web Push delivery."
+    "version": 9,
+    "description": "Operational dashboard for crestmap.us: CHP and WildWeb scraper freshness, XML/CAD source behavior, Loki access traffic, Postgres pool health, incident data quality, and Web Push delivery."
   },
   "folderUid": "bfo1wv4abcd1cd",
   "overwrite": true,
-  "message": "Publish push metrics and fix status colors"
+  "message": "Add provider-aware CHP and WildWeb scraper metrics"
 }

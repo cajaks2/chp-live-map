@@ -734,13 +734,13 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (method,route,status) (rate(chp_live_map_scraper_chp_http_requests_total{site=~\"$site\",provider=\"chp\"}[$__rate_interval]))",
-            "legendFormat": "{{method}} {{route}} {{status}}",
+            "expr": "sum by (provider,method,route,status) (rate(chp_live_map_scraper_http_requests_total{site=~\"$site\",provider=~\"$provider\"}[$__rate_interval]))",
+            "legendFormat": "{{provider}} {{method}} {{route}} {{status}}",
             "range": true,
             "refId": "`"
           }
         ],
-        "title": "Outbound CHP request rate",
+        "title": "Outbound request rate by status",
         "type": "timeseries"
       },
       {
@@ -2607,10 +2607,10 @@
     "timezone": "browser",
     "title": "Crestmap CHP Live Map",
     "uid": "crestmap-chp-live-map",
-    "version": 9,
+    "version": 10,
     "description": "Operational dashboard for crestmap.us: CHP and WildWeb scraper freshness, XML/CAD source behavior, Loki access traffic, Postgres pool health, incident data quality, and Web Push delivery."
   },
   "folderUid": "bfo1wv4abcd1cd",
   "overwrite": true,
-  "message": "Add provider-aware CHP and WildWeb scraper metrics"
+  "message": "Graph provider-aware outbound response codes"
 }

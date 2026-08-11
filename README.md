@@ -423,7 +423,8 @@ Prometheus metrics:
 | `chp_live_map_scraper_last_run_source_duration_seconds{provider,source}` | gauge | Latest fetch/runtime duration by provider and source. |
 | `chp_live_map_scraper_last_run_source_response_bytes{provider,source}` | gauge | Bytes downloaded by each provider's latest run. |
 | `chp_live_map_scraper_last_run_incidents{provider,kind}` | gauge | Latest incident counts for each scraper provider. |
-| `chp_live_map_scraper_chp_http_requests_total{provider,method,route,status}` | counter | CHP-only outbound HTTP requests counted in the scraper process. |
+| `chp_live_map_scraper_http_requests_total{provider,method,route,status}` | counter | Outbound source requests for CHP and WildWeb, grouped by provider, route, and HTTP status or transport outcome. |
+| `chp_live_map_scraper_chp_http_requests_total{provider,method,route,status}` | counter | Compatibility alias for CHP outbound HTTP requests; new dashboards should use `chp_live_map_scraper_http_requests_total`. |
 
 ## SQL Tables
 

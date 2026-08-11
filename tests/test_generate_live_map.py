@@ -11,7 +11,12 @@ from generate_live_map import (
     load_incident_by_key,
     load_incidents,
 )
-from scrape_chp_traffic import connect_database, insert_observation, upsert_active_event
+from scrape_chp_traffic import (
+    connect_database,
+    insert_observation,
+    mark_cleared,
+    upsert_active_event,
+)
 
 
 def incident_row(event_key, status, latest_observed_at, incident_no):
@@ -38,15 +43,18 @@ def incident_row(event_key, status, latest_observed_at, incident_no):
 def test_load_incidents_returns_active_first_with_detail_entries(tmp_path):
     database = tmp_path / "chp.sqlite"
     conn = connect_database(database)
-    active = incident_row("LACC|2026-05-31|0805", "active", dt.datetime.now().astimezone().isoformat(timespec="seconds"), "0805")
-    cleared = incident_row("LACC|2026-05-31|0801", "cleared", dt.datetime.now().astimezone().isoformat(timespec="seconds"), "0801")
+    now = dt.datetime.now().astimezone()
+    active = incident_row("LACC|2026-05-31|0805", "active", now.isoformat(timespec="seconds"), "0805")
+    cleared = incident_row(
+        "LACC|2026-05-31|0801",
+        "cleared",
+        (now - dt.timedelta(minutes=5)).isoformat(timespec="seconds"),
+        "0801",
+    )
 
     upsert_active_event(conn, cleared)
     insert_observation(conn, cleared, "active")
-    conn.execute(
-        "UPDATE events SET status = 'cleared', cleared_at = ?, latest_observed_at = ? WHERE event_key = ?",
-        (cleared["observed_at"], cleared["observed_at"], cleared["event_key"]),
-    )
+    mark_cleared(conn, cleared, now.isoformat(timespec="seconds"))
     upsert_active_event(conn, active)
     insert_observation(conn, active, "active")
     conn.commit()
@@ -61,6 +69,8 @@ def test_load_incidents_returns_active_first_with_detail_entries(tmp_path):
     assert incidents[0]["status"] == "active"
     assert incidents[0]["detail_entries"] == active["detail_entries"]
     assert incidents[1]["status"] == "cleared"
+    assert incidents[1]["detail_entries"] == cleared["detail_entries"]
+    assert load_incident_by_key(database, cleared["event_key"])["detail_entries"] == cleared["detail_entries"]
 
 
 def test_build_html_labels_wildweb_report_without_claiming_it_is_active_or_cleared(tmp_path):

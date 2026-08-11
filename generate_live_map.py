@@ -71,6 +71,7 @@ def load_incidents(database, hours, database_url=None, region="forest", conn=Non
                 SELECT o.details_json
                 FROM observations o
                 WHERE o.event_key = e.event_key
+                  AND TRIM(o.details_json) NOT IN ('', '[]')
                 ORDER BY o.observed_at DESC, o.id DESC
                 LIMIT 1
             ) AS details_json
@@ -179,6 +180,7 @@ def load_incident_by_key(database, event_key, database_url=None, region="forest"
                 SELECT o.details_json
                 FROM observations o
                 WHERE o.event_key = e.event_key
+                  AND TRIM(o.details_json) NOT IN ('', '[]')
                 ORDER BY o.observed_at DESC, o.id DESC
                 LIMIT 1
             ) AS details_json

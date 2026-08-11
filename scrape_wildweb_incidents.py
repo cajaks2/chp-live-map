@@ -256,9 +256,10 @@ def normalize_incident(item, center, retrieved_at, observed_at, max_age_hours=72
     return row
 
 
-def fetch_center(center, timeout, user_agent, retries=2, retry_backoff=2, stats=None):
+def fetch_center(center, timeout, user_agent, retries=2, retry_backoff=2, stats=None, metrics=None):
     url = WILDWEB_API_TEMPLATE.format(center=center)
     last_error = None
+    metrics = metrics or WILDWEB_METRICS
     for attempt in range(retries + 1):
         request = Request(
             url,
@@ -272,6 +273,7 @@ def fetch_center(center, timeout, user_agent, retries=2, retry_backoff=2, stats=
         try:
             with urlopen(request, timeout=timeout) as response:
                 body = response.read()
+                metrics.record_http("GET", "incidents", response.status)
                 if stats is not None:
                     stats.setdefault("http_status_counts", {})[f"GET:wildweb:{response.status}"] = (
                         stats.setdefault("http_status_counts", {}).get(f"GET:wildweb:{response.status}", 0) + 1
@@ -283,9 +285,21 @@ def fetch_center(center, timeout, user_agent, retries=2, retry_backoff=2, stats=
                 return payload[0]
         except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
             last_error = exc
-            if stats is not None and isinstance(exc, HTTPError):
-                key = f"GET:wildweb:{exc.code}"
-                stats.setdefault("http_status_counts", {})[key] = stats.setdefault("http_status_counts", {}).get(key, 0) + 1
+            if isinstance(exc, HTTPError):
+                status = exc.code
+            elif isinstance(exc, TimeoutError):
+                status = "timeout"
+            elif isinstance(exc, URLError):
+                status = "url_error"
+            else:
+                status = None
+            if status is not None:
+                metrics.record_http("GET", "incidents", status)
+            if stats is not None and status is not None:
+                key = f"GET:wildweb:{status}"
+                stats.setdefault("http_status_counts", {})[key] = (
+                    stats.setdefault("http_status_counts", {}).get(key, 0) + 1
+                )
             if attempt < retries:
                 time.sleep(retry_backoff * (2**attempt))
     raise RuntimeError(f"WildWeb request failed for {center}") from last_error
@@ -331,6 +345,7 @@ def scrape_once(args):
             args.retries,
             args.retry_backoff,
             stats,
+            WILDWEB_METRICS,
         )
         retrieved_at = parse_retrieved_timestamp(payload.get("retrieved"), dt.datetime.now().astimezone())
         retrieved_values.append(retrieved_at)

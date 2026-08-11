@@ -1,5 +1,7 @@
 import datetime as dt
+import json
 from types import SimpleNamespace
+from urllib.error import HTTPError
 
 import scrape_wildweb_incidents
 from scrape_chp_traffic import ScraperMetrics, connect_database
@@ -34,6 +36,57 @@ def normalize(item, observed_at="2026-08-11T12:00:00-07:00", max_age_hours=72):
         observed_at,
         max_age_hours=max_age_hours,
     )
+
+
+def test_fetch_center_records_wildweb_http_response_codes(monkeypatch):
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps([{"retrieved": "2026-08-11T19:00:00Z", "data": []}]).encode()
+
+    responses = [
+        HTTPError("https://wildweb.example.test", 503, "unavailable", {}, None),
+        FakeResponse(),
+    ]
+
+    def fake_urlopen(*_args, **_kwargs):
+        response = responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    metrics = ScraperMetrics(provider="wildweb", source_defaults=("api",))
+    stats = {"http_status_counts": {}, "source_bytes": 0}
+    monkeypatch.setattr(scrape_wildweb_incidents, "urlopen", fake_urlopen)
+
+    payload = scrape_wildweb_incidents.fetch_center(
+        "CAANCC",
+        timeout=5,
+        user_agent="test-agent",
+        retries=1,
+        retry_backoff=0,
+        stats=stats,
+        metrics=metrics,
+    )
+
+    assert payload["data"] == []
+    body = metrics.render().decode("utf-8")
+    assert (
+        'chp_live_map_scraper_http_requests_total{provider="wildweb",method="GET",route="incidents",status="200"} 1'
+        in body
+    )
+    assert (
+        'chp_live_map_scraper_http_requests_total{provider="wildweb",method="GET",route="incidents",status="503"} 1'
+        in body
+    )
+    assert "chp_live_map_scraper_chp_http_requests_total" not in body
 
 
 def test_normalize_wildweb_incident_uses_shared_boundary_and_source_identity():

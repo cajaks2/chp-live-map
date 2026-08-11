@@ -156,10 +156,13 @@ class ScraperMetrics:
     def metric_line(self, name, value, labels=None):
         return metric_line(name, value, {"provider": self.provider, **(labels or {})})
 
-    def record_chp_http(self, method, route, status):
+    def record_http(self, method, route, status):
         key = (str(method), str(route), str(status))
         with self.lock:
             self.http_status_counts[key] = self.http_status_counts.get(key, 0) + 1
+
+    def record_chp_http(self, method, route, status):
+        self.record_http(method, route, status)
 
     def record_source_attempt(self, source, mode, outcome):
         key = (str(source), str(mode), str(outcome))
@@ -522,6 +525,20 @@ class ScraperMetrics:
                 "# HELP chp_live_map_scraper_last_run_observations_inserted Observation rows inserted by the latest scraper run.",
                 "# TYPE chp_live_map_scraper_last_run_observations_inserted gauge",
                 self.metric_line("chp_live_map_scraper_last_run_observations_inserted", last.get("observations_inserted", 0)),
+                "# HELP chp_live_map_scraper_http_requests_total Outbound source HTTP requests made by scraper provider, grouped by method, route, and status.",
+                "# TYPE chp_live_map_scraper_http_requests_total counter",
+            ]
+        )
+        for (method, route, status), count in sorted(http_counts.items()):
+            lines.append(
+                self.metric_line(
+                    "chp_live_map_scraper_http_requests_total",
+                    count,
+                    {"method": method, "route": route, "status": status},
+                )
+            )
+        lines.extend(
+            [
                 "# HELP chp_live_map_scraper_last_run_details Detail pages requested or skipped by the latest scraper run.",
                 "# TYPE chp_live_map_scraper_last_run_details gauge",
                 self.metric_line("chp_live_map_scraper_last_run_details", last.get("details_requested", 0), {"result": "requested"}),
@@ -626,7 +643,7 @@ def parse_page(text):
 
 
 def record_response_status(stats, method, route, status):
-    SCRAPER_METRICS.record_chp_http(method, route, status)
+    SCRAPER_METRICS.record_http(method, route, status)
     if stats is None:
         return
     key = f"{method}:{route}:{status}"

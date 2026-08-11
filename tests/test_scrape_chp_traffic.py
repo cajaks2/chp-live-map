@@ -70,6 +70,22 @@ def test_scraper_metrics_handler_serves_health_without_ecs_access_logs(monkeypat
     assert events == []
 
 
+def test_scraper_metrics_publish_shared_and_legacy_chp_http_counters():
+    metrics = scrape_chp_traffic.ScraperMetrics()
+    metrics.record_http("GET", "media_xml", 200)
+
+    body = metrics.render().decode("utf-8")
+
+    assert (
+        'chp_live_map_scraper_http_requests_total{provider="chp",method="GET",route="media_xml",status="200"} 1'
+        in body
+    )
+    assert (
+        'chp_live_map_scraper_chp_http_requests_total{provider="chp",method="GET",route="media_xml",status="200"} 1'
+        in body
+    )
+
+
 def test_scraper_metrics_include_region_labels():
     metrics = scrape_chp_traffic.ScraperMetrics()
     metrics.record_source_attempt("xml", "primary", "failure")

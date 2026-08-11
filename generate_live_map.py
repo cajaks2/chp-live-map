@@ -880,20 +880,15 @@ def region_tabs(base_path, current, hours, region="forest", region_statuses=None
     for key, label in REGION_LABELS.items():
         region_status = region_statuses.get(key) or {}
         active_count = int(region_status.get("active_count", 0))
-        reported_count = int(region_status.get("reported_count", 0))
-        current_count = active_count + reported_count
-        if reported_count:
-            count_label = "current incident report" if current_count == 1 else "current incident reports"
-        else:
-            count_label = "active incident" if current_count == 1 else "active incidents"
+        count_label = "active incident" if active_count == 1 else "active incidents"
         tabs.append(
             '<a class="region-tab{}" href="{}"{}><span>{}</span><span class="region-active-count" aria-label="{}">{}</span></a>'.format(
             " is-active" if key == region else "",
             html.escape(view_href(base_path, "/", hours, key) if current == "map" else view_href(base_path, f"/{current}", hours, key)),
             ' aria-current="page"' if key == region else "",
             html.escape(label),
-            html.escape(f"{current_count} {count_label}"),
-            current_count,
+            html.escape(f"{active_count} {count_label}"),
+            active_count,
         )
         )
     return "".join(tabs)
@@ -3634,14 +3629,10 @@ def build_html(
           return;
         }}
         const activeCount = Number(regionStatuses[region].active_count || 0);
-        const reportedCount = Number(regionStatuses[region].reported_count || 0);
-        const currentCount = activeCount + reportedCount;
-        countEl.textContent = String(currentCount);
+        countEl.textContent = String(activeCount);
         countEl.setAttribute(
           "aria-label",
-          reportedCount
-            ? `${{currentCount}} current incident report${{currentCount === 1 ? "" : "s"}}`
-            : `${{currentCount}} active incident${{currentCount === 1 ? "" : "s"}}`
+          `${{activeCount}} active incident${{activeCount === 1 ? "" : "s"}}`
         );
       }});
     }}

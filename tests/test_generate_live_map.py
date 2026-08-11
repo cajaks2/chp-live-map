@@ -97,6 +97,8 @@ def test_build_html_labels_wildweb_report_without_claiming_it_is_active_or_clear
     assert incidents[0]["status"] == "reported"
     assert incidents[0]["source"] == "wildweb"
     assert "1 WildWeb reported" in html
+    assert '<span class="region-active-count" aria-label="0 active incidents">0</span>' in html
+    assert "const reportedCount = Number(regionStatuses[region].reported_count || 0);" not in html
     assert '<span class="source-pill">${escapeHtml(sourceText)}</span>' in html
     assert 'listed: "Reported"' in html
     assert "No coordinates exposed by ${escapeHtml(sourceText)}" in html

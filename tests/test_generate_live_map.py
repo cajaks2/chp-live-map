@@ -100,6 +100,67 @@ def test_build_html_labels_wildweb_report_without_claiming_it_is_active_or_clear
     assert '<span class="source-pill">${escapeHtml(sourceText)}</span>' in html
     assert 'listed: "Reported"' in html
     assert "No coordinates exposed by ${escapeHtml(sourceText)}" in html
+    assert "function incidentDescription(incident)" in html
+    assert '<span class="incident-description">${escapeHtml(description)}</span>' in html
+    assert '<div class="detail-description">${escapeHtml(description)}</div>' in html
+    assert "<dt>Loc Desc</dt>" not in html
+
+
+def test_load_incidents_sorts_wildweb_by_source_report_time_not_poll_time(tmp_path):
+    database = tmp_path / "recency.sqlite"
+    conn = connect_database(database)
+    now = dt.datetime.now().astimezone()
+
+    old_active = incident_row(
+        "LACC|old-active",
+        "active",
+        (now - dt.timedelta(hours=36)).isoformat(timespec="seconds"),
+        "1000",
+    )
+    recent_cleared = incident_row(
+        "LACC|recent-cleared",
+        "cleared",
+        (now - dt.timedelta(hours=1)).isoformat(timespec="seconds"),
+        "1001",
+    )
+    polled_wildweb = incident_row(
+        "wildweb|CAANCC|older-report",
+        "reported",
+        now.isoformat(timespec="seconds"),
+        "CAANF-1002",
+    )
+    polled_wildweb.update(
+        {
+            "center": "CAANCC",
+            "source": "wildweb",
+            "source_event_id": "older-report",
+            "source_status": "listed",
+            "source_reported_at": (now - dt.timedelta(hours=24)).isoformat(timespec="seconds"),
+            "status": "reported",
+        }
+    )
+
+    for row, status in (
+        (old_active, "active"),
+        (recent_cleared, "active"),
+        (polled_wildweb, "reported"),
+    ):
+        upsert_active_event(conn, row)
+        insert_observation(conn, row, status)
+    conn.execute(
+        "UPDATE events SET status = 'cleared', cleared_at = ? WHERE event_key = ?",
+        (recent_cleared["observed_at"], recent_cleared["event_key"]),
+    )
+    conn.commit()
+    conn.close()
+
+    incidents = load_incidents(database, 72)
+
+    assert [incident["event_key"] for incident in incidents] == [
+        old_active["event_key"],
+        recent_cleared["event_key"],
+        polled_wildweb["event_key"],
+    ]
 
 
 def test_load_incident_by_key_finds_incident_outside_window(tmp_path):

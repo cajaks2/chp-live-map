@@ -94,6 +94,9 @@ def load_incidents(database, hours, database_url=None, region="forest", conn=Non
     incidents = []
     for row in rows:
         incidents.append(hydrate_incident(row, region))
+    incidents.sort(key=lambda incident: str(incident.get("incident_no") or ""), reverse=True)
+    incidents.sort(key=incident_recency, reverse=True)
+    incidents.sort(key=lambda incident: 0 if incident.get("status") == "active" else 1)
     return incidents
 
 
@@ -998,6 +1001,40 @@ def incident_status_class(incident):
     return "status-active" if status == "active" else "status-reported" if status == "reported" else "status-cleared"
 
 
+def incident_description(incident):
+    description = str(incident.get("location_desc") or "").strip()
+    if not description or not description.strip("* ._-/"):
+        return ""
+    normalized = " ".join(description.casefold().split())
+    repeated_values = {
+        " ".join(str(incident.get(field) or "").casefold().split())
+        for field in ("type", "location")
+    }
+    return "" if normalized in repeated_values else description
+
+
+def incident_recency(incident):
+    value = (
+        incident.get("source_reported_at")
+        or incident.get("first_seen")
+        or incident.get("latest_observed_at")
+        or ""
+    )
+    try:
+        return dt.datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        return float("-inf")
+
+
+def report_description_html(incident):
+    description = incident_description(incident)
+    return (
+        f'<span class="result-description">{html.escape(description)}</span>'
+        if description
+        else ""
+    )
+
+
 def status_summary_text(status, hours):
     reported = int(status.get("reported_count", 0))
     prefix = f"{status['active_count']} active"
@@ -1699,6 +1736,11 @@ def build_html(
       font-size: 12px;
       line-height: 1.35;
     }}
+    .incident .incident-description {{
+      margin: -1px 0 3px;
+      color: #35453b;
+      font-weight: 800;
+    }}
     .incident .incident-heading {{
       display: flex;
       align-items: flex-start;
@@ -1905,6 +1947,13 @@ def build_html(
       font-size: 18px;
       line-height: 1.25;
       letter-spacing: 0;
+    }}
+    .detail-description {{
+      margin: -1px 0 3px;
+      color: #35453b;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.3;
     }}
     .share-incident,
     .default-view,
@@ -2770,6 +2819,18 @@ def build_html(
       return String(incident.source || "chp").toLowerCase() === "wildweb" ? "WildWeb" : "CHP";
     }}
 
+    function incidentDescription(incident) {{
+      const description = String(incident.location_desc || "").trim();
+      if (!description || !description.replace(/[\\s*._-]/g, "")) {{
+        return "";
+      }}
+      const normalize = (value) => String(value || "").trim().toLowerCase().replace(/\\s+/g, " ");
+      const normalized = normalize(description);
+      return [incident.type, incident.location].some((value) => normalize(value) === normalized)
+        ? ""
+        : description;
+    }}
+
     function incidentStatusLabel(incident) {{
       const source = String(incident.source || "chp").toLowerCase();
       const status = String(incident.status || "").toLowerCase();
@@ -3264,6 +3325,7 @@ def build_html(
       const statusClass = incidentStatusClass(incident);
       const statusText = incidentStatusLabel(incident);
       const sourceText = incidentSourceLabel(incident);
+      const description = incidentDescription(incident);
       const groupedDetails = new Map();
       (incident.detail_entries || []).forEach((entry) => {{
         const fallbackSection = String(entry.text || "").startsWith("Unit ")
@@ -3302,6 +3364,7 @@ def build_html(
               <div class="status-pill ${{statusClass}}">${{statusText}}</div>
               <div class="source-pill">${{escapeHtml(sourceText)}}</div>
               <h2>${{escapeHtml(incident.type || "Incident")}}</h2>
+              ${{description ? `<div class="detail-description">${{escapeHtml(description)}}</div>` : ""}}
               <div class="meta">${{escapeHtml(incident.location || "")}}</div>
             </div>
             <div class="detail-actions">
@@ -3317,7 +3380,6 @@ def build_html(
               <dt>Reported</dt><dd>${{escapeHtml(formatIncidentWhen(incident))}}</dd>
               <dt>Source</dt><dd>${{incident.source_url ? `<a href="${{escapeHtml(incident.source_url)}}" rel="noopener" target="_blank">${{escapeHtml(sourceText)}}</a>` : escapeHtml(sourceText)}}</dd>
               <dt>Area</dt><dd>${{escapeHtml(incident.area)}}</dd>
-              <dt>Loc Desc</dt><dd>${{escapeHtml(incident.location_desc || "")}}</dd>
               <dt>Coords</dt><dd>${{coordText}}</dd>
               <dt>Crestmap First Seen</dt><dd>${{escapeHtml(incident.first_seen)}}</dd>
               <dt>Crestmap Last Seen</dt><dd>${{escapeHtml(incident.last_seen)}}</dd>
@@ -3624,6 +3686,7 @@ def build_html(
         const statusClass = incidentStatusClass(incident);
         const statusText = incidentStatusLabel(incident);
         const sourceText = incidentSourceLabel(incident);
+        const description = incidentDescription(incident);
         const linkedOutsideWindow = Boolean(incident._linked_outside_window);
         if (hasCoords) {{
           const marker = L.marker([incident.latitude, incident.longitude], {{
@@ -3647,6 +3710,7 @@ def build_html(
             ${{linkedOutsideWindow ? '<span class="linked-pill">Linked</span>' : ""}}
           </span>
           <strong>${{escapeHtml(incident.type || "Incident")}}</strong>
+          ${{description ? `<span class="incident-description">${{escapeHtml(description)}}</span>` : ""}}
           <span>${{escapeHtml(incident.location)}}</span>
           <span>${{escapeHtml(formatIncidentWhen(incident))}} · ${{escapeHtml(incident.area)}} · #${{escapeHtml(incident.incident_no)}}${{hasCoords ? "" : " · no map pin"}}</span>
         `;
@@ -4497,6 +4561,11 @@ def report_shell(
       font-size: 13px;
       line-height: 1.35;
     }}
+    .result .result-description {{
+      margin: -1px 0 3px;
+      color: #35453b;
+      font-weight: 800;
+    }}
     .status-pill {{
       display: inline-flex;
       align-items: center;
@@ -4707,15 +4776,16 @@ def build_summary_html(
     time_rows = report_rows(time_bucket_counts(filtered_incidents), limit=None)
     recent = sorted(
         filtered_incidents,
-        key=lambda incident: incident.get("latest_observed_at") or incident.get("last_seen") or "",
+        key=incident_recency,
         reverse=True,
     )[:5]
     recent_html = "".join(
-        '<div class="result"><span class="status-pill {}">{}</span><span class="source-pill">{}</span><strong>{}</strong><span>{}</span><span>{} · #{}</span></div>'.format(
+        '<div class="result"><span class="status-pill {}">{}</span><span class="source-pill">{}</span><strong>{}</strong>{}<span>{}</span><span>{} · #{}</span></div>'.format(
             incident_status_class(incident),
             html.escape(incident_status_label(incident)),
             html.escape(incident_source_label(incident)),
             html.escape(incident.get("type") or "Incident"),
+            report_description_html(incident),
             html.escape(incident.get("location") or ""),
             html.escape(format_when_short(incident)),
             html.escape(str(incident.get("incident_no") or "")),
@@ -4823,11 +4893,12 @@ def build_history_html(
     mapped_options = [("all", "Mapped + unpinned"), ("mapped", "Mapped only"), ("unpinned", "Unpinned only")]
     reset_href = href_with_query(app_path(base_path, "/history"), hours=f"{hours:g}", region=region)
     result_rows = "".join(
-        '<div class="result"><span class="status-pill {}">{}</span><span class="source-pill">{}</span><strong>{}</strong><span>{}</span><span>{} · {} · #{} · <a href="{}">Show on map</a></span></div>'.format(
+        '<div class="result"><span class="status-pill {}">{}</span><span class="source-pill">{}</span><strong>{}</strong>{}<span>{}</span><span>{} · {} · #{} · <a href="{}">Show on map</a></span></div>'.format(
             incident_status_class(incident),
             html.escape(incident_status_label(incident)),
             html.escape(incident_source_label(incident)),
             html.escape(incident.get("type") or "Incident"),
+            report_description_html(incident),
             html.escape(incident.get("location") or ""),
             html.escape(format_when_short(incident)),
             html.escape(incident.get("area") or ""),

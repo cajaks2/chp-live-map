@@ -2378,7 +2378,7 @@ def build_html(
         display: flex;
         position: absolute;
         left: 50%;
-        bottom: var(--details-cue-bottom, max(26px, calc(env(safe-area-inset-bottom) + 10px)));
+        bottom: var(--details-cue-bottom, 14px);
         z-index: 600;
         align-items: center;
         gap: 8px;
@@ -2575,17 +2575,12 @@ def build_html(
         return;
       }}
       const viewport = window.visualViewport;
-      const viewportTop = viewport ? viewport.offsetTop : 0;
       const viewportBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
       const rect = mapEl.getBoundingClientRect();
-      const visibleTop = Math.max(rect.top, viewportTop);
-      const visibleBottom = Math.min(rect.bottom, viewportBottom);
-      if (visibleBottom <= visibleTop) {{
-        return;
-      }}
-      const targetBottomGap = 18;
-      const targetY = Math.max(visibleTop + 44, visibleBottom - targetBottomGap - 36);
-      const cueBottom = Math.max(18, Math.round(rect.bottom - targetY));
+      const mapBelowViewport = Math.max(0, Math.round(rect.bottom - viewportBottom));
+      // Keep the cue near the map's lower edge. iOS standalone mode can report a
+      // temporarily short visual viewport, so cap how far that can lift the cue.
+      const cueBottom = Math.min(72, 14 + mapBelowViewport);
       mapEl.style.setProperty("--details-cue-bottom", `${{cueBottom}}px`);
     }}
 

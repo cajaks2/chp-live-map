@@ -414,8 +414,10 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "linked-pill" in html
     assert "This linked incident is outside the selected" in html
     assert "height: 45svh" in html
-    assert "bottom: var(--details-cue-bottom, max(26px, calc(env(safe-area-inset-bottom) + 10px)))" in html
+    assert "bottom: var(--details-cue-bottom, 14px)" in html
     assert "function updateDetailsCuePosition" in html
+    assert "const cueBottom = Math.min(72, 14 + mapBelowViewport);" in html
+    assert "const targetY = Math.max" not in html
     assert "window.visualViewport.addEventListener" in html
     assert "selected-pill" in html
     assert '<span class="selected-pill">Open</span>' in html

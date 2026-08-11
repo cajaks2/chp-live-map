@@ -1770,6 +1770,14 @@ def build_html(
       border-color: #5f6862;
       background: #b8bfba;
     }}
+    .incident-marker.is-wildweb-no-longer-listed .incident-marker-dot {{
+      border-color: #596a72;
+      background: #b8bfba;
+    }}
+    .incident-marker.is-wildweb-aged-out .incident-marker-dot {{
+      border-color: #967037;
+      background: #b8bfba;
+    }}
     .incident-marker.is-reported .incident-marker-dot {{
       border-color: #805b12;
       background: #e5a72f;
@@ -3141,11 +3149,16 @@ def build_html(
 
     function markerIcon(incident, selected = false, pulsing = false) {{
       const markerState = incident.status === "active" ? "is-active" : incident.status === "reported" ? "is-reported" : "is-cleared";
+      const sourceStatus = String(incident.source_status || "").toLowerCase();
+      const wildwebEndState = String(incident.source || "").toLowerCase() === "wildweb" && markerState === "is-cleared"
+        ? {{ aged_out: "is-wildweb-aged-out", no_longer_listed: "is-wildweb-no-longer-listed" }}[sourceStatus] || ""
+        : "";
       const size = 22;
       return L.divIcon({{
         className: [
           "incident-marker",
           markerState,
+          wildwebEndState,
           selected ? "is-selected" : "",
           pulsing ? "is-pulsing" : ""
         ].join(" "),
@@ -4976,7 +4989,7 @@ def build_about_html(
         <div class="result"><strong>CHP</strong><span>Checked about once per minute.</span></div>
         <div class="result"><strong>WildWeb</strong><span>Checked independently about once every two minutes. Reports older than the configured collection window are archived.</span></div>
         <div class="result"><strong>Active incident details</strong><span>Unchanged active incidents are refreshed about every 3 minutes.</span></div>
-        <div class="result"><strong>Status meaning</strong><span>CHP records use Active and Cleared. WildWeb records say Reported unless the source explicitly provides Contained, Controlled, or Out. No longer listed and Archived do not mean Crestmap independently confirmed the incident is over.</span></div>
+        <div class="result"><strong>Status meaning</strong><span>CHP records use Active and Cleared. WildWeb records say Reported unless the source explicitly provides Contained, Controlled, or Out. No longer listed and Archived do not mean Crestmap independently confirmed the incident is over. Both use gray map dots; aged-out reports have a muted brown ring while reports removed from WildWeb have a slate ring.</span></div>
         <div class="result"><strong>History</strong><span>Cleared and archived records stay in the database and are shown when they fall inside the selected time window.</span></div>
       </section>
       <section class="section" id="push-notifications">

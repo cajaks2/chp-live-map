@@ -597,6 +597,12 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "markerZoomAnimation: true" in html
     assert "updateWhenZooming: true" in html
     assert "function markerIcon" in html
+    assert 'aged_out: "is-wildweb-aged-out"' in html
+    assert 'no_longer_listed: "is-wildweb-no-longer-listed"' in html
+    assert ".incident-marker.is-wildweb-aged-out .incident-marker-dot" in html
+    assert "border-color: #967037" in html
+    assert ".incident-marker.is-wildweb-no-longer-listed .incident-marker-dot" in html
+    assert "border-color: #596a72" in html
     assert "const size = 22;" in html
     assert "const size = selected ? 28 : 22" not in html
     assert "position: absolute;" in html

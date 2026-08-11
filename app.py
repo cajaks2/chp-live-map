@@ -43,6 +43,7 @@ from media import (
 from push_notifications import (
     DEFAULT_CATEGORIES,
     DEFAULT_REGIONS,
+    DEFAULT_SOURCES,
     PushValidationError,
     deactivate_subscription,
     enqueue_test_notification,
@@ -770,9 +771,9 @@ def pwa_manifest(settings):
     start_url = "/" if base == "/" else f"{base}/"
     return {
         "id": start_url,
-        "name": "Crestmap CHP Incidents",
+        "name": "Crestmap Incidents",
         "short_name": "Crestmap",
-        "description": "Live CHP incidents for Angeles forest and Malibu roads.",
+        "description": "Live CHP incidents and WildWeb dispatch reports for Angeles forest and Malibu roads.",
         "start_url": start_url,
         "scope": start_url,
         "display": "standalone",
@@ -841,9 +842,9 @@ self.addEventListener("push", (event) => {
   try {
     payload = event.data ? event.data.json() : {};
   } catch (_error) {
-    payload = { title: "New CHP incident", body: "Open Crestmap for details.", url: DEFAULT_URL };
+    payload = { title: "New incident", body: "Open Crestmap for details.", url: DEFAULT_URL };
   }
-  const title = payload.title || "New CHP incident";
+  const title = payload.title || "New incident";
   const options = {
     body: payload.body || "Open Crestmap for details.",
     icon: "/apple-touch-icon.png",
@@ -884,7 +885,11 @@ def handle_push_config_get(request, send_body=True):
         {
             "enabled": bool(settings.vapid_public_key),
             "public_key": settings.vapid_public_key,
-            "defaults": {"regions": DEFAULT_REGIONS, "categories": DEFAULT_CATEGORIES},
+            "defaults": {
+                "sources": DEFAULT_SOURCES,
+                "regions": DEFAULT_REGIONS,
+                "categories": DEFAULT_CATEGORIES,
+            },
         },
         cache_control="no-store",
         send_body=send_body,

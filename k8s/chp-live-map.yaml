@@ -140,7 +140,7 @@ spec:
     spec:
       containers:
         - name: scrape
-          image: cajaks2/chp-live-map:0.1.174
+          image: cajaks2/chp-live-map:0.1.175
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -159,7 +159,7 @@ spec:
                   name: chp-live-map-db
                   key: DATABASE_URL
             - name: SERVICE_VERSION
-              value: "0.1.174"
+              value: "0.1.175"
             - name: CHP_USER_AGENT
               value: "chp-live-map/0.1 (+https://crestmap.us/)"
             - name: CHP_SOURCE_MODE
@@ -219,6 +219,64 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: chp-live-map-wildweb
+  namespace: chp-live-map
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: chp-live-map-wildweb
+  template:
+    metadata:
+      labels:
+        app: chp-live-map-wildweb
+    spec:
+      containers:
+        - name: wildweb
+          image: cajaks2/chp-live-map:0.1.175
+          imagePullPolicy: IfNotPresent
+          command:
+            - python3
+            - /app/scrape_wildweb_incidents.py
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: chp-live-map-db
+                  key: DATABASE_URL
+            - name: SERVICE_VERSION
+              value: "0.1.175"
+            - name: WILDWEB_INTERVAL_SECONDS
+              value: "120"
+            - name: WILDWEB_MAX_AGE_HOURS
+              value: "72"
+            - name: WILDWEB_USER_AGENT
+              value: "crestmap-wildweb/0.1 (+https://crestmap.us/)"
+            - name: WILDWEB_PUSH_NOTIFICATIONS
+              value: "true"
+            - name: PUBLIC_URL
+              value: https://crestmap.us/
+            - name: VAPID_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: chp-live-map-db
+                  key: VAPID_PRIVATE_KEY
+                  optional: true
+            - name: VAPID_SUBJECT
+              value: https://crestmap.us
+          resources:
+            requests:
+              cpu: 10m
+              memory: 48Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
   name: chp-live-map-aircraft
   namespace: chp-live-map
 spec:
@@ -235,7 +293,7 @@ spec:
     spec:
       containers:
         - name: aircraft
-          image: cajaks2/chp-live-map:0.1.174
+          image: cajaks2/chp-live-map:0.1.175
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -247,7 +305,7 @@ spec:
                   name: chp-live-map-db
                   key: DATABASE_URL
             - name: SERVICE_VERSION
-              value: "0.1.174"
+              value: "0.1.175"
             - name: OPENSKY_CLIENT_ID
               valueFrom:
                 secretKeyRef:
@@ -287,7 +345,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: cajaks2/chp-live-map:0.1.174
+          image: cajaks2/chp-live-map:0.1.175
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -307,7 +365,7 @@ spec:
             - name: HTTP_PORT
               value: "8080"
             - name: SERVICE_VERSION
-              value: "0.1.174"
+              value: "0.1.175"
             - name: BASE_PATH
               value: /
             - name: PUBLIC_URL

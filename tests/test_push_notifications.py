@@ -1,4 +1,5 @@
 import json
+import sqlite3
 
 from push_notifications import (
     PushValidationError,
@@ -36,7 +37,12 @@ def event_row(event_key="LACC|2026-08-06|0123", region="forest", incident_type="
     }
 
 
-def subscription_payload(endpoint="https://push.example.test/device-token", regions=None, categories=None):
+def subscription_payload(
+    endpoint="https://push.example.test/device-token",
+    regions=None,
+    categories=None,
+    sources=None,
+):
     payload = {
         "subscription": {
             "endpoint": endpoint,
@@ -47,6 +53,8 @@ def subscription_payload(endpoint="https://push.example.test/device-token", regi
         payload["regions"] = regions
     if categories is not None:
         payload["categories"] = categories
+    if sources is not None:
+        payload["sources"] = sources
     return payload
 
 
@@ -63,13 +71,16 @@ def test_subscription_validation_and_preferences(tmp_path):
 
     assert saved["regions"] == ["forest"]
     assert saved["categories"] == ["collision", "hazard"]
+    assert saved["sources"] == ["chp"]
     assert subscription_preferences(conn, "https://push.example.test/device-token") == {
+        "sources": ["chp"],
         "regions": ["forest"],
         "categories": ["collision", "hazard"],
     }
     row = conn.execute("SELECT * FROM push_subscriptions").fetchone()
     assert row["user_agent"] == "iPhone Safari"
     assert row["active"] == 1
+    assert json.loads(row["sources_json"]) == ["chp"]
     conn.close()
 
     try:
@@ -78,6 +89,54 @@ def test_subscription_validation_and_preferences(tmp_path):
         assert "HTTPS" in str(exc)
     else:
         raise AssertionError("insecure push endpoint was accepted")
+
+
+def test_existing_subscriptions_migrate_to_chp_only(tmp_path):
+    database = tmp_path / "legacy-push.sqlite"
+    legacy = sqlite3.connect(database)
+    legacy.execute(
+        """
+        CREATE TABLE push_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            regions_json TEXT NOT NULL,
+            categories_json TEXT NOT NULL,
+            user_agent TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1
+        )
+        """
+    )
+    legacy.execute(
+        """
+        INSERT INTO push_subscriptions (
+            endpoint, p256dh, auth, regions_json, categories_json,
+            created_at, updated_at, active
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+        """,
+        (
+            "https://push.example.test/existing",
+            "key",
+            "auth",
+            '["forest"]',
+            '["hazard"]',
+            "2026-08-11T12:00:00+00:00",
+            "2026-08-11T12:00:00+00:00",
+        ),
+    )
+    legacy.commit()
+    legacy.close()
+
+    conn = connect_database(database)
+    assert subscription_preferences(conn, "https://push.example.test/existing") == {
+        "sources": ["chp"],
+        "regions": ["forest"],
+        "categories": ["hazard"],
+    }
+    conn.close()
 
 
 def test_incident_categories_cover_chp_labels():
@@ -160,6 +219,7 @@ def test_delivery_filters_preferences_and_deduplicates(tmp_path):
     assert len(calls) == 1
     payload = json.loads(calls[0]["data"])
     assert payload["title"] == "New Traffic Hazard"
+    assert payload["source"] == "chp"
     assert payload["region"] == "forest"
     assert "incident=LACC%7C2026-08-06%7C0123" in payload["url"]
     assert calls[0]["ttl"] == 300
@@ -167,6 +227,49 @@ def test_delivery_filters_preferences_and_deduplicates(tmp_path):
     assert calls[0]["vapid_claims"] == {"sub": "mailto:test@example.test"}
     assert conn.execute("SELECT COUNT(*) AS count FROM push_deliveries").fetchone()["count"] == 1
     assert conn.execute("SELECT completed_at FROM push_notification_events").fetchone()["completed_at"]
+    conn.close()
+
+
+def test_wildweb_delivery_requires_explicit_source_opt_in(tmp_path):
+    database = tmp_path / "push.sqlite"
+    conn = connect_database(database)
+    incident = {
+        **event_row("wildweb|CAANCC|report-1", incident_type="Motor Vehicle Accident"),
+        "source": "wildweb",
+        "source_event_id": "report-1",
+    }
+    upsert_active_event(conn, incident)
+    save_subscription(
+        conn,
+        subscription_payload("https://push.example.test/chp-only", ["forest"], ["other"]),
+    )
+    save_subscription(
+        conn,
+        subscription_payload(
+            "https://push.example.test/wildweb",
+            ["forest"],
+            ["other"],
+            ["chp", "wildweb"],
+        ),
+    )
+    enqueue_incidents(conn, [incident], "https://crestmap.us/")
+    conn.commit()
+
+    calls = []
+    stats = process_pending(
+        conn,
+        "private-key",
+        "https://crestmap.us/",
+        sender=lambda **kwargs: calls.append(kwargs),
+    )
+
+    assert stats == {"events": 1, "delivered": 1, "failed": 0, "expired": 0}
+    assert [call["subscription_info"]["endpoint"] for call in calls] == [
+        "https://push.example.test/wildweb"
+    ]
+    payload = json.loads(calls[0]["data"])
+    assert payload["source"] == "wildweb"
+    assert payload["title"] == "New WildWeb report: Motor Vehicle Accident"
     conn.close()
 
 

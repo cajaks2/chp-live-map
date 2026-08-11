@@ -1293,6 +1293,12 @@ def init_database_sqlite(conn):
         CREATE TABLE IF NOT EXISTS events (
             event_key TEXT PRIMARY KEY,
             center TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'chp',
+            source_event_id TEXT,
+            source_url TEXT,
+            source_status TEXT,
+            source_reported_at TEXT,
+            coordinate_confidence TEXT NOT NULL DEFAULT 'unknown',
             region TEXT NOT NULL DEFAULT 'forest',
             incident_date TEXT NOT NULL,
             incident_no TEXT NOT NULL,
@@ -1403,6 +1409,7 @@ def init_database_sqlite(conn):
             endpoint TEXT NOT NULL UNIQUE,
             p256dh TEXT NOT NULL,
             auth TEXT NOT NULL,
+            sources_json TEXT NOT NULL DEFAULT '["chp"]',
             regions_json TEXT NOT NULL,
             categories_json TEXT NOT NULL,
             user_agent TEXT,
@@ -1506,8 +1513,18 @@ def init_database_sqlite(conn):
     ensure_column_sqlite(conn, "scrape_runs", "http_status_counts", "TEXT NOT NULL DEFAULT '{}'")
     ensure_column_sqlite(conn, "events", "details_fetched_at", "TEXT")
     ensure_column_sqlite(conn, "events", "region", "TEXT NOT NULL DEFAULT 'forest'")
+    ensure_column_sqlite(conn, "events", "source", "TEXT NOT NULL DEFAULT 'chp'")
+    ensure_column_sqlite(conn, "events", "source_event_id", "TEXT")
+    ensure_column_sqlite(conn, "events", "source_url", "TEXT")
+    ensure_column_sqlite(conn, "events", "source_status", "TEXT")
+    ensure_column_sqlite(conn, "events", "source_reported_at", "TEXT")
+    ensure_column_sqlite(conn, "events", "coordinate_confidence", "TEXT NOT NULL DEFAULT 'unknown'")
+    ensure_column_sqlite(conn, "push_subscriptions", "sources_json", "TEXT NOT NULL DEFAULT '[\"chp\"]'")
     ensure_column_sqlite(conn, "observations", "region", "TEXT NOT NULL DEFAULT 'forest'")
+    conn.execute("UPDATE events SET source = 'chp' WHERE source IS NULL OR source = ''")
+    conn.execute("UPDATE events SET source_event_id = event_key WHERE source_event_id IS NULL OR source_event_id = ''")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_events_region_status ON events(region, status)")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_events_source_identity ON events(source, source_event_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_events_region_first_seen ON events(region, first_seen)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_events_region_last_seen ON events(region, last_seen)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_events_region_cleared_at ON events(region, cleared_at)")
@@ -1534,6 +1551,12 @@ def init_database_postgres_locked(conn):
         CREATE TABLE IF NOT EXISTS events (
             event_key TEXT PRIMARY KEY,
             center TEXT NOT NULL,
+            source TEXT NOT NULL DEFAULT 'chp',
+            source_event_id TEXT,
+            source_url TEXT,
+            source_status TEXT,
+            source_reported_at TEXT,
+            coordinate_confidence TEXT NOT NULL DEFAULT 'unknown',
             region TEXT NOT NULL DEFAULT 'forest',
             incident_date TEXT NOT NULL,
             incident_no TEXT NOT NULL,
@@ -1645,6 +1668,7 @@ def init_database_postgres_locked(conn):
             endpoint TEXT NOT NULL UNIQUE,
             p256dh TEXT NOT NULL,
             auth TEXT NOT NULL,
+            sources_json TEXT NOT NULL DEFAULT '["chp"]',
             regions_json TEXT NOT NULL,
             categories_json TEXT NOT NULL,
             user_agent TEXT,
@@ -1750,8 +1774,18 @@ def init_database_postgres_locked(conn):
     ensure_column_postgres(conn, "scrape_runs", "http_status_counts", "TEXT NOT NULL DEFAULT '{}'")
     ensure_column_postgres(conn, "events", "details_fetched_at", "TEXT")
     ensure_column_postgres(conn, "events", "region", "TEXT NOT NULL DEFAULT 'forest'")
+    ensure_column_postgres(conn, "events", "source", "TEXT NOT NULL DEFAULT 'chp'")
+    ensure_column_postgres(conn, "events", "source_event_id", "TEXT")
+    ensure_column_postgres(conn, "events", "source_url", "TEXT")
+    ensure_column_postgres(conn, "events", "source_status", "TEXT")
+    ensure_column_postgres(conn, "events", "source_reported_at", "TEXT")
+    ensure_column_postgres(conn, "events", "coordinate_confidence", "TEXT NOT NULL DEFAULT 'unknown'")
+    ensure_column_postgres(conn, "push_subscriptions", "sources_json", "TEXT NOT NULL DEFAULT '[\"chp\"]'")
     ensure_column_postgres(conn, "observations", "region", "TEXT NOT NULL DEFAULT 'forest'")
+    conn.execute("UPDATE events SET source = 'chp' WHERE source IS NULL OR source = ''")
+    conn.execute("UPDATE events SET source_event_id = event_key WHERE source_event_id IS NULL OR source_event_id = ''")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_events_region_status ON events(region, status)")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_events_source_identity ON events(source, source_event_id)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_events_region_first_seen ON events(region, first_seen)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_events_region_last_seen ON events(region, last_seen)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_events_region_cleared_at ON events(region, cleared_at)")
@@ -1935,27 +1969,50 @@ def touch_active_event(conn, event, observed_at):
 def upsert_active_event(conn, row):
     previous = row_for_event(conn, row["event_key"])
     first_seen = previous["first_seen"] if previous else row["observed_at"]
-    params = {**row, "region": row.get("region", "forest"), "first_seen": first_seen, "last_seen": row["observed_at"]}
+    params = {
+        **row,
+        "region": row.get("region", "forest"),
+        "source": row.get("source") or "chp",
+        "source_event_id": row.get("source_event_id") or row["event_key"],
+        "source_url": row.get("source_url"),
+        "source_status": row.get("source_status") or row.get("status") or "active",
+        "source_reported_at": row.get("source_reported_at"),
+        "coordinate_confidence": row.get("coordinate_confidence")
+        or ("exact" if row.get("latitude") is not None and row.get("longitude") is not None else "missing"),
+        "status": row.get("status") or "active",
+        "cleared_at": row.get("cleared_at"),
+        "first_seen": first_seen,
+        "last_seen": row["observed_at"],
+    }
     if is_postgres(conn):
         conn.execute(
             """
             INSERT INTO events (
-                event_key, center, region, incident_date, incident_no, first_seen, last_seen,
+                event_key, center, source, source_event_id, source_url, source_status,
+                source_reported_at, coordinate_confidence, region, incident_date, incident_no, first_seen, last_seen,
                 cleared_at, status, latest_observed_at, updated_as_of, incident_time,
                 type, location, location_desc, area, latitude, longitude,
                 matched_keywords, details_hash, details_fetched_at
             ) VALUES (
-                %(event_key)s, %(center)s, %(region)s, %(incident_date)s, %(incident_no)s,
-                %(first_seen)s, %(last_seen)s, NULL, 'active', %(observed_at)s,
+                %(event_key)s, %(center)s, %(source)s, %(source_event_id)s, %(source_url)s,
+                %(source_status)s, %(source_reported_at)s, %(coordinate_confidence)s,
+                %(region)s, %(incident_date)s, %(incident_no)s,
+                %(first_seen)s, %(last_seen)s, %(cleared_at)s, %(status)s, %(observed_at)s,
                 %(updated_as_of)s, %(incident_time)s, %(type)s, %(location)s,
                 %(location_desc)s, %(area)s, %(latitude)s, %(longitude)s,
                 %(matched_keywords)s, %(details_hash)s, %(observed_at)s
             )
             ON CONFLICT(event_key) DO UPDATE SET
                 last_seen = excluded.last_seen,
-                cleared_at = NULL,
-                status = 'active',
+                cleared_at = excluded.cleared_at,
+                status = excluded.status,
                 latest_observed_at = excluded.latest_observed_at,
+                source = excluded.source,
+                source_event_id = excluded.source_event_id,
+                source_url = excluded.source_url,
+                source_status = excluded.source_status,
+                source_reported_at = excluded.source_reported_at,
+                coordinate_confidence = excluded.coordinate_confidence,
                 region = excluded.region,
                 updated_as_of = excluded.updated_as_of,
                 incident_time = excluded.incident_time,
@@ -1976,21 +2033,29 @@ def upsert_active_event(conn, row):
     conn.execute(
         """
         INSERT INTO events (
-            event_key, center, region, incident_date, incident_no, first_seen, last_seen,
+            event_key, center, source, source_event_id, source_url, source_status,
+            source_reported_at, coordinate_confidence, region, incident_date, incident_no, first_seen, last_seen,
             cleared_at, status, latest_observed_at, updated_as_of, incident_time,
             type, location, location_desc, area, latitude, longitude,
             matched_keywords, details_hash, details_fetched_at
         ) VALUES (
-            :event_key, :center, :region, :incident_date, :incident_no, :first_seen,
-            :last_seen, NULL, 'active', :observed_at, :updated_as_of,
+            :event_key, :center, :source, :source_event_id, :source_url, :source_status,
+            :source_reported_at, :coordinate_confidence, :region, :incident_date, :incident_no, :first_seen,
+            :last_seen, :cleared_at, :status, :observed_at, :updated_as_of,
             :incident_time, :type, :location, :location_desc, :area, :latitude,
             :longitude, :matched_keywords, :details_hash, :observed_at
         )
         ON CONFLICT(event_key) DO UPDATE SET
             last_seen = excluded.last_seen,
-            cleared_at = NULL,
-            status = 'active',
+            cleared_at = excluded.cleared_at,
+            status = excluded.status,
             latest_observed_at = excluded.latest_observed_at,
+            source = excluded.source,
+            source_event_id = excluded.source_event_id,
+            source_url = excluded.source_url,
+            source_status = excluded.source_status,
+            source_reported_at = excluded.source_reported_at,
+            coordinate_confidence = excluded.coordinate_confidence,
             region = excluded.region,
             updated_as_of = excluded.updated_as_of,
             incident_time = excluded.incident_time,
@@ -2019,12 +2084,15 @@ def incident_public_url(row):
 
 
 def log_discovered_incident(row):
+    source = (row.get("source") or "chp").casefold()
+    source_name = "WildWeb" if source == "wildweb" else source.upper()
     log_event(
         "info",
-        "Discovered new CHP incident",
+        f"Discovered new {source_name} incident",
         **{
             "event.action": "incident_discovered",
             "event.outcome": "success",
+            "event.provider": source,
             "chp.event_key": row["event_key"],
             "chp.region": row.get("region") or "forest",
             "chp.incident_type": row.get("type") or "CHP Incident",

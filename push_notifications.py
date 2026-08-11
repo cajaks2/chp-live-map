@@ -6,8 +6,10 @@ from urllib.parse import urlsplit
 
 REGIONS = {"crest", "forest", "malibu"}
 CATEGORIES = {"collision", "hazard", "closure", "other"}
+SOURCES = {"chp", "wildweb"}
 DEFAULT_REGIONS = ["forest", "malibu"]
 DEFAULT_CATEGORIES = sorted(CATEGORIES)
+DEFAULT_SOURCES = ["chp"]
 CREST_NOTIFICATION_KEYWORDS = (
     "angeles crest",
     "angeles forest",
@@ -77,6 +79,7 @@ def validate_subscription(payload):
         "endpoint": endpoint,
         "p256dh": p256dh,
         "auth": auth,
+        "sources": normalize_choices(payload.get("sources", DEFAULT_SOURCES), SOURCES, "sources"),
         "regions": regions,
         "categories": normalize_choices(payload.get("categories"), CATEGORIES, "categories"),
     }
@@ -100,6 +103,7 @@ def save_subscription(conn, payload, user_agent=""):
         values["endpoint"],
         values["p256dh"],
         values["auth"],
+        json.dumps(values["sources"]),
         json.dumps(values["regions"]),
         json.dumps(values["categories"]),
         str(user_agent or "")[:1000],
@@ -110,12 +114,13 @@ def save_subscription(conn, payload, user_agent=""):
         row = conn.execute(
             """
             INSERT INTO push_subscriptions (
-                endpoint, p256dh, auth, regions_json, categories_json, user_agent,
+                endpoint, p256dh, auth, sources_json, regions_json, categories_json, user_agent,
                 created_at, updated_at, active
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, TRUE)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE)
             ON CONFLICT (endpoint) DO UPDATE SET
                 p256dh = EXCLUDED.p256dh,
                 auth = EXCLUDED.auth,
+                sources_json = EXCLUDED.sources_json,
                 regions_json = EXCLUDED.regions_json,
                 categories_json = EXCLUDED.categories_json,
                 user_agent = EXCLUDED.user_agent,
@@ -130,12 +135,13 @@ def save_subscription(conn, payload, user_agent=""):
         conn.execute(
             """
             INSERT INTO push_subscriptions (
-                endpoint, p256dh, auth, regions_json, categories_json, user_agent,
+                endpoint, p256dh, auth, sources_json, regions_json, categories_json, user_agent,
                 created_at, updated_at, active
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             ON CONFLICT(endpoint) DO UPDATE SET
                 p256dh = excluded.p256dh,
                 auth = excluded.auth,
+                sources_json = excluded.sources_json,
                 regions_json = excluded.regions_json,
                 categories_json = excluded.categories_json,
                 user_agent = excluded.user_agent,
@@ -147,19 +153,25 @@ def save_subscription(conn, payload, user_agent=""):
         subscription_id = conn.execute(
             "SELECT id FROM push_subscriptions WHERE endpoint = ?", (values["endpoint"],)
         ).fetchone()["id"]
-    return {"id": subscription_id, "regions": values["regions"], "categories": values["categories"]}
+    return {
+        "id": subscription_id,
+        "sources": values["sources"],
+        "regions": values["regions"],
+        "categories": values["categories"],
+    }
 
 
 def subscription_preferences(conn, endpoint):
     if not endpoint:
         return None
     row = conn.execute(
-        f"SELECT regions_json, categories_json, active FROM push_subscriptions WHERE endpoint = {_placeholder(conn)}",
+        f"SELECT sources_json, regions_json, categories_json, active FROM push_subscriptions WHERE endpoint = {_placeholder(conn)}",
         (endpoint,),
     ).fetchone()
     if not row or not row["active"]:
         return None
     return {
+        "sources": json.loads(row["sources_json"]),
         "regions": json.loads(row["regions_json"]),
         "categories": json.loads(row["categories_json"]),
     }
@@ -197,19 +209,21 @@ def notification_areas(incident):
 
 
 def notification_payload(incident, public_url):
-    incident_type = incident.get("type") or "CHP Incident"
+    incident_type = incident.get("type") or "Incident"
+    source = (incident.get("source") or "chp").casefold()
     location = incident.get("location") or incident.get("location_desc") or "Location unavailable"
     area = incident.get("area") or ""
     region = incident.get("region") or "forest"
     return {
         "event_key": incident["event_key"],
+        "source": source,
         "region": region,
         "areas": notification_areas(incident),
         "category": incident_category(incident_type),
-        "title": f"New {incident_type}",
+        "title": f"New WildWeb report: {incident_type}" if source == "wildweb" else f"New {incident_type}",
         "body": f"{location}{f' ({area})' if area else ''}",
         "url": incident_public_url(incident, public_url),
-        "tag": f"chp-{incident['event_key']}",
+        "tag": f"crestmap-{incident['event_key']}",
     }
 
 
@@ -286,11 +300,13 @@ def _matching_subscriptions(conn, event):
         ((True, event["created_at"]) if _is_postgres(conn) else (event["created_at"],)),
     ).fetchall()
     payload = json.loads(event["payload_json"])
+    event_source = str(payload.get("source") or "chp").casefold()
     event_areas = set(payload.get("areas") or [event["region"]])
     return [
         row
         for row in rows
-        if event_areas.intersection(json.loads(row["regions_json"]))
+        if event_source in json.loads(row["sources_json"])
+        and event_areas.intersection(json.loads(row["regions_json"]))
         and event["category"] in json.loads(row["categories_json"])
     ]
 

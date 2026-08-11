@@ -12,6 +12,7 @@ from geo_bounds import coordinates_in_region_bounds
 from scrape_chp_traffic import (
     PACIFIC_TZ,
     REGION_ROAD_KEYWORDS,
+    ScraperMetrics,
     connect_database,
     deliver_push_notifications,
     details_hash,
@@ -21,6 +22,7 @@ from scrape_chp_traffic import (
     matching_regions,
     region_for_incident,
     store_scrape_run,
+    start_metrics_server,
     upsert_active_event,
 )
 
@@ -29,6 +31,7 @@ WILDWEB_API_TEMPLATE = "https://snknmqmon6.execute-api.us-west-2.amazonaws.com/c
 WILDWEB_PAGE_TEMPLATE = "https://www.wildwebe.net/incidents?dc_Name={center}"
 DEFAULT_CENTERS = ["CAANCC"]
 DEFAULT_USER_AGENT = "crestmap-wildweb/0.1 (+https://crestmap.us/)"
+WILDWEB_METRICS = ScraperMetrics(provider="wildweb", source_defaults=("api",))
 ALLOWED_TYPES = {
     "medical aid",
     "miscellaneous",
@@ -346,6 +349,13 @@ def scrape_once(args):
         if row:
             normalized.append(row)
 
+    region_counts = {}
+    for row in normalized:
+        counts = region_counts.setdefault(row["region"], {"matched": 0, "mapped": 0})
+        counts["matched"] += 1
+        if row["latitude"] is not None and row["longitude"] is not None:
+            counts["mapped"] += 1
+
     seen_keys = {row["event_key"] for row in normalized if row["status"] == "reported"}
     discovered = []
     observations_inserted = 0
@@ -398,6 +408,7 @@ def scrape_once(args):
         "discovered": len(discovered),
         "duration_seconds": time.monotonic() - started_at,
         "source_bytes": stats["source_bytes"],
+        "region_counts": region_counts,
         "retrieved_at": max(retrieved_values).isoformat(timespec="seconds") if retrieved_values else "",
     }
 
@@ -408,6 +419,12 @@ def parse_args(argv=None):
     parser.add_argument("--database", type=Path, default=Path("chp_traffic.sqlite"))
     parser.add_argument("--database-url", default=os.environ.get("DATABASE_URL"))
     parser.add_argument("--interval", type=int, default=int(os.environ.get("WILDWEB_INTERVAL_SECONDS", "0")))
+    parser.add_argument("--metrics-host", default=os.environ.get("WILDWEB_METRICS_HOST"))
+    parser.add_argument(
+        "--metrics-port",
+        type=int,
+        default=int(os.environ.get("WILDWEB_METRICS_PORT", "0")),
+    )
     parser.add_argument("--timeout", type=int, default=30)
     parser.add_argument("--retries", type=int, default=2)
     parser.add_argument("--retry-backoff", type=float, default=2)
@@ -426,10 +443,31 @@ def parse_args(argv=None):
 
 def main():
     args = parse_args()
+    metrics_server = None
+    if args.metrics_port > 0:
+        metrics_server = start_metrics_server(
+            args.metrics_host or "127.0.0.1",
+            args.metrics_port,
+            WILDWEB_METRICS,
+        )
     while True:
         started_at = time.monotonic()
         try:
             result = scrape_once(args)
+            WILDWEB_METRICS.record_source_attempt("api", "primary", "success")
+            WILDWEB_METRICS.record_success(
+                result["observed_at"],
+                result["changed"],
+                result["total_seen"],
+                result["matched"],
+                result["mapped"],
+                result["region_counts"],
+                0,
+                0,
+                result["duration_seconds"],
+                {"api": result["duration_seconds"], "total": result["duration_seconds"]},
+                {"api": result["source_bytes"], "total": result["source_bytes"]},
+            )
             log_event(
                 "info",
                 "WildWeb scrape completed",
@@ -448,6 +486,13 @@ def main():
                 },
             )
         except Exception as exc:
+            duration_seconds = time.monotonic() - started_at
+            WILDWEB_METRICS.record_source_attempt("api", "primary", "failure")
+            WILDWEB_METRICS.record_failure(
+                dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+                duration_seconds,
+                exc,
+            )
             log_exception(
                 "WildWeb scrape failed",
                 exc,
@@ -461,9 +506,11 @@ def main():
             if args.interval <= 0:
                 raise
         if args.interval <= 0:
-            return
+            break
         elapsed = time.monotonic() - started_at
         time.sleep(max(1, args.interval - elapsed))
+    if metrics_server:
+        metrics_server.shutdown()
 
 
 if __name__ == "__main__":

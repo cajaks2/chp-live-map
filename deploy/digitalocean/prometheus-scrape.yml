@@ -1,0 +1,21 @@
+# Merge these jobs into the host Prometheus scrape_configs.
+- job_name: chp_live_map
+  scrape_interval: 30s
+  scrape_timeout: 10s
+  metrics_path: /metrics
+  static_configs:
+    - targets: [127.0.0.1:8080]
+      labels:
+        service: chp-live-map
+        site: crestmap.us
+
+- job_name: chp_live_map_scraper
+  scrape_interval: 30s
+  scrape_timeout: 10s
+  metrics_path: /metrics
+  static_configs:
+    - targets: [127.0.0.1:8081, 127.0.0.1:8082]
+      labels:
+        service: chp-live-map
+        component: scraper
+        site: crestmap.us

@@ -4,6 +4,7 @@ COMPOSE ?= docker compose
 VERSION ?=
 WEB_HEALTH_URL ?= http://127.0.0.1:8080/healthz
 SCRAPER_HEALTH_URL ?= http://127.0.0.1:8081/healthz
+WILDWEB_HEALTH_URL ?= http://127.0.0.1:8082/healthz
 PUBLIC_URL ?= https://crestmap.us/
 ENV_FILE ?= .env
 
@@ -28,9 +29,9 @@ help:
 		'  make logs-scrape          Tail scraper logs' \
 		'  make logs-wildweb         Tail WildWeb collector logs' \
 		'  make logs-aircraft        Tail aircraft tracker logs' \
-		'  make health               Check local web and scraper health endpoints' \
+		'  make health               Check local web, CHP, and WildWeb health endpoints' \
 		'  make verify               Check health and public page' \
-		'  make metrics              Print web and scraper metrics headers' \
+		'  make metrics              Print web, CHP, and WildWeb metrics headers' \
 		'  make backup               Run one manual Postgres backup into ./backups/postgres' \
 		'  make set-version VERSION=x.y.z  Update VERSION in .env only'
 
@@ -96,6 +97,8 @@ health:
 	@printf '\n'
 	curl -fsS "$(SCRAPER_HEALTH_URL)"
 	@printf '\n'
+	curl -fsS "$(WILDWEB_HEALTH_URL)"
+	@printf '\n'
 
 verify: health
 	curl -fsS "$(PUBLIC_URL)" -o /tmp/chp-live-map-do-verify.html
@@ -105,6 +108,8 @@ metrics:
 	curl -fsS http://127.0.0.1:8080/metrics | head -40
 	@printf '\n--- scraper ---\n'
 	curl -fsS http://127.0.0.1:8081/metrics | head -40
+	@printf '\n--- wildweb ---\n'
+	curl -fsS http://127.0.0.1:8082/metrics | head -40
 
 backup:
 	@set -a; source "$(ENV_FILE)"; set +a; \

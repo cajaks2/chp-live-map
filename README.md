@@ -88,7 +88,7 @@ python3 scrape_wildweb_incidents.py
 python3 scrape_wildweb_incidents.py --interval 120
 ```
 
-WildWeb defaults to CAANCC and a 72-hour source window. Configure it with `WILDWEB_INTERVAL_SECONDS`, `WILDWEB_MAX_AGE_HOURS`, `WILDWEB_USER_AGENT`, and `WILDWEB_PUSH_NOTIFICATIONS`. Production collection enables WildWeb delivery, but each browser subscription remains CHP-only unless the user explicitly selects **WildWeb reports** in Alerts. The toggle warns that the two sources may describe the same incident.
+WildWeb defaults to CAANCC and a 72-hour source window. Configure it with `WILDWEB_INTERVAL_SECONDS`, `WILDWEB_MAX_AGE_HOURS`, `WILDWEB_USER_AGENT`, and `WILDWEB_PUSH_NOTIFICATIONS`. `WILDWEB_METRICS_HOST` and `WILDWEB_METRICS_PORT` expose the same provider-labeled scraper metric families used by the CHP collector. Production collection enables WildWeb delivery, but each browser subscription remains CHP-only unless the user explicitly selects **WildWeb reports** in Alerts. The toggle warns that the two sources may describe the same incident.
 
 Tune politeness controls:
 
@@ -226,7 +226,7 @@ The manifest creates:
 - PVC `chp-live-map-postgres-data`
 - Postgres StatefulSet and service
 - CHP scraper Deployment that runs continuously, polls every minute, and exposes metrics
-- WildWeb collector Deployment that runs continuously and polls every two minutes
+- WildWeb collector Deployment that runs continuously, polls every two minutes, and exposes metrics
 - OpenSky aircraft tracker Deployment that polls every 30 seconds
 - web Deployment and service
 
@@ -310,7 +310,10 @@ The web service also exposes:
 - `/incidents.json?hours=72`: JSON payload for the selected incident window. This is the current compatibility endpoint and exposes the internal incident row shape.
 - `?region=malibu`: public Malibu coast/canyon dataset selector supported by the map, summary, history, about, `/status.json`, and `/incidents.json`.
 - Web `/metrics`: Prometheus text-format metrics for web process uptime, incident counts, data freshness, HTTP request counters, and DB-backed latest scrape data.
-- Scraper `:8081/metrics`: Prometheus text-format metrics emitted by the long-lived scraper service, including scrape attempt counters and outbound CHP response-code counters.
+- CHP scraper `:8081/metrics`: provider-labeled Prometheus metrics emitted by the long-lived CHP collector, including scrape attempt counters and outbound CHP response-code counters.
+- WildWeb scraper `:8082/metrics`: the same generic `chp_live_map_scraper_*` families with `provider="wildweb"` and `source="api"`.
+
+Merge `deploy/digitalocean/prometheus-scrape.yml` into the host Prometheus `scrape_configs` so both collector targets are ingested. The checked-in Grafana dashboard includes a `provider` filter and keeps XML/CAD-only panels scoped to CHP.
 
 Comment API:
 
@@ -410,17 +413,17 @@ Prometheus metrics:
 | `chp_live_map_scrape_last_run_observations_inserted` | gauge | Observation rows inserted by the latest scrape. |
 | `chp_live_map_scrape_last_run_details{result}` | gauge | Detail pages requested or skipped by the latest scrape. |
 | `chp_live_map_scrape_chp_http_requests_total{method,route,status}` | counter | Outbound requests made by the scraper to CHP, grouped by method, list/detail route, and response status. |
-| `chp_live_map_scraper_up` | gauge | `1` when the scraper service metrics endpoint is running. |
-| `chp_live_map_scraper_scrapes_total{outcome}` | counter | Scrape attempts by success/failure from the long-lived scraper process. |
-| `chp_live_map_scraper_source_attempts_total{source,mode,outcome}` | counter | Source attempts from the scraper process. `source` is `xml` or `cad`; `mode` is `primary` or `fallback`; `outcome` is `success` or `failure`. |
-| `chp_live_map_scraper_xml_feed_age_seconds{timestamp_source}` | gauge | Age in seconds of the media XML feed timestamp from the latest XML freshness check. `timestamp_source` is usually `http_last_modified`; it falls back to `incident_timestamp` if the header is absent. XML is treated as stale after `CHP_XML_MAX_AGE_MINUTES`, default `5`, and CAD is used as fallback. |
-| `chp_live_map_scraper_xml_feed_timestamp_seconds{timestamp_source}` | gauge | Unix timestamp for the media XML feed timestamp used by the latest XML freshness check. |
-| `chp_live_map_scraper_last_run_timestamp_seconds{outcome,error_type}` | gauge | Timestamp of the latest scraper run from the scraper service. |
-| `chp_live_map_scraper_last_run_duration_seconds` | gauge | Total duration of the latest scraper-service run. |
-| `chp_live_map_scraper_last_run_source_duration_seconds{source}` | gauge | Latest scraper-service fetch/runtime duration by source, currently `xml` or `cad`. |
-| `chp_live_map_scraper_last_run_source_response_bytes{source}` | gauge | Bytes downloaded by the latest scraper-service run by source. |
-| `chp_live_map_scraper_last_run_incidents{kind}` | gauge | Latest scraper-service incident counts. |
-| `chp_live_map_scraper_chp_http_requests_total{method,route,status}` | counter | Outbound CHP HTTP requests counted in the scraper process. |
+| `chp_live_map_scraper_up{provider}` | gauge | `1` when a scraper metrics endpoint is running. `provider` is `chp` or `wildweb`. |
+| `chp_live_map_scraper_scrapes_total{provider,outcome}` | counter | Scrape attempts by provider and success/failure. |
+| `chp_live_map_scraper_source_attempts_total{provider,source,mode,outcome}` | counter | Source attempts from each collector. CHP uses `xml` or `cad`; WildWeb uses `api`. |
+| `chp_live_map_scraper_xml_feed_age_seconds{provider,timestamp_source}` | gauge | CHP-only age in seconds of the media XML feed timestamp from the latest XML freshness check. `timestamp_source` is usually `http_last_modified`; it falls back to `incident_timestamp` if the header is absent. XML is treated as stale after `CHP_XML_MAX_AGE_MINUTES`, default `5`, and CAD is used as fallback. |
+| `chp_live_map_scraper_xml_feed_timestamp_seconds{provider,timestamp_source}` | gauge | CHP-only Unix timestamp for the media XML feed timestamp used by the latest XML freshness check. |
+| `chp_live_map_scraper_last_run_timestamp_seconds{provider,outcome,error_type}` | gauge | Timestamp of the latest run for each scraper provider. |
+| `chp_live_map_scraper_last_run_duration_seconds{provider}` | gauge | Total duration of each provider's latest scraper run. |
+| `chp_live_map_scraper_last_run_source_duration_seconds{provider,source}` | gauge | Latest fetch/runtime duration by provider and source. |
+| `chp_live_map_scraper_last_run_source_response_bytes{provider,source}` | gauge | Bytes downloaded by each provider's latest run. |
+| `chp_live_map_scraper_last_run_incidents{provider,kind}` | gauge | Latest incident counts for each scraper provider. |
+| `chp_live_map_scraper_chp_http_requests_total{provider,method,route,status}` | counter | CHP-only outbound HTTP requests counted in the scraper process. |
 
 ## SQL Tables
 

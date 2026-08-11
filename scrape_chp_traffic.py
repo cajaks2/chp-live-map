@@ -113,7 +113,6 @@ HIGHWAY_39_FOREST_CONTEXT = [
     "islip",
     "mm ",
 ]
-SCRAPER_START_TIME = time.time()
 
 
 def metric_escape(value):
@@ -127,8 +126,24 @@ def metric_line(name, value, labels=None):
     return f"{name} {value}"
 
 
+CHP_ONLY_SCRAPER_METRICS = {
+    "chp_live_map_scraper_xml_feed_age_seconds",
+    "chp_live_map_scraper_xml_feed_timestamp_seconds",
+    "chp_live_map_scraper_source_compare_runs_total",
+    "chp_live_map_scraper_source_compare_last_run_timestamp_seconds",
+    "chp_live_map_scraper_source_compare_last_run_duration_seconds",
+    "chp_live_map_scraper_source_compare_last_run_incidents",
+    "chp_live_map_scraper_source_compare_last_run_region_incidents",
+    "chp_live_map_scraper_last_run_details",
+    "chp_live_map_scraper_chp_http_requests_total",
+}
+
+
 class ScraperMetrics:
-    def __init__(self):
+    def __init__(self, provider="chp", source_defaults=("cad", "xml")):
+        self.provider = provider
+        self.source_defaults = tuple(source_defaults)
+        self.process_start_time = time.time()
         self.lock = threading.Lock()
         self.scrapes = {"success": 0, "failure": 0}
         self.source_attempts = {}
@@ -137,6 +152,9 @@ class ScraperMetrics:
         self.last = {}
         self.last_source_compare = {}
         self.xml_feed = {}
+
+    def metric_line(self, name, value, labels=None):
+        return metric_line(name, value, {"provider": self.provider, **(labels or {})})
 
     def record_chp_http(self, method, route, status):
         key = (str(method), str(route), str(status))
@@ -282,15 +300,18 @@ class ScraperMetrics:
         lines = [
             "# HELP chp_live_map_scraper_up Whether the scraper metrics service is running.",
             "# TYPE chp_live_map_scraper_up gauge",
-            "chp_live_map_scraper_up 1",
+            self.metric_line("chp_live_map_scraper_up", 1),
             "# HELP chp_live_map_scraper_process_start_time_seconds Unix timestamp when the scraper process started.",
             "# TYPE chp_live_map_scraper_process_start_time_seconds gauge",
-            metric_line("chp_live_map_scraper_process_start_time_seconds", f"{SCRAPER_START_TIME:.3f}"),
+            self.metric_line(
+                "chp_live_map_scraper_process_start_time_seconds",
+                f"{self.process_start_time:.3f}",
+            ),
             "# HELP chp_live_map_scraper_scrapes_total Scrape attempts by outcome.",
             "# TYPE chp_live_map_scraper_scrapes_total counter",
         ]
         for outcome, count in sorted(scrapes.items()):
-            lines.append(metric_line("chp_live_map_scraper_scrapes_total", count, {"outcome": outcome}))
+            lines.append(self.metric_line("chp_live_map_scraper_scrapes_total", count, {"outcome": outcome}))
         lines.extend(
             [
                 "# HELP chp_live_map_scraper_source_attempts_total Scraper source attempts by source, mode, and outcome.",
@@ -299,7 +320,7 @@ class ScraperMetrics:
         )
         for (source, mode, outcome), count in sorted(source_attempts.items()):
             lines.append(
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_source_attempts_total",
                     count,
                     {"source": source, "mode": mode, "outcome": outcome},
@@ -309,14 +330,14 @@ class ScraperMetrics:
             [
                 "# HELP chp_live_map_scraper_xml_feed_age_seconds Age of the CHP media XML feed timestamp at the last XML freshness check.",
                 "# TYPE chp_live_map_scraper_xml_feed_age_seconds gauge",
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_xml_feed_age_seconds",
                     xml_feed.get("age_seconds", 0),
                     {"timestamp_source": xml_feed.get("timestamp_source", "none")},
                 ),
                 "# HELP chp_live_map_scraper_xml_feed_timestamp_seconds Unix timestamp of the CHP media XML feed timestamp from the last XML freshness check.",
                 "# TYPE chp_live_map_scraper_xml_feed_timestamp_seconds gauge",
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_xml_feed_timestamp_seconds",
                     f"{parse_metric_timestamp(xml_feed.get('feed_timestamp')):.3f}",
                     {"timestamp_source": xml_feed.get("timestamp_source", "none")},
@@ -330,19 +351,19 @@ class ScraperMetrics:
             ]
         )
         for outcome, count in sorted(source_compares.items()):
-            lines.append(metric_line("chp_live_map_scraper_source_compare_runs_total", count, {"outcome": outcome}))
+            lines.append(self.metric_line("chp_live_map_scraper_source_compare_runs_total", count, {"outcome": outcome}))
         lines.extend(
             [
                 "# HELP chp_live_map_scraper_last_run_timestamp_seconds Unix timestamp of the latest scraper run.",
                 "# TYPE chp_live_map_scraper_last_run_timestamp_seconds gauge",
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_last_run_timestamp_seconds",
                     f"{parse_metric_timestamp(last.get('observed_at')):.3f}",
                     {"outcome": last.get("outcome", "none"), "error_type": last.get("error_type", "")},
                 ),
                 "# HELP chp_live_map_scraper_last_run_duration_seconds Duration of the latest scraper run.",
                 "# TYPE chp_live_map_scraper_last_run_duration_seconds gauge",
-                metric_line("chp_live_map_scraper_last_run_duration_seconds", last.get("duration_seconds", 0)),
+                self.metric_line("chp_live_map_scraper_last_run_duration_seconds", last.get("duration_seconds", 0)),
                 "# HELP chp_live_map_scraper_last_run_source_duration_seconds Duration of the latest scraper run grouped by source.",
                 "# TYPE chp_live_map_scraper_last_run_source_duration_seconds gauge",
             ]
@@ -351,7 +372,7 @@ class ScraperMetrics:
         source_durations.setdefault("total", last.get("duration_seconds", 0))
         for source, duration_seconds in sorted(source_durations.items()):
             lines.append(
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_last_run_source_duration_seconds",
                     duration_seconds,
                     {"source": source},
@@ -364,12 +385,14 @@ class ScraperMetrics:
             ]
         )
         source_bytes = dict(last.get("source_bytes") or {})
-        for source in ("cad", "xml"):
+        for source in self.source_defaults:
             source_bytes.setdefault(source, 0)
-        source_bytes["total"] = source_bytes.get("cad", 0) + source_bytes.get("xml", 0)
+        source_bytes["total"] = sum(
+            byte_count for source, byte_count in source_bytes.items() if source != "total"
+        )
         for source, byte_count in sorted(source_bytes.items()):
             lines.append(
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_last_run_source_response_bytes",
                     byte_count,
                     {"source": source},
@@ -379,23 +402,23 @@ class ScraperMetrics:
             [
                 "# HELP chp_live_map_scraper_last_run_incidents Incidents seen by the latest scraper run.",
                 "# TYPE chp_live_map_scraper_last_run_incidents gauge",
-                metric_line("chp_live_map_scraper_last_run_incidents", last.get("total_seen", 0), {"kind": "total_seen"}),
-                metric_line("chp_live_map_scraper_last_run_incidents", last.get("active_seen", 0), {"kind": "matched"}),
-                metric_line("chp_live_map_scraper_last_run_incidents", last.get("active_with_coords", 0), {"kind": "mapped"}),
+                self.metric_line("chp_live_map_scraper_last_run_incidents", last.get("total_seen", 0), {"kind": "total_seen"}),
+                self.metric_line("chp_live_map_scraper_last_run_incidents", last.get("active_seen", 0), {"kind": "matched"}),
+                self.metric_line("chp_live_map_scraper_last_run_incidents", last.get("active_with_coords", 0), {"kind": "mapped"}),
                 "# HELP chp_live_map_scraper_last_run_region_incidents Incidents matched by the latest scraper run, grouped by hidden region and coordinate availability.",
                 "# TYPE chp_live_map_scraper_last_run_region_incidents gauge",
             ]
         )
         for region, counts in sorted((last.get("region_counts") or {}).items()):
             lines.append(
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_last_run_region_incidents",
                     counts.get("matched", 0),
                     {"region": region, "kind": "matched"},
                 )
             )
             lines.append(
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_last_run_region_incidents",
                     counts.get("mapped", 0),
                     {"region": region, "kind": "mapped"},
@@ -405,7 +428,7 @@ class ScraperMetrics:
             [
                 "# HELP chp_live_map_scraper_source_compare_last_run_timestamp_seconds Unix timestamp of the latest source comparison run.",
                 "# TYPE chp_live_map_scraper_source_compare_last_run_timestamp_seconds gauge",
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_source_compare_last_run_timestamp_seconds",
                     f"{parse_metric_timestamp(last_source_compare.get('observed_at')):.3f}",
                     {
@@ -415,58 +438,58 @@ class ScraperMetrics:
                 ),
                 "# HELP chp_live_map_scraper_source_compare_last_run_duration_seconds Duration of the latest source comparison run.",
                 "# TYPE chp_live_map_scraper_source_compare_last_run_duration_seconds gauge",
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_source_compare_last_run_duration_seconds",
                     last_source_compare.get("duration_seconds", 0),
                 ),
                 "# HELP chp_live_map_scraper_source_compare_last_run_incidents Last source comparison incident counts by source/result.",
                 "# TYPE chp_live_map_scraper_source_compare_last_run_incidents gauge",
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("cad_total_seen", 0),
                     {"source": "cad", "kind": "total_seen"},
                 ),
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("cad_matched", 0),
                     {"source": "cad", "kind": "matched"},
                 ),
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("cad_mapped", 0),
                     {"source": "cad", "kind": "mapped"},
                 ),
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("xml_total_seen", 0),
                     {"source": "xml", "kind": "total_seen"},
                 ),
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("xml_matched", 0),
                     {"source": "xml", "kind": "matched"},
                 ),
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("xml_mapped", 0),
                     {"source": "xml", "kind": "mapped"},
                 ),
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("overlap_matched", 0),
                     {"source": "comparison", "kind": "overlap"},
                 ),
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("cad_only", 0),
                     {"source": "comparison", "kind": "cad_only"},
                 ),
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("xml_only", 0),
                     {"source": "comparison", "kind": "xml_only"},
                 ),
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("mismatch", 0),
                     {"source": "comparison", "kind": "mismatch"},
@@ -481,14 +504,14 @@ class ScraperMetrics:
         ):
             for region, counts in sorted(region_counts.items()):
                 lines.append(
-                    metric_line(
+                    self.metric_line(
                         "chp_live_map_scraper_source_compare_last_run_region_incidents",
                         counts.get("matched", 0),
                         {"source": source, "region": region, "kind": "matched"},
                     )
                 )
                 lines.append(
-                    metric_line(
+                    self.metric_line(
                         "chp_live_map_scraper_source_compare_last_run_region_incidents",
                         counts.get("mapped", 0),
                         {"source": source, "region": region, "kind": "mapped"},
@@ -498,23 +521,35 @@ class ScraperMetrics:
             [
                 "# HELP chp_live_map_scraper_last_run_observations_inserted Observation rows inserted by the latest scraper run.",
                 "# TYPE chp_live_map_scraper_last_run_observations_inserted gauge",
-                metric_line("chp_live_map_scraper_last_run_observations_inserted", last.get("observations_inserted", 0)),
+                self.metric_line("chp_live_map_scraper_last_run_observations_inserted", last.get("observations_inserted", 0)),
                 "# HELP chp_live_map_scraper_last_run_details Detail pages requested or skipped by the latest scraper run.",
                 "# TYPE chp_live_map_scraper_last_run_details gauge",
-                metric_line("chp_live_map_scraper_last_run_details", last.get("details_requested", 0), {"result": "requested"}),
-                metric_line("chp_live_map_scraper_last_run_details", last.get("details_skipped", 0), {"result": "skipped"}),
+                self.metric_line("chp_live_map_scraper_last_run_details", last.get("details_requested", 0), {"result": "requested"}),
+                self.metric_line("chp_live_map_scraper_last_run_details", last.get("details_skipped", 0), {"result": "skipped"}),
                 "# HELP chp_live_map_scraper_chp_http_requests_total Outbound CHP HTTP requests made by scraper, grouped by method, route, and status.",
                 "# TYPE chp_live_map_scraper_chp_http_requests_total counter",
             ]
         )
         for (method, route, status), count in sorted(http_counts.items()):
             lines.append(
-                metric_line(
+                self.metric_line(
                     "chp_live_map_scraper_chp_http_requests_total",
                     count,
                     {"method": method, "route": route, "status": status},
                 )
             )
+        if self.provider != "chp":
+            lines = [
+                line
+                for line in lines
+                if not any(
+                    line.startswith(f"# HELP {name} ")
+                    or line.startswith(f"# TYPE {name} ")
+                    or line.startswith(f"{name}{{")
+                    or line.startswith(f"{name} ")
+                    for name in CHP_ONLY_SCRAPER_METRICS
+                )
+            ]
         lines.append("")
         return "\n".join(lines).encode("utf-8")
 
@@ -688,7 +723,8 @@ class ScraperMetricsHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         if path == "/metrics":
-            body = SCRAPER_METRICS.render()
+            metrics = getattr(self.server, "scraper_metrics", SCRAPER_METRICS)
+            body = metrics.render()
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
             self.send_header("Cache-Control", "no-store")
@@ -705,8 +741,9 @@ class ScraperMetricsHandler(BaseHTTPRequestHandler):
         return
 
 
-def start_metrics_server(host, port):
+def start_metrics_server(host, port, metrics=None):
     server = ThreadingHTTPServer((host, port), ScraperMetricsHandler)
+    server.scraper_metrics = metrics or SCRAPER_METRICS
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     log_event(
@@ -715,6 +752,7 @@ def start_metrics_server(host, port):
         **{
             "event.action": "metrics_start",
             "event.outcome": "success",
+            "event.provider": server.scraper_metrics.provider,
             "server.address": host,
             "server.port": port,
         },

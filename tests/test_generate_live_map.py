@@ -63,6 +63,106 @@ def test_load_incidents_returns_active_first_with_detail_entries(tmp_path):
     assert incidents[1]["status"] == "cleared"
 
 
+def test_build_html_labels_wildweb_report_without_claiming_it_is_active_or_cleared(tmp_path):
+    database = tmp_path / "wildweb.sqlite"
+    conn = connect_database(database)
+    row = incident_row(
+        "wildweb|CAANCC|report-1",
+        "reported",
+        dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "CAANF-3487",
+    )
+    row.update(
+        {
+            "center": "CAANCC",
+            "source": "wildweb",
+            "source_event_id": "report-1",
+            "source_status": "listed",
+            "source_url": "https://www.wildwebe.net/incidents?dc_Name=CAANCC",
+            "source_reported_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+            "status": "reported",
+            "latitude": None,
+            "longitude": None,
+            "coordinate_confidence": "missing",
+        }
+    )
+    upsert_active_event(conn, row)
+    insert_observation(conn, row, "reported")
+    conn.commit()
+    conn.close()
+
+    incidents = load_incidents(database, 72)
+    html = build_html(incidents, dt.datetime.now().astimezone().isoformat(timespec="seconds"), 72, app_version="test")
+
+    assert incidents[0]["status"] == "reported"
+    assert incidents[0]["source"] == "wildweb"
+    assert "1 WildWeb reported" in html
+    assert '<span class="source-pill">${escapeHtml(sourceText)}</span>' in html
+    assert 'listed: "Reported"' in html
+    assert "No coordinates exposed by ${escapeHtml(sourceText)}" in html
+    assert "function incidentDescription(incident)" in html
+    assert '<span class="incident-description">${escapeHtml(description)}</span>' in html
+    assert '<div class="detail-description">${escapeHtml(description)}</div>' in html
+    assert "<dt>Loc Desc</dt>" not in html
+
+
+def test_load_incidents_sorts_wildweb_by_source_report_time_not_poll_time(tmp_path):
+    database = tmp_path / "recency.sqlite"
+    conn = connect_database(database)
+    now = dt.datetime.now().astimezone()
+
+    old_active = incident_row(
+        "LACC|old-active",
+        "active",
+        (now - dt.timedelta(hours=36)).isoformat(timespec="seconds"),
+        "1000",
+    )
+    recent_cleared = incident_row(
+        "LACC|recent-cleared",
+        "cleared",
+        (now - dt.timedelta(hours=1)).isoformat(timespec="seconds"),
+        "1001",
+    )
+    polled_wildweb = incident_row(
+        "wildweb|CAANCC|older-report",
+        "reported",
+        now.isoformat(timespec="seconds"),
+        "CAANF-1002",
+    )
+    polled_wildweb.update(
+        {
+            "center": "CAANCC",
+            "source": "wildweb",
+            "source_event_id": "older-report",
+            "source_status": "listed",
+            "source_reported_at": (now - dt.timedelta(hours=24)).isoformat(timespec="seconds"),
+            "status": "reported",
+        }
+    )
+
+    for row, status in (
+        (old_active, "active"),
+        (recent_cleared, "active"),
+        (polled_wildweb, "reported"),
+    ):
+        upsert_active_event(conn, row)
+        insert_observation(conn, row, status)
+    conn.execute(
+        "UPDATE events SET status = 'cleared', cleared_at = ? WHERE event_key = ?",
+        (recent_cleared["observed_at"], recent_cleared["event_key"]),
+    )
+    conn.commit()
+    conn.close()
+
+    incidents = load_incidents(database, 72)
+
+    assert [incident["event_key"] for incident in incidents] == [
+        old_active["event_key"],
+        recent_cleared["event_key"],
+        polled_wildweb["event_key"],
+    ]
+
+
 def test_load_incident_by_key_finds_incident_outside_window(tmp_path):
     database = tmp_path / "chp.sqlite"
     conn = connect_database(database)
@@ -206,7 +306,7 @@ def test_summary_uses_malibu_road_buckets_for_malibu_region():
         filters={"type": "family:collision"},
     )
 
-    assert "CHP Malibu Incidents" in summary_html
+    assert "Crestmap Malibu Incidents" in summary_html
     assert "Pacific Coast Hwy" in summary_html
     assert "Topanga Canyon" in summary_html
     assert "Other forest roads" not in summary_html
@@ -274,14 +374,14 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
         app_version="test-1",
     )
 
-    assert "CHP Forest Incidents (1 active, 2 total)" in html
+    assert "Crestmap Forest Incidents (1 current, 2 total)" in html
     assert 'http-equiv="Cache-Control"' not in html
-    assert '<meta name="description" content="Live and historical CHP CAD traffic incidents' in html
-    assert '<meta property="og:description" content="Live and historical CHP CAD traffic incidents' in html
+    assert '<meta name="description" content="Live and historical CHP traffic incidents and WildWeb dispatch reports' in html
+    assert '<meta property="og:description" content="Live and historical CHP traffic incidents and WildWeb dispatch reports' in html
     assert '<meta name="robots" content="index,follow,max-image-preview:large">' in html
     assert '<link rel="canonical" href="https://crestmap.us/">' in html
     assert '<link rel="icon" href="https://crestmap.us/favicon.svg?active=1&amp;v=' in html
-    assert '<meta property="og:title" content="CHP Forest Incidents (1 active, 2 total)">' in html
+    assert '<meta property="og:title" content="Crestmap Forest Incidents (1 current, 2 total)">' in html
     assert '<meta property="og:image" content="https://crestmap.us/og-image.png">' in html
     assert '<meta property="og:image:type" content="image/png">' in html
     assert '<meta name="twitter:card" content="summary_large_image">' in html
@@ -290,7 +390,11 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '"@type": "WebApplication"' in html
     assert '"applicationCategory": "MapApplication"' in html
     assert '"@type": "Dataset"' in html
-    assert "CHP forest road incident history" in html
+    assert "Crestmap forest incident history" in html
+    assert 'name="push_source" value="chp"' in html
+    assert 'name="push_source" value="wildweb"' in html
+    assert "WildWeb reports" in html
+    assert 'const sources = selected("push_source")' in html
     assert "scrollbar-width: thin" in html
     assert "view-menu" in html
     assert 'href="/summary?hours=72&amp;region=forest"' in html
@@ -442,7 +546,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
         72,
         region="malibu",
     )
-    assert "CHP Malibu Incidents" in malibu_html
+    assert "Crestmap Malibu Incidents" in malibu_html
     assert 'href="/summary?hours=72&amp;region=malibu"' in malibu_html
     assert 'const currentRegion = "malibu"' in malibu_html
     assert ".setView([34.09, -118.78], 10)" in malibu_html
@@ -511,7 +615,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "setupDoubleTapZoom();" in html
 
     summary_html = build_summary_html(incidents, "2026-05-31T08:05:00-07:00", 72)
-    assert "Summary - CHP Forest Incidents" in summary_html
+    assert "Summary - Crestmap Forest Incidents" in summary_html
     assert "Busiest Roads" in summary_html
     assert "Incident Types" in summary_html
     assert "Incidents by Day" in summary_html
@@ -549,7 +653,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '<a class="range-tab is-active" href="?hours=72&amp;region=forest&amp;type=family%3Acollision" aria-current="page">72h</a>' in filtered_summary_html
 
     history_html = build_history_html(incidents, "2026-05-31T08:05:00-07:00", 72)
-    assert "History - CHP Forest Incidents" in history_html
+    assert "History - Crestmap Forest Incidents" in history_html
     assert "Search road, type, incident number" in history_html
     assert "2 of 2 results" in history_html
     assert '<select class="filter" name="road" aria-label="Road filter">' in history_html
@@ -573,11 +677,11 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "1 of 2 results" in filtered_history_html
     assert "Traffic &lt;Hazard&gt;" in filtered_history_html
     assert "<strong>Disabled Vehicle</strong>" not in filtered_history_html
-    assert '<option value="active" selected>Active</option>' in filtered_history_html
+    assert '<option value="active" selected>Active CHP</option>' in filtered_history_html
     assert '<option value="mapped" selected>Mapped only</option>' in filtered_history_html
 
     about_html = build_about_html(incidents, "2026-05-31T08:05:00-07:00", 72)
-    assert "About - CHP Forest Incidents" in about_html
+    assert "About - Crestmap Forest Incidents" in about_html
     assert "What This Is" in about_html
     assert "Update Cadence" in about_html
     assert "CHP CAD source" in about_html

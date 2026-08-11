@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
 IMAGE_REPO ?= cajaks2/chp-live-map
-VERSION ?= 0.1.147
+VERSION ?= 0.1.176
 PLATFORM ?= linux/amd64
 MANIFEST ?= k8s/chp-live-map.yaml
 NAMESPACE ?= chp-live-map
@@ -36,6 +36,7 @@ test:
 coverage:
 	$(VENV)/bin/python -m pytest \
 		--cov=scrape_chp_traffic \
+		--cov=scrape_wildweb_incidents \
 		--cov=generate_live_map \
 		--cov=serve_live_map \
 		--cov=app \
@@ -58,7 +59,7 @@ deploy: test build update-manifest apply rollout verify
 
 verify:
 	curl -k -fsS $(PUBLIC_URL) -o /tmp/chp-live-map-verify.html
-	rg -n 'CHP Forest Incidents|last 72h|setView' /tmp/chp-live-map-verify.html
+	rg -n 'Crestmap Forest Incidents|last 72h|setView' /tmp/chp-live-map-verify.html
 	rg -n 'View last updated <time id="generated-at"' /tmp/chp-live-map-verify.html
 	kubectl -n $(NAMESPACE) logs -l app=$(DEPLOYMENT) --tail=10 --since=5m
 

@@ -126,10 +126,10 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         )
         body = response.text
         assert response.status_code == 200
-        assert "CHP Forest Incidents" in body
+        assert "Crestmap Forest Incidents" in body
         assert "in last 72h" in body
         assert 'Last scrape <time id="last-scrape-at" datetime="2026-05-31T08:00:00-07:00">' in body
-        assert '<span class="source-label">(CAD)</span>' in body
+        assert '<span class="source-label">(CHP CAD)</span>' in body
         assert '<link rel="icon" href="https://crestmap.us/favicon.svg?active=0&amp;v=' in body
         assert '<link rel="manifest" href="/manifest.webmanifest">' in body
         assert 'id="ios-push-tutorial"' in body
@@ -160,7 +160,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         body = response.text
         assert response.status_code == 200
         assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
-        assert "Summary - CHP Forest Incidents" in body
+        assert "Summary - Crestmap Forest Incidents" in body
         assert "Busiest Roads" in body
         assert '<a class="range-tab is-active" href="?hours=24&amp;region=forest" aria-current="page">24h</a>' in body
         assert '<a class="view-tab is-active" href="/summary?hours=24&amp;region=forest" aria-current="page">Summary</a>' in body
@@ -169,7 +169,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         body = response.text
         assert response.status_code == 200
         assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
-        assert "History - CHP Forest Incidents" in body
+        assert "History - Crestmap Forest Incidents" in body
         assert "Search road, type, incident number" in body
         assert '<a class="range-tab is-active" href="?hours=24&amp;region=forest" aria-current="page">24h</a>' in body
         assert '<a class="view-tab is-active" href="/history?hours=24&amp;region=forest" aria-current="page">History</a>' in body
@@ -178,14 +178,14 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         response = client.get("/history?hours=24&status=active&mapped=mapped")
         body = response.text
         assert response.status_code == 200
-        assert '<option value="active" selected>Active</option>' in body
+        assert '<option value="active" selected>Active CHP</option>' in body
         assert '<option value="mapped" selected>Mapped only</option>' in body
 
         response = client.get("/about?hours=24")
         body = response.text
         assert response.status_code == 200
         assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
-        assert "About - CHP Forest Incidents" in body
+        assert "About - Crestmap Forest Incidents" in body
         assert "Update Cadence" in body
         assert 'id="push-notifications"' in body
         assert "Manage alert choices" in body
@@ -256,7 +256,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert response.status_code == 200
         assert response.headers["Content-Type"] == "image/svg+xml"
         assert response.headers["Cache-Control"] == ASSET_CACHE_CONTROL
-        assert b"CHP Forest Incidents" in response.content
+        assert b"Crestmap Incidents" in response.content
 
         response = client.get("/og-image.png")
         assert response.status_code == 200
@@ -281,7 +281,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert response.status_code == 200
         assert response.headers["Content-Type"] == "application/manifest+json; charset=utf-8"
         assert response.json()["display"] == "standalone"
-        assert response.json()["name"] == "Crestmap CHP Incidents"
+        assert response.json()["name"] == "Crestmap Incidents"
 
         response = client.get("/sw.js")
         assert response.status_code == 200
@@ -325,6 +325,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert "chp_live_map_db_pool_connections" not in body
         assert "chp_live_map_comments_pending 0" in body
         assert 'chp_live_map_push_subscriptions{status="active"} 0' in body
+        assert 'chp_live_map_push_subscription_sources{source="chp"} 0' in body
+        assert 'chp_live_map_push_subscription_sources{source="wildweb"} 0' in body
         assert 'chp_live_map_push_subscription_areas{area="crest"} 0' in body
         assert 'chp_live_map_push_deliveries{region="forest",category="hazard",status="delivered"} 0' in body
         assert 'chp_live_map_push_test_notifications{status="failed"} 0' in body
@@ -485,6 +487,8 @@ def test_prometheus_metrics_include_push_breakdowns(tmp_path):
 
     assert 'chp_live_map_push_subscriptions{status="active"} 1' in body
     assert 'chp_live_map_push_subscriptions{status="inactive"} 1' in body
+    assert 'chp_live_map_push_subscription_sources{source="chp"} 1' in body
+    assert 'chp_live_map_push_subscription_sources{source="wildweb"} 0' in body
     assert 'chp_live_map_push_subscription_areas{area="crest"} 1' in body
     assert 'chp_live_map_push_subscription_areas{area="forest"} 0' in body
     assert 'chp_live_map_push_subscription_categories{category="closure"} 1' in body
@@ -512,11 +516,13 @@ def test_push_subscription_api_saves_preferences_and_unsubscribes(tmp_path):
         assert config.status_code == 200
         assert config.json()["enabled"] is True
         assert config.json()["public_key"] == "public-vapid-key"
+        assert config.json()["defaults"]["sources"] == ["chp"]
         assert config.json()["defaults"]["regions"] == ["forest", "malibu"]
 
         response = client.post("/api/v1/push/subscription", json=payload)
         assert response.status_code == 201
         assert response.json()["subscribed"] is True
+        assert response.json()["sources"] == ["chp"]
         assert response.json()["regions"] == ["forest"]
 
         status = client.post(
@@ -526,7 +532,11 @@ def test_push_subscription_api_saves_preferences_and_unsubscribes(tmp_path):
         assert status.status_code == 200
         assert status.json() == {
             "subscribed": True,
-            "preferences": {"regions": ["forest"], "categories": ["closure", "collision"]},
+            "preferences": {
+                "sources": ["chp"],
+                "regions": ["forest"],
+                "categories": ["closure", "collision"],
+            },
         }
 
         test_push = client.post(
@@ -583,7 +593,7 @@ def test_public_malibu_region_is_available_without_auth(tmp_path):
         body = response.text
         assert response.status_code == 200
         assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
-        assert "CHP Malibu Incidents" in body
+        assert "Crestmap Malibu Incidents" in body
         assert 'href="/?hours=24&amp;region=forest"' in body
         assert (
             'href="/?hours=24&amp;region=malibu" aria-current="page"><span>Malibu</span><span class="region-active-count" aria-label="1 active incident">1</span></a>'

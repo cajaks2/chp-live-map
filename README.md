@@ -1,6 +1,6 @@
-# CHP Live Forest Map
+# Crestmap Live Incident Map
 
-Collect CHP CAD traffic incidents for Angeles National Forest roads and render a live map with click-in details, summary reports, searchable history, and source/cadence notes. The map defaults to a rolling 72-hour window: active incidents render red and cleared/non-active incidents render grey.
+Collect CHP traffic incidents and matching WildWeb dispatch reports for Angeles National Forest and Malibu roads, then render a live map with click-in details, summary reports, searchable history, and source/cadence notes. The map defaults to a rolling 72-hour window: active CHP incidents render red, current WildWeb reports render amber, and cleared/archived records render grey.
 
 `scrape_chp_traffic.py` uses the public CHP media XML feed by default:
 
@@ -10,6 +10,16 @@ Collect CHP CAD traffic incidents for Angeles National Forest roads and render a
 4. Store current status and history in SQLite locally or Postgres in production deployments.
 
 The older CHP CAD WebForms scraper is still available with `--source-mode cad` for fallback/debugging, but production uses `CHP_SOURCE_MODE=xml`.
+
+`scrape_wildweb_incidents.py` polls the public CAANCC incident data used by [WildWeb](https://www.wildwebe.net/incidents?dc_Name=CAANCC) as a separate source. It stores WildWeb's stable incident UUID, source report time, source status, and source URL. It uses the same Forest and Malibu coordinate boundaries as the CHP collector. A report with coordinates outside those boundaries is rejected; a report without coordinates is included only when its road or a controlled list of known places matches one of the two regions. Unpinned reports remain available in the incident list and history.
+
+WildWeb status is intentionally conservative:
+
+- A currently listed record is `Reported`, or `Contained`/`Controlled` when WildWeb explicitly supplies that fire status.
+- Only an explicit WildWeb `Out` timestamp is displayed as `Out`.
+- A record that disappears from a successful feed response becomes `No longer listed`; this does not mean Crestmap confirmed it is over.
+- A record older than `WILDWEB_MAX_AGE_HOURS` becomes `Archived`.
+- The source's incident `date` is interpreted as Pacific local time. A feed-level `retrieved` timestamp without a time zone is interpreted as UTC.
 
 The scraper is intentionally conservative:
 
@@ -46,6 +56,7 @@ The scraper also collects Malibu coast/canyon incidents into `region='malibu'`. 
 
 - Python 3.10+
 - Network access to `https://media.chp.ca.gov`; CAD fallback mode also needs `https://cad.chp.ca.gov`
+- Network access to the WildWeb CAANCC incident data endpoint used by `wildwebe.net`
 - `psycopg` for Postgres deployments; install with `pip install -r requirements.txt`
 
 The generated map uses Leaflet and OpenStreetMap tiles from public CDNs.
@@ -69,6 +80,15 @@ Poll every minute:
 ```sh
 python3 scrape_chp_traffic.py --interval 60
 ```
+
+Run the WildWeb collector once, or poll every two minutes:
+
+```sh
+python3 scrape_wildweb_incidents.py
+python3 scrape_wildweb_incidents.py --interval 120
+```
+
+WildWeb defaults to CAANCC and a 72-hour source window. Configure it with `WILDWEB_INTERVAL_SECONDS`, `WILDWEB_MAX_AGE_HOURS`, `WILDWEB_USER_AGENT`, and `WILDWEB_PUSH_NOTIFICATIONS`. Production collection enables WildWeb delivery, but each browser subscription remains CHP-only unless the user explicitly selects **WildWeb reports** in Alerts. The toggle warns that the two sources may describe the same incident.
 
 Tune politeness controls:
 
@@ -152,7 +172,7 @@ python3 -m venv .venv
 Run with statement coverage:
 
 ```sh
-.venv/bin/python -m pytest --cov=scrape_chp_traffic --cov=generate_live_map --cov=serve_live_map --cov=app --cov=ecs_logging --cov-report=term-missing
+.venv/bin/python -m pytest --cov=scrape_chp_traffic --cov=scrape_wildweb_incidents --cov=generate_live_map --cov=serve_live_map --cov=app --cov=ecs_logging --cov-report=term-missing
 ```
 
 ## Container
@@ -170,7 +190,7 @@ docker run --rm -p 8080:8080 -v "$PWD:/data" chp-live-map:latest \
   sh -c 'DATABASE=/data/chp_traffic.sqlite exec gunicorn app:app -k uvicorn.workers.UvicornWorker --workers 1 --bind 0.0.0.0:8080 --access-logfile /dev/null --error-logfile -'
 ```
 
-The default container command serves the dynamic FastAPI web app through gunicorn on port `8080`. In Kubernetes, scraping and rescue-aircraft tracking run as separate long-lived Deployments so either upstream feed can fail independently.
+The default container command serves the dynamic FastAPI web app through gunicorn on port `8080`. In Kubernetes, CHP scraping, WildWeb polling, and rescue-aircraft tracking run as separate long-lived Deployments so any upstream feed can fail independently.
 
 For the pushed Kubernetes image workflow, use the Makefile:
 
@@ -205,7 +225,8 @@ The manifest creates:
 - secret `chp-live-map-db`
 - PVC `chp-live-map-postgres-data`
 - Postgres StatefulSet and service
-- scraper Deployment that runs continuously, polls every minute, and exposes metrics
+- CHP scraper Deployment that runs continuously, polls every minute, and exposes metrics
+- WildWeb collector Deployment that runs continuously and polls every two minutes
 - OpenSky aircraft tracker Deployment that polls every 30 seconds
 - web Deployment and service
 
@@ -223,7 +244,7 @@ docker compose up -d
 
 The VM needs Docker Compose and `make` installed for the checked-in deployment helpers.
 
-The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, a long-lived XML-mode scraper, an OpenSky aircraft tracker, and a Postgres backup sidecar. nginx should remain the TLS front door and proxy `crestmap.us` to `http://127.0.0.1:8080`.
+The Compose stack runs Postgres, the web app on `127.0.0.1:8080`, separate long-lived CHP and WildWeb collectors, an OpenSky aircraft tracker, and a Postgres backup sidecar. nginx should remain the TLS front door and proxy `crestmap.us` to `http://127.0.0.1:8080`.
 
 ### LASD rescue-aircraft tracking
 
@@ -261,7 +282,7 @@ VAPID_PRIVATE_KEY=base64url-32-byte-private-key
 VAPID_SUBJECT=mailto:ops@example.com
 ```
 
-The public key is provided only to the web service; the private key is provided only to the scraper. Keep the same pair across deployments or existing browser subscriptions will need to be recreated. On iPhone and iPad, users add Crestmap to the Home Screen from Safari, open the Home Screen app, and tap **Alerts** before iOS will offer notification permission.
+The public key is provided only to the web service; the private key is provided only to collector services that send notifications. Keep the same pair across deployments or existing browser subscriptions will need to be recreated. On iPhone and iPad, users add Crestmap to the Home Screen from Safari, open the Home Screen app, and tap **Alerts** before iOS will offer notification permission.
 
 Files for that deployment live in `deploy/digitalocean/`.
 
@@ -281,7 +302,7 @@ make logs-web
 make backup
 ```
 
-The checked-in helper `deploy/digitalocean/deploy-compose.sh` runs `make deploy`. The deploy target uses `docker compose up -d --no-deps web scrape aircraft` so Postgres stays running during normal app deploys and the visible site interruption window is smaller.
+The checked-in helper `deploy/digitalocean/deploy-compose.sh` runs `make deploy`. The deploy target uses `docker compose up -d --no-deps web scrape wildweb aircraft` so Postgres stays running during normal app deploys and the visible site interruption window is smaller.
 
 The web service also exposes:
 
@@ -362,6 +383,7 @@ Prometheus metrics:
 | `chp_live_map_process_start_time_seconds` | gauge | Unix timestamp for the current web process start time. |
 | `chp_live_map_incidents{status="total"}` | gauge | Incident count in the default map history window. |
 | `chp_live_map_incidents{status="active"}` | gauge | Active incident count in the default map history window. |
+| `chp_live_map_incidents{status="reported"}` | gauge | Current WildWeb report count in the default map history window. |
 | `chp_live_map_incidents{status="cleared"}` | gauge | Cleared incident count in the default map history window. |
 | `chp_live_map_incidents{status="mapped"}` | gauge | Incidents with coordinates in the default map history window. |
 | `chp_live_map_region_incidents{region,status}` | gauge | Incident counts in the default map history window, grouped by hidden collection region such as `forest` or `malibu`. |
@@ -373,6 +395,7 @@ Prometheus metrics:
 | `chp_live_map_comments_submitted_total{outcome}` | counter | Comment submissions grouped by outcome such as `pending`, `rate_limited`, `honeypot`, or validation errors. |
 | `chp_live_map_comments_pending` | gauge | Comments currently waiting for moderation. |
 | `chp_live_map_push_subscriptions{status}` | gauge | Stored Web Push subscriptions, split into active and inactive records. |
+| `chp_live_map_push_subscription_sources{source}` | gauge | Active subscriptions selecting CHP or WildWeb alerts. |
 | `chp_live_map_push_subscription_areas{area}` | gauge | Active subscriptions selecting Forest, Crest/west, or Malibu. |
 | `chp_live_map_push_subscription_categories{category}` | gauge | Active subscriptions selecting each incident category. |
 | `chp_live_map_push_notification_events{region,category,status}` | gauge | Incident notification events split into pending and completed queue states. |
@@ -401,10 +424,10 @@ Prometheus metrics:
 
 ## SQL Tables
 
-- `events`: one row per CHP incident, updated with current status and latest fields.
+- `events`: one row per source incident, keyed by its source identity and updated with current status and latest fields.
 - `observations`: append-only status/detail snapshots when an incident is first seen, changes, or clears.
 - `detail_entries`: normalized detail-log entries for each stored observation.
-- `scrape_runs`: run metadata for monitoring, including total CHP incidents seen, filtered incidents acquired, detail-page fetch counts, scrape duration, and outbound CHP response-code counts.
+- `scrape_runs`: run metadata for monitoring, including source, total incidents seen, filtered incidents acquired, detail-page fetch counts, scrape duration, and outbound response-code counts.
 - `incident_comments`: user-submitted incident comments. Public submissions start as `pending`; only `approved` rows are shown publicly. Contact and IP metadata are moderation-only.
 
 Generated files such as `*.sqlite` and `live_chp_map.html` are intentionally ignored by git.

@@ -71,7 +71,6 @@ def load_incidents(database, hours, database_url=None, region="forest", conn=Non
                 SELECT o.details_json
                 FROM observations o
                 WHERE o.event_key = e.event_key
-                  AND o.status = 'active'
                 ORDER BY o.observed_at DESC, o.id DESC
                 LIMIT 1
             ) AS details_json
@@ -95,11 +94,19 @@ def load_incidents(database, hours, database_url=None, region="forest", conn=Non
     incidents = []
     for row in rows:
         incidents.append(hydrate_incident(row, region))
+    incidents.sort(key=lambda incident: str(incident.get("incident_no") or ""), reverse=True)
+    incidents.sort(key=incident_recency, reverse=True)
+    incidents.sort(key=lambda incident: 0 if incident.get("status") == "active" else 1)
     return incidents
 
 
 def hydrate_incident(row, region):
     incident = clear_coordinates_outside_region_bounds(dict(row), region)
+    incident["source"] = incident.get("source") or "chp"
+    incident["source_event_id"] = incident.get("source_event_id") or incident.get("event_key")
+    incident["coordinate_confidence"] = incident.get("coordinate_confidence") or (
+        "exact" if incident.get("latitude") is not None and incident.get("longitude") is not None else "missing"
+    )
     try:
         incident["detail_entries"] = json.loads(incident.pop("details_json") or "[]")
     except json.JSONDecodeError:
@@ -172,7 +179,6 @@ def load_incident_by_key(database, event_key, database_url=None, region="forest"
                 SELECT o.details_json
                 FROM observations o
                 WHERE o.event_key = e.event_key
-                  AND o.status = 'active'
                 ORDER BY o.observed_at DESC, o.id DESC
                 LIMIT 1
             ) AS details_json
@@ -499,7 +505,7 @@ def push_ui_html(base_path):
     <section class="push-card">
       <button type="button" class="push-card-close" data-dismiss-push-onboarding aria-label="Close">&times;</button>
       <h2 id="ios-push-onboarding-title">Turn on incident alerts?</h2>
-      <p>Crestmap can notify this iPhone when it discovers a new CHP incident matching the areas and categories you choose.</p>
+      <p>Crestmap can notify this iPhone when it discovers a new incident matching the areas and categories you choose.</p>
       <p>You stay in control: choose all Forest roads, Crest + west forest only, or Malibu roads; select incident types; and turn alerts off here at any time.</p>
       <div class="push-actions">
         <button type="button" id="push-onboarding-setup">Choose alerts</button>
@@ -512,8 +518,15 @@ def push_ui_html(base_path):
     <section class="push-card">
       <button type="button" class="push-card-close" data-close-push-settings aria-label="Close">&times;</button>
       <h2 id="push-settings-title">Incident alerts</h2>
-      <p id="push-settings-intro">Choose which newly discovered CHP incidents should notify this device.</p>
+      <p id="push-settings-intro">Choose which newly discovered incidents should notify this device.</p>
       <form id="push-preferences-form">
+        <fieldset class="push-choice-group">
+          <legend>Sources</legend>
+          <div class="push-choice-grid">
+            <label class="push-choice"><input type="checkbox" name="push_source" value="chp"> CHP incidents</label>
+            <label class="push-choice"><input type="checkbox" name="push_source" value="wildweb"> WildWeb reports <span class="comment-field-hint">(may overlap CHP)</span></label>
+          </div>
+        </fieldset>
         <fieldset class="push-choice-group">
           <legend>Areas</legend>
           <div class="push-choice-grid">
@@ -636,6 +649,7 @@ def push_ui_script(base_path):
       }}
       selectValues("push_region", preferences.regions);
       selectValues("push_category", preferences.categories);
+      selectValues("push_source", preferences.sources);
       saveButton.textContent = serverSubscribed ? "Save choices" : "Enable alerts";
       testButton.hidden = !serverSubscribed;
       disableButton.hidden = !serverSubscribed;
@@ -681,7 +695,8 @@ def push_ui_script(base_path):
       event.preventDefault();
       const regions = selected("push_region");
       const categories = selected("push_category");
-      if (!regions.length || !categories.length) {{ status.textContent = "Choose at least one area and incident category."; return; }}
+      const sources = selected("push_source");
+      if (!sources.length || !regions.length || !categories.length) {{ status.textContent = "Choose at least one source, area, and incident category."; return; }}
       setBusy(true);
       try {{
         const permission = await Notification.requestPermission();
@@ -694,7 +709,7 @@ def push_ui_script(base_path):
             applicationServerKey: applicationServerKey(pushConfig.public_key)
           }});
         }}
-        await postSubscription("subscribe", currentSubscription, {{ regions, categories }});
+        await postSubscription("subscribe", currentSubscription, {{ sources, regions, categories }});
         serverSubscribed = true;
         renderHeaderAlertState();
         status.textContent = "Alerts enabled. Your choices were saved.";
@@ -863,16 +878,22 @@ def region_tabs(base_path, current, hours, region="forest", region_statuses=None
     region_statuses = region_statuses or {}
     tabs = []
     for key, label in REGION_LABELS.items():
-        active_count = int((region_statuses.get(key) or {}).get("active_count", 0))
-        active_label = "active incident" if active_count == 1 else "active incidents"
+        region_status = region_statuses.get(key) or {}
+        active_count = int(region_status.get("active_count", 0))
+        reported_count = int(region_status.get("reported_count", 0))
+        current_count = active_count + reported_count
+        if reported_count:
+            count_label = "current incident report" if current_count == 1 else "current incident reports"
+        else:
+            count_label = "active incident" if current_count == 1 else "active incidents"
         tabs.append(
             '<a class="region-tab{}" href="{}"{}><span>{}</span><span class="region-active-count" aria-label="{}">{}</span></a>'.format(
             " is-active" if key == region else "",
             html.escape(view_href(base_path, "/", hours, key) if current == "map" else view_href(base_path, f"/{current}", hours, key)),
             ' aria-current="page"' if key == region else "",
             html.escape(label),
-            html.escape(f"{active_count} {active_label}"),
-            active_count,
+            html.escape(f"{current_count} {count_label}"),
+            current_count,
         )
         )
     return "".join(tabs)
@@ -886,6 +907,9 @@ def incident_status(incidents, hours):
         [i for i in window_incidents if i.get("latitude") is not None and i.get("longitude") is not None]
     )
     active_count = len([i for i in window_incidents if i.get("status") == "active"])
+    reported_count = len([i for i in window_incidents if i.get("status") == "reported"])
+    archived_count = len([i for i in window_incidents if i.get("status") == "archived"])
+    cleared_count = len([i for i in window_incidents if i.get("status") == "cleared"])
     data_updated_at = max(
         [
             i.get("latest_observed_at") or i.get("last_seen") or i.get("first_seen") or ""
@@ -906,6 +930,9 @@ def incident_status(incidents, hours):
             "longitude": i.get("longitude"),
             "details_hash": i.get("details_hash"),
             "cleared_at": i.get("cleared_at"),
+            "source": i.get("source"),
+            "source_status": i.get("source_status"),
+            "source_reported_at": i.get("source_reported_at"),
         }
         for i in window_incidents
     ]
@@ -914,6 +941,10 @@ def incident_status(incidents, hours):
     ).hexdigest()[:16]
     return {
         "active_count": active_count,
+        "reported_count": reported_count,
+        "current_count": active_count + reported_count,
+        "archived_count": archived_count,
+        "cleared_count": cleared_count,
         "total_count": len(window_incidents),
         "mapped_count": mapped_count,
         "hours": hours,
@@ -940,8 +971,76 @@ def analytics_script(google_analytics_id=None):
 
 
 def scrape_source_label(source):
-    labels = {"xml": "XML", "cad": "CAD", "unknown": "unknown"}
+    labels = {"xml": "CHP XML", "cad": "CHP CAD", "wildweb": "WildWeb", "unknown": "unknown"}
     return labels.get((source or "unknown").casefold(), source or "unknown")
+
+
+def incident_source_label(incident):
+    return "WildWeb" if (incident.get("source") or "chp").casefold() == "wildweb" else "CHP"
+
+
+def incident_status_label(incident):
+    source = (incident.get("source") or "chp").casefold()
+    status = (incident.get("status") or "").casefold()
+    source_status = (incident.get("source_status") or "").casefold()
+    if source == "wildweb":
+        labels = {
+            "listed": "Reported",
+            "contained": "Contained",
+            "controlled": "Controlled",
+            "out": "Out",
+            "no_longer_listed": "No longer listed",
+            "aged_out": "Archived",
+        }
+        return labels.get(source_status, "Reported" if status == "reported" else "Archived")
+    return "Active" if status == "active" else "Cleared"
+
+
+def incident_status_class(incident):
+    status = (incident.get("status") or "").casefold()
+    return "status-active" if status == "active" else "status-reported" if status == "reported" else "status-cleared"
+
+
+def incident_description(incident):
+    description = str(incident.get("location_desc") or "").strip()
+    if not description or not description.strip("* ._-/"):
+        return ""
+    normalized = " ".join(description.casefold().split())
+    repeated_values = {
+        " ".join(str(incident.get(field) or "").casefold().split())
+        for field in ("type", "location")
+    }
+    return "" if normalized in repeated_values else description
+
+
+def incident_recency(incident):
+    value = (
+        incident.get("source_reported_at")
+        or incident.get("first_seen")
+        or incident.get("latest_observed_at")
+        or ""
+    )
+    try:
+        return dt.datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        return float("-inf")
+
+
+def report_description_html(incident):
+    description = incident_description(incident)
+    return (
+        f'<span class="result-description">{html.escape(description)}</span>'
+        if description
+        else ""
+    )
+
+
+def status_summary_text(status, hours):
+    reported = int(status.get("reported_count", 0))
+    prefix = f"{status['active_count']} active"
+    if reported:
+        prefix += f" · {reported} WildWeb reported"
+    return f"{prefix} · {status['total_count']} in last {hours:g}h · {status['mapped_count']} mapped"
 
 
 def scrape_meta_html(last_scrape):
@@ -980,15 +1079,15 @@ def build_html(
     status = {**incident_status(incidents, hours), "region": region}
     active_count = status["active_count"]
     mapped_count = status["mapped_count"]
-    title = f"CHP {map_label} Incidents ({active_count} active, {status['total_count']} total)"
+    title = f"Crestmap {map_label} Incidents ({status['current_count']} current, {status['total_count']} total)"
     if region == "forest":
         description = (
-            "Live and historical CHP CAD traffic incidents for Angeles Crest, Angeles Forest, "
-            "Big Tujunga, Glendora Mountain, and nearby forest roads in the forest."
+            "Live and historical CHP traffic incidents and WildWeb dispatch reports for Angeles Crest, "
+            "Angeles Forest, Big Tujunga, Glendora Mountain, and nearby forest roads."
         )
     else:
         description = (
-            "Live and historical CHP CAD traffic incidents for Malibu canyon and coastal roads."
+            "Live and historical CHP traffic incidents and matching WildWeb dispatch reports for Malibu canyon and coastal roads."
         )
     urls = metadata_urls(
         base_path,
@@ -1021,7 +1120,7 @@ def build_html(
             {
                 "@type": "WebSite",
                 "@id": f"{urls['canonical']}#website",
-                "name": f"CHP {map_label} Incidents",
+                "name": f"Crestmap {map_label} Incidents",
                 "url": urls["canonical"],
                 "description": description,
                 "inLanguage": "en-US",
@@ -1029,7 +1128,7 @@ def build_html(
             {
                 "@type": "WebApplication",
                 "@id": f"{urls['canonical']}#app",
-                "name": f"CHP {map_label} Incidents",
+                "name": f"Crestmap {map_label} Incidents",
                 "url": urls["canonical"],
                 "description": description,
                 "applicationCategory": "MapApplication",
@@ -1065,11 +1164,11 @@ def build_html(
             {
                 "@type": "Dataset",
                 "@id": f"{urls['canonical']}#incident-history",
-                "name": f"CHP {map_label.lower()} road incident history",
+                "name": f"Crestmap {map_label.lower()} incident history",
                 "url": urls["canonical"],
                 "description": (
-                    f"Rolling incident history collected from public CHP CAD pages for selected "
-                    f"{map_label.lower()} roads. The scraper checks CHP about once a minute."
+                    f"Rolling incident history collected from public CHP and WildWeb sources for selected "
+                    f"{map_label.lower()} roads and places."
                 ),
                 "temporalCoverage": f"last {hours:g} hours",
                 "isAccessibleForFree": True,
@@ -1637,6 +1736,11 @@ def build_html(
       font-size: 12px;
       line-height: 1.35;
     }}
+    .incident .incident-description {{
+      margin: -1px 0 3px;
+      color: #35453b;
+      font-weight: 800;
+    }}
     .incident .incident-heading {{
       display: flex;
       align-items: flex-start;
@@ -1671,12 +1775,19 @@ def build_html(
       border-color: #5f6862;
       background: #b8bfba;
     }}
+    .incident-marker.is-reported .incident-marker-dot {{
+      border-color: #805b12;
+      background: #e5a72f;
+    }}
     .incident-marker.is-selected .incident-marker-dot {{
       background: #f05a40;
       box-shadow: 0 2px 9px rgba(24, 32, 38, 0.42);
     }}
     .incident-marker.is-selected.is-cleared .incident-marker-dot {{
       background: #9da5a0;
+    }}
+    .incident-marker.is-selected.is-reported .incident-marker-dot {{
+      background: #f0b43f;
     }}
     .incident-marker.is-selected .incident-marker-dot::before {{
       content: "";
@@ -1690,6 +1801,9 @@ def build_html(
     .incident-marker.is-selected.is-cleared .incident-marker-dot::before {{
       border-color: rgba(31, 104, 64, 0.78);
     }}
+    .incident-marker.is-selected.is-reported .incident-marker-dot::before {{
+      border-color: rgba(143, 96, 8, 0.78);
+    }}
     .incident-marker.is-pulsing .incident-marker-dot::after {{
       content: "";
       position: absolute;
@@ -1701,6 +1815,9 @@ def build_html(
     }}
     .incident-marker.is-pulsing.is-cleared .incident-marker-dot::after {{
       border-color: rgba(31, 104, 64, 0.62);
+    }}
+    .incident-marker.is-pulsing.is-reported .incident-marker-dot::after {{
+      border-color: rgba(143, 96, 8, 0.62);
     }}
     .aircraft-marker {{
       display: flex;
@@ -1830,6 +1947,13 @@ def build_html(
       font-size: 18px;
       line-height: 1.25;
       letter-spacing: 0;
+    }}
+    .detail-description {{
+      margin: -1px 0 3px;
+      color: #35453b;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.3;
     }}
     .share-incident,
     .default-view,
@@ -2111,6 +2235,23 @@ def build_html(
       color: #59615c;
       background: #ecefed;
     }}
+    .status-reported {{
+      color: #704b08;
+      background: #fff0c9;
+    }}
+    .source-pill {{
+      display: inline-block;
+      margin: 0 0 6px 5px;
+      padding: 2px 7px;
+      border: 1px solid #cbd6cc;
+      border-radius: 999px;
+      color: #405047;
+      background: #f8faf6;
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1.35;
+      text-transform: uppercase;
+    }}
     .mapless {{
       color: #8a5b22;
       font-weight: 600;
@@ -2276,10 +2417,10 @@ def build_html(
     <aside id="sidebar">
       <header>
         <div class="title-row">
-          <h1>CHP {html.escape(map_label)} Incidents</h1>
+          <h1>Crestmap {html.escape(map_label)} Incidents</h1>
           {view_menu(base_path, "map", hours, region, admin_mode=admin_mode, aircraft_tracking_enabled=aircraft_tracking_enabled)}
         </div>
-        <div class="meta">{active_count} active · {status['total_count']} in last {hours:g}h · {mapped_count} mapped</div>
+        <div class="meta">{html.escape(status_summary_text(status, hours))}</div>
         <div class="meta checked-meta"><span>View last updated <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span><span aria-hidden="true">·</span>{scrape_meta_html(last_scrape)}<span aria-hidden="true">·</span>
           <label class="auto-refresh-control" title="Automatically reload when new incident data is available">
             <input type="checkbox" id="auto-refresh-enabled">
@@ -2674,6 +2815,44 @@ def build_html(
       return `${{parsed.toLocaleDateString([], {{ month: "short", day: "numeric" }})}}, ${{incident.incident_time || ""}}`.trim();
     }}
 
+    function incidentSourceLabel(incident) {{
+      return String(incident.source || "chp").toLowerCase() === "wildweb" ? "WildWeb" : "CHP";
+    }}
+
+    function incidentDescription(incident) {{
+      const description = String(incident.location_desc || "").trim();
+      if (!description || !description.replace(/[\\s*._-]/g, "")) {{
+        return "";
+      }}
+      const normalize = (value) => String(value || "").trim().toLowerCase().replace(/\\s+/g, " ");
+      const normalized = normalize(description);
+      return [incident.type, incident.location].some((value) => normalize(value) === normalized)
+        ? ""
+        : description;
+    }}
+
+    function incidentStatusLabel(incident) {{
+      const source = String(incident.source || "chp").toLowerCase();
+      const status = String(incident.status || "").toLowerCase();
+      const sourceStatus = String(incident.source_status || "").toLowerCase();
+      if (source === "wildweb") {{
+        return {{
+          listed: "Reported",
+          contained: "Contained",
+          controlled: "Controlled",
+          out: "Out",
+          no_longer_listed: "No longer listed",
+          aged_out: "Archived"
+        }}[sourceStatus] || (status === "reported" ? "Reported" : "Archived");
+      }}
+      return status === "active" ? "Active" : "Cleared";
+    }}
+
+    function incidentStatusClass(incident) {{
+      const status = String(incident.status || "").toLowerCase();
+      return status === "active" ? "status-active" : status === "reported" ? "status-reported" : "status-cleared";
+    }}
+
     function formatRangeLabel(hours) {{
       const numericHours = Number(hours);
       if (numericHours === 168) {{
@@ -2966,12 +3145,12 @@ def build_html(
     }}
 
     function markerIcon(incident, selected = false, pulsing = false) {{
-      const isActive = incident.status === "active";
+      const markerState = incident.status === "active" ? "is-active" : incident.status === "reported" ? "is-reported" : "is-cleared";
       const size = 22;
       return L.divIcon({{
         className: [
           "incident-marker",
-          isActive ? "is-active" : "is-cleared",
+          markerState,
           selected ? "is-selected" : "",
           pulsing ? "is-pulsing" : ""
         ].join(" "),
@@ -3141,11 +3320,12 @@ def build_html(
 
     function detailHtml(incident) {{
       if (!incident) {{
-        return '<div class="empty">Select an incident to view CHP detail entries.</div>';
+        return '<div class="empty">Select an incident to view details.</div>';
       }}
-      const isActive = incident.status === "active";
-      const statusClass = isActive ? "status-active" : "status-cleared";
-      const statusText = isActive ? "Active" : "Cleared";
+      const statusClass = incidentStatusClass(incident);
+      const statusText = incidentStatusLabel(incident);
+      const sourceText = incidentSourceLabel(incident);
+      const description = incidentDescription(incident);
       const groupedDetails = new Map();
       (incident.detail_entries || []).forEach((entry) => {{
         const fallbackSection = String(entry.text || "").startsWith("Unit ")
@@ -3166,7 +3346,7 @@ def build_html(
       const noEntries = '<div class="empty">No detail entries captured.</div>';
       const trailingEntries = unitEntries || (!detailEntries ? noEntries : "");
       const coordText = incident.latitude == null || incident.longitude == null
-        ? '<span class="mapless">No coordinates exposed by CHP for this incident.</span>'
+        ? `<span class="mapless">No coordinates exposed by ${{escapeHtml(sourceText)}} for this incident.</span>`
         : `${{escapeHtml(incident.latitude)}}, ${{escapeHtml(incident.longitude)}}`;
       const linkedNotice = incident._linked_outside_window
         ? `<div class="empty">This linked incident is outside the selected ${{escapeHtml(currentDataStatus.hours)}}h window.</div>`
@@ -3182,7 +3362,9 @@ def build_html(
           <div class="detail-header">
             <div class="detail-title">
               <div class="status-pill ${{statusClass}}">${{statusText}}</div>
-              <h2>${{escapeHtml(incident.type || "CHP Incident")}}</h2>
+              <div class="source-pill">${{escapeHtml(sourceText)}}</div>
+              <h2>${{escapeHtml(incident.type || "Incident")}}</h2>
+              ${{description ? `<div class="detail-description">${{escapeHtml(description)}}</div>` : ""}}
               <div class="meta">${{escapeHtml(incident.location || "")}}</div>
             </div>
             <div class="detail-actions">
@@ -3195,13 +3377,13 @@ def build_html(
           <section class="detail-section">
             <dl class="detail-grid">
               <dt>Incident</dt><dd>${{escapeHtml(incident.incident_no)}}</dd>
-              <dt>Time</dt><dd>${{escapeHtml(incident.incident_time)}}</dd>
+              <dt>Reported</dt><dd>${{escapeHtml(formatIncidentWhen(incident))}}</dd>
+              <dt>Source</dt><dd>${{incident.source_url ? `<a href="${{escapeHtml(incident.source_url)}}" rel="noopener" target="_blank">${{escapeHtml(sourceText)}}</a>` : escapeHtml(sourceText)}}</dd>
               <dt>Area</dt><dd>${{escapeHtml(incident.area)}}</dd>
-              <dt>Loc Desc</dt><dd>${{escapeHtml(incident.location_desc || "")}}</dd>
               <dt>Coords</dt><dd>${{coordText}}</dd>
-              <dt>First Seen</dt><dd>${{escapeHtml(incident.first_seen)}}</dd>
-              <dt>Last Seen</dt><dd>${{escapeHtml(incident.last_seen)}}</dd>
-              ${{incident.cleared_at ? `<dt>Cleared</dt><dd>${{escapeHtml(incident.cleared_at)}}</dd>` : ""}}
+              <dt>Crestmap First Seen</dt><dd>${{escapeHtml(incident.first_seen)}}</dd>
+              <dt>Crestmap Last Seen</dt><dd>${{escapeHtml(incident.last_seen)}}</dd>
+              ${{incident.cleared_at ? `<dt>${{incident.source === "wildweb" && incident.source_status === "out" ? "Out" : incident.source === "wildweb" ? "Archived" : "Cleared"}}</dt><dd>${{escapeHtml(incident.cleared_at)}}</dd>` : ""}}
             </dl>
           </section>
           ${{detailEntries ? `<section class="detail-section">${{detailEntries}}</section>` : ""}}
@@ -3452,10 +3634,14 @@ def build_html(
           return;
         }}
         const activeCount = Number(regionStatuses[region].active_count || 0);
-        countEl.textContent = String(activeCount);
+        const reportedCount = Number(regionStatuses[region].reported_count || 0);
+        const currentCount = activeCount + reportedCount;
+        countEl.textContent = String(currentCount);
         countEl.setAttribute(
           "aria-label",
-          `${{activeCount}} active incident${{activeCount === 1 ? "" : "s"}}`
+          reportedCount
+            ? `${{currentCount}} current incident report${{currentCount === 1 ? "" : "s"}}`
+            : `${{currentCount}} active incident${{currentCount === 1 ? "" : "s"}}`
         );
       }});
     }}
@@ -3468,7 +3654,10 @@ def build_html(
       const hoursLabel = Number.isInteger(hours) ? String(hours) : String(status.hours);
       const meta = document.querySelector("header .meta");
       if (meta) {{
-        meta.textContent = `${{status.active_count}} active · ${{status.total_count}} in last ${{hoursLabel}}h · ${{status.mapped_count}} mapped`;
+        const reportedText = Number(status.reported_count || 0)
+          ? ` · ${{status.reported_count}} WildWeb reported`
+          : "";
+        meta.textContent = `${{status.active_count}} active${{reportedText}} · ${{status.total_count}} in last ${{hoursLabel}}h · ${{status.mapped_count}} mapped`;
       }}
       updateRegionCounts(regionStatuses || status.region_statuses);
       currentDataStatus = status;
@@ -3485,8 +3674,8 @@ def build_html(
       clearRenderedIncidents();
       window.chpLiveMap.incidents = incidents;
       if (!incidents.length) {{
-        list.innerHTML = '<div class="empty">No active matching CHP incidents are currently stored.</div>';
-        detailsPanel.innerHTML = '<div class="empty">No active matching CHP incidents are currently stored.</div>';
+        list.innerHTML = '<div class="empty">No matching incidents are currently stored.</div>';
+        detailsPanel.innerHTML = '<div class="empty">No matching incidents are currently stored.</div>';
         ensureCurrentRegionUrl();
         updateListScrollCue();
         return;
@@ -3494,13 +3683,16 @@ def build_html(
 
       incidents.forEach((incident) => {{
         const hasCoords = incident.latitude != null && incident.longitude != null;
-        const isActive = incident.status === "active";
+        const statusClass = incidentStatusClass(incident);
+        const statusText = incidentStatusLabel(incident);
+        const sourceText = incidentSourceLabel(incident);
+        const description = incidentDescription(incident);
         const linkedOutsideWindow = Boolean(incident._linked_outside_window);
         if (hasCoords) {{
           const marker = L.marker([incident.latitude, incident.longitude], {{
             icon: markerIcon(incident),
             keyboard: false,
-            title: `${{incident.type || "CHP Incident"}} ${{incident.location || ""}}`.trim()
+            title: `${{incident.type || "Incident"}} ${{incident.location || ""}}`.trim()
           }}).addTo(map);
           bindMarkerInteraction(marker, incident);
           markers.set(incident.event_key, marker);
@@ -3512,11 +3704,13 @@ def build_html(
         button.dataset.eventKey = incident.event_key;
         button.innerHTML = `
           <span class="incident-heading">
-            <span class="status-pill ${{isActive ? "status-active" : "status-cleared"}}">${{isActive ? "Active" : "Cleared"}}</span>
+            <span class="status-pill ${{statusClass}}">${{statusText}}</span>
+            <span class="source-pill">${{escapeHtml(sourceText)}}</span>
             <span class="selected-pill">Open</span>
             ${{linkedOutsideWindow ? '<span class="linked-pill">Linked</span>' : ""}}
           </span>
-          <strong>${{escapeHtml(incident.type || "CHP Incident")}}</strong>
+          <strong>${{escapeHtml(incident.type || "Incident")}}</strong>
+          ${{description ? `<span class="incident-description">${{escapeHtml(description)}}</span>` : ""}}
           <span>${{escapeHtml(incident.location)}}</span>
           <span>${{escapeHtml(formatIncidentWhen(incident))}} · ${{escapeHtml(incident.area)}} · #${{escapeHtml(incident.incident_no)}}${{hasCoords ? "" : " · no map pin"}}</span>
         `;
@@ -3893,13 +4087,13 @@ def report_shell(
         public_url,
         {"active": 1 if status["active_count"] else 0, "v": status["version"]},
     )
-    description = f"Summary and history views for CHP {label.lower()} road incidents."
+    description = f"Summary and history views for Crestmap {label.lower()} incidents."
     return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{html.escape(title)} - CHP {html.escape(label)} Incidents</title>
+  <title>{html.escape(title)} - Crestmap {html.escape(label)} Incidents</title>
   <meta name="description" content="{html.escape(description)}">
   <meta name="robots" content="index,follow,max-image-preview:large">
   <link rel="canonical" href="{html.escape(urls["canonical"])}">
@@ -4367,6 +4561,11 @@ def report_shell(
       font-size: 13px;
       line-height: 1.35;
     }}
+    .result .result-description {{
+      margin: -1px 0 3px;
+      color: #35453b;
+      font-weight: 800;
+    }}
     .status-pill {{
       display: inline-flex;
       align-items: center;
@@ -4385,6 +4584,23 @@ def report_shell(
     .status-cleared {{
       color: #59615c;
       background: #ecefed;
+    }}
+    .status-reported {{
+      color: #704b08;
+      background: #fff0c9;
+    }}
+    .source-pill {{
+      display: inline-flex;
+      margin: 0 0 7px 5px;
+      padding: 2px 7px;
+      border: 1px solid #cbd6cc;
+      border-radius: 999px;
+      color: #405047;
+      background: #f8faf6;
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1.35;
+      text-transform: uppercase;
     }}
     @media (min-width: 760px) {{
       #report-app {{
@@ -4552,21 +4768,24 @@ def build_summary_html(
     status = {**incident_status(filtered_incidents, hours), "region": region}
     active_count = status["active_count"]
     mapped_count = status["mapped_count"]
-    cleared_count = status["total_count"] - active_count
+    reported_count = status["reported_count"]
+    cleared_count = status["cleared_count"] + status["archived_count"]
     road_rows = report_rows(count_by(filtered_incidents, incident_road))
     type_rows = report_rows(count_by(filtered_incidents, lambda incident: incident.get("type") or "Unknown"))
     day_rows = report_rows(daily_incident_counts(filtered_incidents, generated_at, hours), limit=None, compact=True)
     time_rows = report_rows(time_bucket_counts(filtered_incidents), limit=None)
     recent = sorted(
         filtered_incidents,
-        key=lambda incident: incident.get("latest_observed_at") or incident.get("last_seen") or "",
+        key=incident_recency,
         reverse=True,
     )[:5]
     recent_html = "".join(
-        '<div class="result"><span class="status-pill {}">{}</span><strong>{}</strong><span>{}</span><span>{} · #{}</span></div>'.format(
-            "status-active" if incident.get("status") == "active" else "status-cleared",
-            "Active" if incident.get("status") == "active" else "Cleared",
-            html.escape(incident.get("type") or "CHP Incident"),
+        '<div class="result"><span class="status-pill {}">{}</span><span class="source-pill">{}</span><strong>{}</strong>{}<span>{}</span><span>{} · #{}</span></div>'.format(
+            incident_status_class(incident),
+            html.escape(incident_status_label(incident)),
+            html.escape(incident_source_label(incident)),
+            html.escape(incident.get("type") or "Incident"),
+            report_description_html(incident),
             html.escape(incident.get("location") or ""),
             html.escape(format_when_short(incident)),
             html.escape(str(incident.get("incident_no") or "")),
@@ -4594,9 +4813,10 @@ def build_summary_html(
       </form>
       <section class="kpi-grid" aria-label="Incident summary">
         <div class="kpi"><strong>{status["total_count"]}</strong><span>Incidents in window</span></div>
-        <div class="kpi"><strong>{active_count}</strong><span>Currently active</span></div>
+        <div class="kpi"><strong>{active_count}</strong><span>Active CHP incidents</span></div>
+        {f'<div class="kpi"><strong>{reported_count}</strong><span>Current WildWeb reports</span></div>' if reported_count else ''}
         <div class="kpi"><strong>{mapped_count}</strong><span>Mapped incidents</span></div>
-        <div class="kpi"><strong>{cleared_count}</strong><span>Cleared incidents</span></div>
+        <div class="kpi"><strong>{cleared_count}</strong><span>Cleared or archived</span></div>
       </section>
       <section class="section">
         <h2>Busiest Roads</h2>
@@ -4619,7 +4839,7 @@ def build_summary_html(
         {recent_html}
       </section>
     """
-    subtitle = f"{label} CHP activity · updated {generated_at}"
+    subtitle = f"{label} incident activity · updated {generated_at}"
     return report_shell(
         "Summary",
         subtitle,
@@ -4663,14 +4883,22 @@ def build_history_html(
     type_options = [("all", "All types")] + [
         (slugify_filter(label), label) for label, _count in count_by(incidents, lambda incident: incident.get("type") or "Unknown")
     ]
-    status_options = [("all", "All statuses"), ("active", "Active"), ("cleared", "Cleared")]
+    status_options = [
+        ("all", "All statuses"),
+        ("active", "Active CHP"),
+        ("reported", "Reported by WildWeb"),
+        ("cleared", "Cleared"),
+        ("archived", "Archived / no longer listed"),
+    ]
     mapped_options = [("all", "Mapped + unpinned"), ("mapped", "Mapped only"), ("unpinned", "Unpinned only")]
     reset_href = href_with_query(app_path(base_path, "/history"), hours=f"{hours:g}", region=region)
     result_rows = "".join(
-        '<div class="result"><span class="status-pill {}">{}</span><strong>{}</strong><span>{}</span><span>{} · {} · #{} · <a href="{}">Show on map</a></span></div>'.format(
-            "status-active" if incident.get("status") == "active" else "status-cleared",
-            "Active" if incident.get("status") == "active" else "Cleared",
-            html.escape(incident.get("type") or "CHP Incident"),
+        '<div class="result"><span class="status-pill {}">{}</span><span class="source-pill">{}</span><strong>{}</strong>{}<span>{}</span><span>{} · {} · #{} · <a href="{}">Show on map</a></span></div>'.format(
+            incident_status_class(incident),
+            html.escape(incident_status_label(incident)),
+            html.escape(incident_source_label(incident)),
+            html.escape(incident.get("type") or "Incident"),
+            report_description_html(incident),
             html.escape(incident.get("location") or ""),
             html.escape(format_when_short(incident)),
             html.escape(incident.get("area") or ""),
@@ -4707,7 +4935,7 @@ def build_history_html(
         {result_rows}
       </section>
     """
-    subtitle = f"Search stored CHP {label.lower()} incidents · updated {generated_at}"
+    subtitle = f"Search stored {label.lower()} incidents · updated {generated_at}"
     return report_shell(
         "History",
         subtitle,
@@ -4739,27 +4967,30 @@ def build_about_html(
     if region == "forest":
         scope_text = "Angeles Crest, Angeles Forest, Big Tujunga, Glendora Mountain, and nearby forest roads"
     else:
-        scope_text = "Malibu canyon and coastal roads including PCH-adjacent CHP incidents"
+        scope_text = "Malibu canyon and coastal roads including PCH-adjacent incidents"
     body = f"""
       <section class="section" style="margin-top: 0; padding-top: 0; border-top: 0;">
         <h2>What This Is</h2>
-        <p class="empty-report">Crestmap is a live mirror of public <a href="https://cad.chp.ca.gov/Traffic.aspx" rel="noopener">CHP CAD traffic incidents</a> for {html.escape(scope_text)}.</p>
+        <p class="empty-report">Crestmap combines public <a href="https://cad.chp.ca.gov/Traffic.aspx" rel="noopener">CHP traffic incidents</a> with selected <a href="https://www.wildwebe.net/incidents?dc_Name=CAANCC" rel="noopener">WildWeb dispatch reports</a> for {html.escape(scope_text)}.</p>
       </section>
       <section class="kpi-grid" aria-label="Current data status" style="margin-top: 14px;">
         <div class="kpi"><strong>{status["total_count"]}</strong><span>Incidents in this window</span></div>
-        <div class="kpi"><strong>{status["active_count"]}</strong><span>Currently active</span></div>
+        <div class="kpi"><strong>{status["active_count"]}</strong><span>Active CHP incidents</span></div>
+        <div class="kpi"><strong>{status["reported_count"]}</strong><span>Current WildWeb reports</span></div>
         <div class="kpi"><strong>{status["mapped_count"]}</strong><span>Mapped incidents</span></div>
-        <div class="kpi"><strong>1m</strong><span>Approximate CHP check cadence</span></div>
+        <div class="kpi"><strong>1–2m</strong><span>Approximate source cadence</span></div>
       </section>
       <section class="section">
         <h2>Update Cadence</h2>
-        <div class="result"><strong>Incident list</strong><span>Checked against CHP about once per minute.</span></div>
+        <div class="result"><strong>CHP</strong><span>Checked about once per minute.</span></div>
+        <div class="result"><strong>WildWeb</strong><span>Checked independently about once every two minutes. Reports older than the configured collection window are archived.</span></div>
         <div class="result"><strong>Active incident details</strong><span>Unchanged active incidents are refreshed about every 3 minutes.</span></div>
-        <div class="result"><strong>History</strong><span>Cleared incidents stay in the database and are shown when they fall inside the selected time window.</span></div>
+        <div class="result"><strong>Status meaning</strong><span>CHP records use Active and Cleared. WildWeb records say Reported unless the source explicitly provides Contained, Controlled, or Out. No longer listed and Archived do not mean Crestmap independently confirmed the incident is over.</span></div>
+        <div class="result"><strong>History</strong><span>Cleared and archived records stay in the database and are shown when they fall inside the selected time window.</span></div>
       </section>
       <section class="section" id="push-notifications">
         <h2>Push Notifications</h2>
-        <p class="empty-report">Crestmap can notify you when it discovers a new matching CHP incident. Choose all Forest roads, Crest + west forest only, or Malibu roads, then select the incident categories you want.</p>
+        <p class="empty-report">Crestmap can notify you when it discovers a new matching incident. CHP alerts are selected by default; WildWeb reports are a separate opt-in because the two sources can describe the same incident. Choose sources, areas, and incident categories in Alerts.</p>
         <div class="result"><strong>Crest + west forest</strong><span>Includes Angeles Crest, Angeles Forest, Big Tujunga, and Mount Wilson/Red Box incidents. It excludes San Gabriel Canyon, Glendora Mountain/Ridge, Mount Baldy, and San Antonio Canyon incidents.</span></div>
         <div class="result"><strong>iPhone and iPad</strong><span>Open Crestmap in Safari. With Compact tabs, tap More (&hellip;) then Share; with Bottom or Top tabs, tap Share directly. Scroll down and choose Add to Home Screen. If it is missing, scroll to the bottom, open Edit Actions, and add it. Turn on Open as Web App, tap Add, then launch Crestmap from the new icon. Open Alerts from the menu and approve the notification prompt.</span></div>
         <div class="result"><strong>Privacy</strong><span>A browser-generated push endpoint and your choices are stored. No email address, phone number, or account is required. Turning alerts off deactivates that device subscription.</span></div>
@@ -4769,6 +5000,7 @@ def build_about_html(
       <section class="section">
         <h2>Project Links</h2>
         <div class="result"><strong>CHP CAD source</strong><span><a href="https://cad.chp.ca.gov/Traffic.aspx" rel="noopener">cad.chp.ca.gov/Traffic.aspx</a></span></div>
+        <div class="result"><strong>WildWeb source</strong><span><a href="https://www.wildwebe.net/incidents?dc_Name=CAANCC" rel="noopener">wildwebe.net · CAANCC</a></span></div>
         <div class="result"><strong>Project README</strong><span><a href="https://github.com/cajaks2/chp-live-map#readme" rel="noopener">github.com/cajaks2/chp-live-map</a></span></div>
       </section>
     """

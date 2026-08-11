@@ -16,7 +16,11 @@ from urllib.parse import parse_qs, urlsplit
 from aircraft_tracking import load_tracker_status, load_visible_aircraft
 from comments import COMMENT_SUBMISSIONS_TOTAL, pending_count
 from ecs_logging import log_event, log_exception, run_main
-from push_notifications import CATEGORIES as PUSH_CATEGORIES, REGIONS as PUSH_AREAS
+from push_notifications import (
+    CATEGORIES as PUSH_CATEGORIES,
+    REGIONS as PUSH_AREAS,
+    SOURCES as PUSH_SOURCES,
+)
 from generate_live_map import (
     build_about_html,
     build_history_html,
@@ -82,7 +86,7 @@ OG_IMAGE_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630"
   <path d="M0 630h1200V494c-137 55-284 83-439 83-201 0-373-38-516-114C148 504 66 526 0 529Z" fill="#6fbf73"/>
   <circle cx="917" cy="192" r="52" fill="#d83b3b"/>
   <path d="M917 106c48 0 87 39 87 87 0 68-87 162-87 162s-87-94-87-162c0-48 39-87 87-87Zm0 45a42 42 0 1 0 0 84 42 42 0 0 0 0-84Z" fill="#f4f7ee"/>
-  <text x="74" y="142" fill="#f4f7ee" font-family="Inter, Arial, sans-serif" font-size="62" font-weight="700">CHP Forest Incidents</text>
+  <text x="74" y="142" fill="#f4f7ee" font-family="Inter, Arial, sans-serif" font-size="62" font-weight="700">Crestmap Incidents</text>
   <text x="78" y="218" fill="#d7e7d4" font-family="Inter, Arial, sans-serif" font-size="34">Live traffic incidents for Angeles Crest and nearby forest roads</text>
 </svg>
 """
@@ -288,6 +292,7 @@ def load_metric_status(conn, hours, region="forest", placeholder="?"):
         SELECT
             COUNT(*) AS total_count,
             COALESCE(SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END), 0) AS active_count,
+            COALESCE(SUM(CASE WHEN status = 'reported' THEN 1 ELSE 0 END), 0) AS reported_count,
             COALESCE(SUM(CASE WHEN latitude IS NOT NULL AND longitude IS NOT NULL THEN 1 ELSE 0 END), 0) AS mapped_count,
             MAX(COALESCE(NULLIF(latest_observed_at, ''), NULLIF(last_seen, ''), NULLIF(first_seen, ''), '')) AS data_updated_at
         FROM events
@@ -305,6 +310,7 @@ def load_metric_status(conn, hours, region="forest", placeholder="?"):
     ).fetchone()
     return {
         "active_count": int(row["active_count"] or 0),
+        "reported_count": int(row["reported_count"] or 0),
         "total_count": int(row["total_count"] or 0),
         "mapped_count": int(row["mapped_count"] or 0),
         "hours": hours,
@@ -315,6 +321,7 @@ def load_metric_status(conn, hours, region="forest", placeholder="?"):
 def empty_metric_status(hours):
     return {
         "active_count": 0,
+        "reported_count": 0,
         "total_count": 0,
         "mapped_count": 0,
         "hours": hours,
@@ -325,6 +332,7 @@ def empty_metric_status(hours):
 def empty_push_metric_status():
     return {
         "subscriptions": {"active": 0, "inactive": 0},
+        "sources": {source: 0 for source in sorted(PUSH_SOURCES)},
         "areas": {area: 0 for area in sorted(PUSH_AREAS)},
         "categories": {category: 0 for category in sorted(PUSH_CATEGORIES)},
         "events": {},
@@ -339,7 +347,7 @@ def empty_push_metric_status():
 def load_push_metric_status(conn):
     status = empty_push_metric_status()
     subscriptions = conn.execute(
-        "SELECT active, regions_json, categories_json FROM push_subscriptions"
+        "SELECT active, sources_json, regions_json, categories_json FROM push_subscriptions"
     ).fetchall()
     for subscription in subscriptions:
         state = "active" if subscription["active"] else "inactive"
@@ -347,10 +355,13 @@ def load_push_metric_status(conn):
         if state != "active":
             continue
         try:
+            sources = json.loads(subscription["sources_json"])
             areas = json.loads(subscription["regions_json"])
             categories = json.loads(subscription["categories_json"])
         except (TypeError, json.JSONDecodeError):
             continue
+        for source in set(sources).intersection(PUSH_SOURCES):
+            status["sources"][source] += 1
         for area in set(areas).intersection(PUSH_AREAS):
             status["areas"][area] += 1
         for category in set(categories).intersection(PUSH_CATEGORIES):
@@ -457,7 +468,8 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
                 conn.close()
 
     active_count = status["active_count"]
-    cleared_count = status["total_count"] - active_count
+    reported_count = status["reported_count"]
+    cleared_count = status["total_count"] - active_count - reported_count
     lines = [
         "# HELP chp_live_map_up Whether the CHP live map web process is running.",
         "# TYPE chp_live_map_up gauge",
@@ -469,6 +481,7 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
         "# TYPE chp_live_map_incidents gauge",
         metric_line("chp_live_map_incidents", status["total_count"], {"status": "total"}),
         metric_line("chp_live_map_incidents", active_count, {"status": "active"}),
+        metric_line("chp_live_map_incidents", reported_count, {"status": "reported"}),
         metric_line("chp_live_map_incidents", cleared_count, {"status": "cleared"}),
         metric_line("chp_live_map_incidents", status["mapped_count"], {"status": "mapped"}),
         "# HELP chp_live_map_region_incidents Incidents in the selected history window, grouped by hidden collection region.",
@@ -477,7 +490,8 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
     for region in METRIC_REGIONS:
         region_status = region_statuses[region]
         region_active_count = region_status["active_count"]
-        region_cleared_count = region_status["total_count"] - region_active_count
+        region_reported_count = region_status["reported_count"]
+        region_cleared_count = region_status["total_count"] - region_active_count - region_reported_count
         lines.extend(
             [
                 metric_line(
@@ -489,6 +503,11 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
                     "chp_live_map_region_incidents",
                     region_active_count,
                     {"region": region, "status": "active"},
+                ),
+                metric_line(
+                    "chp_live_map_region_incidents",
+                    region_reported_count,
+                    {"region": region, "status": "reported"},
                 ),
                 metric_line(
                     "chp_live_map_region_incidents",
@@ -625,6 +644,16 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
             *[
                 metric_line("chp_live_map_push_subscriptions", push_status["subscriptions"][state], {"status": state})
                 for state in ("active", "inactive")
+            ],
+            "# HELP chp_live_map_push_subscription_sources Active subscriptions selecting each incident source.",
+            "# TYPE chp_live_map_push_subscription_sources gauge",
+            *[
+                metric_line(
+                    "chp_live_map_push_subscription_sources",
+                    push_status["sources"][source],
+                    {"source": source},
+                )
+                for source in sorted(PUSH_SOURCES)
             ],
             "# HELP chp_live_map_push_subscription_areas Active subscriptions selecting each notification area.",
             "# TYPE chp_live_map_push_subscription_areas gauge",

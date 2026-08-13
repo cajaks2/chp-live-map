@@ -1726,6 +1726,18 @@ def build_html(
       background: #ffffff;
       cursor: pointer;
     }}
+    .incident.is-wildweb-aging {{
+      transition: opacity 180ms ease, filter 180ms ease, background-color 180ms ease;
+    }}
+    .incident.is-wildweb-aging:not([aria-current="true"]) {{
+      opacity: var(--incident-age-opacity, 1);
+      filter: saturate(var(--incident-age-saturation, 1));
+    }}
+    .incident.is-wildweb-aging[aria-current="true"] > * {{
+      opacity: var(--incident-age-opacity, 1);
+      filter: saturate(var(--incident-age-saturation, 1));
+      transition: opacity 180ms ease, filter 180ms ease;
+    }}
     .incident:hover,
     .incident:focus {{
       background: #eef4ee;
@@ -1775,36 +1787,49 @@ def build_html(
       position: absolute;
       inset: 0;
       display: block;
+      border-radius: 999px;
+      pointer-events: none;
+    }}
+    .incident-marker-core {{
+      box-sizing: border-box;
+      position: absolute;
+      inset: 0;
+      display: block;
       border: 3px solid #7a1a1d;
       border-radius: 999px;
       background: #d94a38;
       box-shadow: 0 1px 6px rgba(24, 32, 38, 0.32);
       pointer-events: none;
     }}
-    .incident-marker.is-cleared .incident-marker-dot {{
+    .incident-marker.is-cleared .incident-marker-core {{
       border-color: #5f6862;
       background: #b8bfba;
     }}
-    .incident-marker.is-wildweb-no-longer-listed .incident-marker-dot {{
+    .incident-marker.is-wildweb-no-longer-listed .incident-marker-core {{
       border-color: #596a72;
       background: #b8bfba;
     }}
-    .incident-marker.is-wildweb-aged-out .incident-marker-dot {{
+    .incident-marker.is-wildweb-aged-out .incident-marker-core {{
       border-color: #967037;
       background: #b8bfba;
     }}
-    .incident-marker.is-reported .incident-marker-dot {{
+    .incident-marker.is-reported .incident-marker-core {{
       border-color: #805b12;
       background: #e5a72f;
     }}
-    .incident-marker.is-selected .incident-marker-dot {{
+    .incident-marker.is-wildweb-aging .incident-marker-core {{
+      opacity: var(--incident-age-opacity, 1);
+      filter: saturate(var(--incident-age-saturation, 1));
+      transition: opacity 180ms ease, filter 180ms ease;
+    }}
+    .incident-marker.is-selected .incident-marker-core {{
       background: #f05a40;
       box-shadow: 0 2px 9px rgba(24, 32, 38, 0.42);
     }}
-    .incident-marker.is-selected.is-cleared .incident-marker-dot {{
+    .incident-marker.is-selected.is-cleared .incident-marker-core {{
       background: #9da5a0;
     }}
-    .incident-marker.is-selected.is-reported .incident-marker-dot {{
+    .incident-marker.is-selected.is-reported .incident-marker-core {{
       background: #f0b43f;
     }}
     .incident-marker.is-selected .incident-marker-dot::before {{
@@ -2879,6 +2904,24 @@ def build_html(
       return status === "active" ? "status-active" : status === "reported" ? "status-reported" : "status-cleared";
     }}
 
+    function wildWebReportedVisualAge(incident) {{
+      const source = String(incident.source || "").toLowerCase();
+      const status = String(incident.status || "").toLowerCase();
+      if (source !== "wildweb" || status !== "reported") {{
+        return null;
+      }}
+      const reportedAt = Date.parse(String(incident.source_reported_at || incident.first_seen || ""));
+      if (!Number.isFinite(reportedAt)) {{
+        return {{ opacity: 1, saturation: 1 }};
+      }}
+      const ageHours = Math.max(0, (Date.now() - reportedAt) / 3600000);
+      const fadeProgress = Math.min(1, Math.max(0, (ageHours - 1) / 5));
+      return {{
+        opacity: 1 - (0.45 * fadeProgress),
+        saturation: 1 - (0.88 * fadeProgress)
+      }};
+    }}
+
     function formatRangeLabel(hours) {{
       const numericHours = Number(hours);
       if (numericHours === 168) {{
@@ -3173,6 +3216,7 @@ def build_html(
     function markerIcon(incident, selected = false, pulsing = false) {{
       const markerState = incident.status === "active" ? "is-active" : incident.status === "reported" ? "is-reported" : "is-cleared";
       const sourceStatus = String(incident.source_status || "").toLowerCase();
+      const visualAge = wildWebReportedVisualAge(incident);
       const wildwebEndState = String(incident.source || "").toLowerCase() === "wildweb" && markerState === "is-cleared"
         ? {{ aged_out: "is-wildweb-aged-out", no_longer_listed: "is-wildweb-no-longer-listed" }}[sourceStatus] || ""
         : "";
@@ -3181,13 +3225,14 @@ def build_html(
         className: [
           "incident-marker",
           markerState,
+          visualAge ? "is-wildweb-aging" : "",
           wildwebEndState,
           selected ? "is-selected" : "",
           pulsing ? "is-pulsing" : ""
         ].join(" "),
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
-        html: '<span class="incident-marker-dot" aria-hidden="true"></span>'
+        html: `<span class="incident-marker-dot" aria-hidden="true"${{visualAge ? ` style="--incident-age-opacity: ${{visualAge.opacity.toFixed(3)}}; --incident-age-saturation: ${{visualAge.saturation.toFixed(3)}}"` : ""}}><span class="incident-marker-core"></span></span>`
       }});
     }}
 
@@ -3714,6 +3759,7 @@ def build_html(
         const statusText = incidentStatusLabel(incident);
         const sourceText = incidentSourceLabel(incident);
         const locationLines = incidentLocationLines(incident);
+        const visualAge = wildWebReportedVisualAge(incident);
         const linkedOutsideWindow = Boolean(incident._linked_outside_window);
         if (hasCoords) {{
           const marker = L.marker([incident.latitude, incident.longitude], {{
@@ -3726,9 +3772,13 @@ def build_html(
         }}
 
         const button = document.createElement("button");
-        button.className = "incident";
+        button.className = visualAge ? "incident is-wildweb-aging" : "incident";
         button.type = "button";
         button.dataset.eventKey = incident.event_key;
+        if (visualAge) {{
+          button.style.setProperty("--incident-age-opacity", visualAge.opacity.toFixed(3));
+          button.style.setProperty("--incident-age-saturation", visualAge.saturation.toFixed(3));
+        }}
         button.innerHTML = `
           <span class="incident-heading">
             <span class="status-pill ${{statusClass}}">${{statusText}}</span>

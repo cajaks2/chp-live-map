@@ -118,6 +118,16 @@ def test_build_html_labels_wildweb_report_without_claiming_it_is_active_or_clear
     assert '<span class="incident-location-primary">${escapeHtml(locationLines.primary)}</span>' in html
     assert '<div class="detail-location-primary">${escapeHtml(locationLines.primary)}</div>' in html
     assert "<dt>Loc Desc</dt>" not in html
+    assert "function wildWebReportedVisualAge(incident)" in html
+    assert 'source !== "wildweb" || status !== "reported"' in html
+    assert 'incident.source_reported_at || incident.first_seen' in html
+    assert "(ageHours - 1) / 5" in html
+    assert "opacity: 1 - (0.45 * fadeProgress)" in html
+    assert "saturation: 1 - (0.88 * fadeProgress)" in html
+    assert 'visualAge ? "incident is-wildweb-aging" : "incident"' in html
+    assert '.incident.is-wildweb-aging:not([aria-current="true"])' in html
+    assert '.incident.is-wildweb-aging[aria-current="true"] > *' in html
+    assert ".incident-marker.is-wildweb-aging .incident-marker-core" in html
 
 
 def test_incident_location_lines_prioritize_roads_for_chp_and_descriptions_for_wildweb():
@@ -631,9 +641,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "function markerIcon" in html
     assert 'aged_out: "is-wildweb-aged-out"' in html
     assert 'no_longer_listed: "is-wildweb-no-longer-listed"' in html
-    assert ".incident-marker.is-wildweb-aged-out .incident-marker-dot" in html
+    assert ".incident-marker.is-wildweb-aged-out .incident-marker-core" in html
     assert "border-color: #967037" in html
-    assert ".incident-marker.is-wildweb-no-longer-listed .incident-marker-dot" in html
+    assert ".incident-marker.is-wildweb-no-longer-listed .incident-marker-core" in html
     assert "border-color: #596a72" in html
     assert "const size = 22;" in html
     assert "const size = selected ? 28 : 22" not in html

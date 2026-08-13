@@ -7,6 +7,7 @@ from generate_live_map import (
     build_html,
     build_summary_html,
     include_linked_incident,
+    incident_location_lines,
     incident_status,
     load_incident_by_key,
     load_incidents,
@@ -113,9 +114,28 @@ def test_build_html_labels_wildweb_report_without_claiming_it_is_active_or_clear
     assert 'listed: "Reported"' in html
     assert "No coordinates exposed by ${escapeHtml(sourceText)}" in html
     assert "function incidentDescription(incident)" in html
-    assert '<span class="incident-description">${escapeHtml(description)}</span>' in html
-    assert '<div class="detail-description">${escapeHtml(description)}</div>' in html
+    assert "function incidentLocationLines(incident)" in html
+    assert '<span class="incident-location-primary">${escapeHtml(locationLines.primary)}</span>' in html
+    assert '<div class="detail-location-primary">${escapeHtml(locationLines.primary)}</div>' in html
     assert "<dt>Loc Desc</dt>" not in html
+
+
+def test_incident_location_lines_prioritize_roads_for_chp_and_descriptions_for_wildweb():
+    chp = {
+        "source": "chp",
+        "type": "Traffic Hazard",
+        "location": "I210 W / Angeles Crest Hwy",
+        "location_desc": "OFR",
+    }
+    wildweb = {
+        "source": "wildweb",
+        "type": "Miscellaneous",
+        "location": "Angeles Forest Hwy MM 16.09",
+        "location_desc": "PUBLIC ASSIST",
+    }
+
+    assert incident_location_lines(chp) == ("I210 W / Angeles Crest Hwy", "OFR")
+    assert incident_location_lines(wildweb) == ("PUBLIC ASSIST", "Angeles Forest Hwy MM 16.09")
 
 
 def test_load_incidents_sorts_wildweb_by_source_report_time_not_poll_time(tmp_path):

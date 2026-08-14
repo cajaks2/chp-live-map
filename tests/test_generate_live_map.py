@@ -122,8 +122,8 @@ def test_build_html_labels_wildweb_report_without_claiming_it_is_active_or_clear
     assert 'source !== "wildweb" || status !== "reported"' in html
     assert 'incident.source_reported_at || incident.first_seen' in html
     assert "(ageHours - 1) / 5" in html
-    assert "opacity: 1 - (0.45 * fadeProgress)" in html
-    assert "saturation: 1 - (0.88 * fadeProgress)" in html
+    assert "saturation: 1 - fadeProgress" in html
+    assert "--incident-age-opacity" not in html
     assert 'visualAge ? "incident is-wildweb-aging" : "incident"' in html
     assert '.incident.is-wildweb-aging:not([aria-current="true"])' in html
     assert '.incident.is-wildweb-aging[aria-current="true"] > *' in html
@@ -625,6 +625,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "window.chpLiveMap" in html
     assert "touch-action: none" in html
     assert "-webkit-tap-highlight-color: transparent" in html
+    assert "svg.leaflet-zoom-animated" in html
+    assert ".leaflet-zoom-anim .leaflet-zoom-animated" in html
+    assert "transition: transform 0.25s cubic-bezier(0, 0, 0.25, 1)" in html
     assert "@media (max-width: 760px)" in html
     assert "padding: 8px 12px 8px;" in html
     assert ".view-menu {\n        display: block;" in html

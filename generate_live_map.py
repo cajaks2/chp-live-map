@@ -1237,6 +1237,22 @@ def build_html(
       left: 0;
       top: 0;
     }}
+    .leaflet-zoom-animated {{
+      transform-origin: 0 0;
+    }}
+    svg.leaflet-zoom-animated {{
+      will-change: transform;
+    }}
+    .leaflet-zoom-anim .leaflet-zoom-animated {{
+      transition: transform 0.25s cubic-bezier(0, 0, 0.25, 1);
+    }}
+    .leaflet-zoom-anim .leaflet-tile,
+    .leaflet-pan-anim .leaflet-tile {{
+      transition: none;
+    }}
+    .leaflet-zoom-anim .leaflet-zoom-hide {{
+      visibility: hidden;
+    }}
     .leaflet-tile {{
       width: 256px;
       height: 256px;
@@ -1727,16 +1743,14 @@ def build_html(
       cursor: pointer;
     }}
     .incident.is-wildweb-aging {{
-      transition: opacity 180ms ease, filter 180ms ease, background-color 180ms ease;
+      transition: filter 180ms ease, background-color 180ms ease;
     }}
     .incident.is-wildweb-aging:not([aria-current="true"]) {{
-      opacity: var(--incident-age-opacity, 1);
       filter: saturate(var(--incident-age-saturation, 1));
     }}
     .incident.is-wildweb-aging[aria-current="true"] > * {{
-      opacity: var(--incident-age-opacity, 1);
       filter: saturate(var(--incident-age-saturation, 1));
-      transition: opacity 180ms ease, filter 180ms ease;
+      transition: filter 180ms ease;
     }}
     .incident:hover,
     .incident:focus {{
@@ -1818,9 +1832,8 @@ def build_html(
       background: #e5a72f;
     }}
     .incident-marker.is-wildweb-aging .incident-marker-core {{
-      opacity: var(--incident-age-opacity, 1);
       filter: saturate(var(--incident-age-saturation, 1));
-      transition: opacity 180ms ease, filter 180ms ease;
+      transition: filter 180ms ease;
     }}
     .incident-marker.is-selected .incident-marker-core {{
       background: #f05a40;
@@ -2912,13 +2925,12 @@ def build_html(
       }}
       const reportedAt = Date.parse(String(incident.source_reported_at || incident.first_seen || ""));
       if (!Number.isFinite(reportedAt)) {{
-        return {{ opacity: 1, saturation: 1 }};
+        return {{ saturation: 1 }};
       }}
       const ageHours = Math.max(0, (Date.now() - reportedAt) / 3600000);
       const fadeProgress = Math.min(1, Math.max(0, (ageHours - 1) / 5));
       return {{
-        opacity: 1 - (0.45 * fadeProgress),
-        saturation: 1 - (0.88 * fadeProgress)
+        saturation: 1 - fadeProgress
       }};
     }}
 
@@ -3232,7 +3244,7 @@ def build_html(
         ].join(" "),
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
-        html: `<span class="incident-marker-dot" aria-hidden="true"${{visualAge ? ` style="--incident-age-opacity: ${{visualAge.opacity.toFixed(3)}}; --incident-age-saturation: ${{visualAge.saturation.toFixed(3)}}"` : ""}}><span class="incident-marker-core"></span></span>`
+        html: `<span class="incident-marker-dot" aria-hidden="true"${{visualAge ? ` style="--incident-age-saturation: ${{visualAge.saturation.toFixed(3)}}"` : ""}}><span class="incident-marker-core"></span></span>`
       }});
     }}
 
@@ -3776,7 +3788,6 @@ def build_html(
         button.type = "button";
         button.dataset.eventKey = incident.event_key;
         if (visualAge) {{
-          button.style.setProperty("--incident-age-opacity", visualAge.opacity.toFixed(3));
           button.style.setProperty("--incident-age-saturation", visualAge.saturation.toFixed(3));
         }}
         button.innerHTML = `

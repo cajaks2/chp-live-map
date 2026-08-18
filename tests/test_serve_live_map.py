@@ -138,6 +138,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert 'setVisible(tutorial, true);' in body
         assert '<meta property="og:image" content="https://crestmap.us/og-image.png">' in body
         assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
+        assert "s-maxage" not in response.headers["Cache-Control"]
         assert response.headers["Vary"] == "Cookie, Authorization"
         assert response.headers["Content-Security-Policy"] == CONTENT_SECURITY_POLICY
         assert "form-action 'self'" in response.headers["Content-Security-Policy"]
@@ -223,6 +224,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert response.status_code == 200
         assert response.headers["Content-Type"] == "application/json; charset=utf-8"
         assert response.headers["Cache-Control"] == INCIDENTS_CACHE_CONTROL
+        assert "s-maxage" not in response.headers["Cache-Control"]
         assert payload["incidents"] == []
         assert payload["status"]["active_count"] == 0
         assert payload["status"]["total_count"] == 0

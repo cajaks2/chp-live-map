@@ -38,11 +38,13 @@ from generate_live_map import (
 from scrape_chp_traffic import connect_database
 
 
-MAP_CACHE_CONTROL = "public, max-age=30, s-maxage=60, stale-while-revalidate=120, stale-if-error=600"
-INCIDENTS_CACHE_CONTROL = "public, max-age=15, s-maxage=30, stale-while-revalidate=60, stale-if-error=300"
+# Browser freshness stays in the origin response; Cloudflare edge TTLs are managed
+# separately with scoped Cache Rules so authenticated responses can always bypass.
+MAP_CACHE_CONTROL = "public, max-age=30, stale-while-revalidate=120, stale-if-error=600"
+INCIDENTS_CACHE_CONTROL = "public, max-age=15, stale-while-revalidate=60, stale-if-error=300"
 ASSET_CACHE_CONTROL = "public, max-age=86400, stale-while-revalidate=604800"
-FAVICON_CACHE_CONTROL = "public, max-age=30, s-maxage=30, stale-while-revalidate=60, stale-if-error=300"
-DISCOVERY_CACHE_CONTROL = "public, max-age=300, s-maxage=300, stale-while-revalidate=600"
+FAVICON_CACHE_CONTROL = "public, max-age=30, stale-while-revalidate=60, stale-if-error=300"
+DISCOVERY_CACHE_CONTROL = "public, max-age=300, stale-while-revalidate=600"
 METRIC_REGIONS = ("forest", "malibu")
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; "

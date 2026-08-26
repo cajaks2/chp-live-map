@@ -826,6 +826,38 @@ def test_matching_regions_excludes_canoga_park_topanga_blvd_false_positive():
     assert matching_regions(incident) == {}
 
 
+def test_matching_regions_excludes_us_101_primary_roadway_with_malibu_exit():
+    freeway_incidents = [
+        {
+            "type": "Traffic Hazard",
+            "location": "Us101 W / Kanan Rd Ofr",
+            "location_desc": "WB JEO",
+            "area": "West Valley",
+            "latitude": 34.145531,
+            "longitude": -118.756128,
+        },
+        {
+            "type": "Trfc Collision-Unkn Inj",
+            "location": "Ventura Fwy / Las Virgenes Rd",
+            "location_desc": "EB JWO",
+            "area": "West Valley",
+        },
+    ]
+
+    for incident in freeway_incidents:
+        assert matching_keywords(incident, DEFAULT_ROAD_KEYWORDS)
+        assert matching_regions(incident) == {}
+
+    assert matching_regions(
+        {
+            "type": "Traffic Hazard",
+            "location": "Kanan Dume Rd / Pacific Coast Hwy",
+            "location_desc": "",
+            "area": "West Valley",
+        }
+    ) == {"malibu": ["pacific coast hwy", "kanan dume", "kanan"]}
+
+
 def test_parse_lat_lon_from_span_and_map_link():
     assert parse_lat_lon("34.30123, -118.11789") == (34.30123, -118.11789)
     assert parse_lat_lon_from_detail_html(

@@ -99,6 +99,10 @@ HIGHWAY_14_PRIMARY_PATTERN = re.compile(
     r"^(?:la0*14\d*\s+)?(?:(?:sr|ca|hwy|highway)\s*-?\s*0*14\b|antelope valley (?:fwy|freeway)\b)",
     re.IGNORECASE,
 )
+MALIBU_101_PRIMARY_PATTERN = re.compile(
+    r"^(?:(?:us|u\.s\.)\s*-?\s*0*101\b|0*101\b|(?:ventura|hollywood)\s+(?:fwy|freeway)\b)",
+    re.IGNORECASE,
+)
 HIGHWAY_39_FOREST_CONTEXT = [
     "san gabriel canyon",
     "east fork",
@@ -1139,7 +1143,7 @@ def keyword_matches(keyword, haystack):
 
 
 def matching_regions(incident):
-    if is_highway_14_primary_roadway(incident):
+    if is_highway_14_primary_roadway(incident) or is_malibu_101_primary_roadway(incident):
         return {}
     matches = {}
     for region, keywords in REGION_ROAD_KEYWORDS.items():
@@ -1158,6 +1162,14 @@ def is_highway_14_primary_roadway(incident):
     for field in ("location", "location_desc"):
         primary_roadway = str(incident.get(field) or "").split("/", 1)[0].strip()
         if HIGHWAY_14_PRIMARY_PATTERN.search(primary_roadway):
+            return True
+    return False
+
+
+def is_malibu_101_primary_roadway(incident):
+    for field in ("location", "location_desc"):
+        primary_roadway = str(incident.get(field) or "").split("/", 1)[0].strip()
+        if MALIBU_101_PRIMARY_PATTERN.search(primary_roadway):
             return True
     return False
 

@@ -135,6 +135,20 @@ def test_normalize_wildweb_incident_rejects_unknown_unpinned_and_out_of_bounds_r
     )
 
 
+def test_normalize_wildweb_incident_rejects_us_101_inside_malibu_boundary():
+    assert (
+        normalize(
+            wildweb_item(
+                location="US101 W / KANAN RD OFR",
+                name="TRAFFIC COLLISION",
+                latitude="34.145531",
+                longitude="118.756128",
+            )
+        )
+        is None
+    )
+
+
 def test_normalize_wildweb_incident_rejects_old_future_and_administrative_rows():
     assert normalize(wildweb_item(date="2026-08-07T11:33:00")) is None
     assert normalize(wildweb_item(date="2026-08-11T12:06:00")) is None

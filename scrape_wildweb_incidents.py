@@ -18,6 +18,7 @@ from scrape_chp_traffic import (
     details_hash,
     format_incident_time,
     insert_observation,
+    is_malibu_101_primary_roadway,
     log_discovered_incident,
     matching_regions,
     region_for_incident,
@@ -146,6 +147,8 @@ def wildweb_region_matches(record):
 
 
 def classify_region(record):
+    if is_malibu_101_primary_roadway(record):
+        return None, []
     latitude = record.get("latitude")
     longitude = record.get("longitude")
     if latitude is not None and longitude is not None:

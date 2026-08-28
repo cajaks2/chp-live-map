@@ -5,7 +5,7 @@ WORKDIR /app
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-COPY app.py aircraft_tracking.py comments.py media.py push_notifications.py ecs_logging.py geo_bounds.py manage_comments.py scrape_chp_traffic.py scrape_wildweb_incidents.py generate_live_map.py serve_live_map.py /app/
+COPY app.py aircraft_tracking.py comments.py media.py mile_markers.py push_notifications.py ecs_logging.py geo_bounds.py manage_comments.py scrape_chp_traffic.py scrape_wildweb_incidents.py generate_live_map.py serve_live_map.py /app/
 
 EXPOSE 8080
 

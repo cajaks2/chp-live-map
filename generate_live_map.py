@@ -1298,6 +1298,20 @@ def build_html(
       z-index: 800;
       pointer-events: auto;
     }}
+    #map .leaflet-control-attribution {{
+      box-sizing: border-box;
+      max-width: calc(100vw - 12px);
+      margin: 0 4px 4px 0;
+      padding: 2px 4px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.82);
+      font-size: 8px;
+      line-height: 1.2;
+      text-align: right;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      -webkit-text-size-adjust: none;
+    }}
     .leaflet-top,
     .leaflet-bottom {{
       position: absolute;
@@ -2552,7 +2566,7 @@ def build_html(
         display: flex;
         position: absolute;
         left: 50%;
-        bottom: var(--details-cue-bottom, 14px);
+        bottom: var(--details-cue-bottom, 40px);
         z-index: 600;
         align-items: center;
         gap: 8px;
@@ -2745,7 +2759,11 @@ def build_html(
             crest: "ACH",
             forest: "AFH",
             big_tujunga: "BT",
-            upper_big_tujunga: "UBT"
+            upper_big_tujunga: "UBT",
+            glendora_mountain: "GMR",
+            glendora_ridge: "GRR",
+            highway_39: "SR39",
+            mount_baldy: "MB"
           }}[road] || road.toUpperCase();
           L.marker([latitude, longitude], {{
             pane: "mileMarkers",
@@ -2780,7 +2798,6 @@ def build_html(
         updateButton();
         renderMileMarkers();
       }});
-      map.attributionControl.addAttribution("Mileposts: Caltrans + LA County PW");
     }}
 
     function setupUserLocation() {{
@@ -2929,7 +2946,7 @@ def build_html(
       const mapBelowViewport = Math.max(0, Math.round(rect.bottom - viewportBottom));
       // Keep the cue near the map's lower edge. iOS standalone mode can report a
       // temporarily short visual viewport, so cap how far that can lift the cue.
-      const cueBottom = Math.min(72, 14 + mapBelowViewport);
+      const cueBottom = Math.min(98, 40 + mapBelowViewport);
       mapEl.style.setProperty("--details-cue-bottom", `${{cueBottom}}px`);
     }}
 
@@ -5388,6 +5405,7 @@ def build_about_html(
         <h2>Project Links</h2>
         <div class="result"><strong>CHP CAD source</strong><span><a href="https://cad.chp.ca.gov/Traffic.aspx" rel="noopener">cad.chp.ca.gov/Traffic.aspx</a></span></div>
         <div class="result"><strong>WildWeb source</strong><span><a href="https://www.wildwebe.net/incidents?dc_Name=CAANCC" rel="noopener">wildwebe.net · CAANCC</a></span></div>
+        <div class="result"><strong>Mile-marker sources</strong><span><a href="https://postmile.dot.ca.gov/" rel="noopener">Caltrans postmiles</a> and <a href="https://dpw.gis.lacounty.gov/dpw/rest/services/road/MapServer/0" rel="noopener">LA County Public Works surveyed markers</a>.</span></div>
         <div class="result"><strong>Project README</strong><span><a href="https://github.com/cajaks2/chp-live-map#readme" rel="noopener">github.com/cajaks2/chp-live-map</a></span></div>
       </section>
     """

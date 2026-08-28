@@ -1,11 +1,13 @@
 """Static roadway marker coordinates used by the forest map overlay.
 
 The Angeles Crest points are integer LA County postmiles interpolated from the
-Caltrans Linear Referencing System for SR-2. Angeles Forest and Big Tujunga
-points are surveyed marker locations published by Los Angeles County Public
-Works. Coordinates are stored locally so map rendering does not depend on
-either GIS service at runtime. One inconsistent Upper Big Tujunga 6.99 record
-is excluded because its coordinate is nearly a mile out of sequence.
+Caltrans Linear Referencing System for SR-2. The other corridors use surveyed
+GNSS marker locations published by Los Angeles County Public Works. Coordinates
+are stored locally so map rendering does not depend on either GIS service at
+runtime. One inconsistent Upper Big Tujunga 6.99 record is excluded because its
+coordinate is nearly a mile out of sequence. The Mount Baldy 5.18 record is
+excluded because the county source marks its condition as bad. The eastern
+corridors keep one real surveyed marker per approximate mile to limit clutter.
 """
 
 MILE_MARKERS = {
@@ -382,5 +384,70 @@ MILE_MARKERS = {
         (8.75, 34.274346, -118.038164),
         (8.95, 34.273797, -118.041658),
         (9.00, 34.273543, -118.042378),
+    ),
+    "glendora_mountain": (
+        (0.16, 34.229789, -117.773863),
+        (1.03, 34.228225, -117.783472),
+        (2.05, 34.220745, -117.788704),
+        (3.06, 34.218438, -117.795675),
+        (4.04, 34.209954, -117.801034),
+        (4.96, 34.204439, -117.809098),
+        (5.82, 34.204878, -117.819527),
+        (7.00, 34.198755, -117.835297),
+        (8.02, 34.194432, -117.840010),
+        (9.06, 34.183735, -117.842725),
+        (10.00, 34.173411, -117.849791),
+        (10.98, 34.169719, -117.845415),
+        (11.97, 34.160580, -117.843433),
+        (13.12, 34.166775, -117.838861),
+        (14.00, 34.155449, -117.836643),
+    ),
+    "glendora_ridge": (
+        (0.16, 34.203687, -117.806336),
+        (1.16, 34.209061, -117.792261),
+        (1.99, 34.208233, -117.780155),
+        (3.00, 34.213380, -117.768041),
+        (3.97, 34.220516, -117.755559),
+        (4.97, 34.217785, -117.744835),
+        (6.03, 34.225625, -117.735498),
+        (7.00, 34.223149, -117.723529),
+        (8.00, 34.219620, -117.709669),
+        (8.95, 34.217635, -117.698017),
+        (9.96, 34.223883, -117.687040),
+        (10.98, 34.226651, -117.673447),
+        (11.93, 34.235399, -117.662231),
+    ),
+    "highway_39": (
+        (17.14, 34.158534, -117.903956),
+        (18.00, 34.164107, -117.892822),
+        (18.94, 34.174172, -117.886561),
+        (20.03, 34.184513, -117.875554),
+        (20.95, 34.189276, -117.867139),
+        (22.00, 34.202462, -117.861037),
+        (23.00, 34.212847, -117.863661),
+        (23.92, 34.219195, -117.855391),
+        (25.00, 34.231158, -117.845699),
+        (25.95, 34.240205, -117.854127),
+        (27.19, 34.243985, -117.869507),
+        (28.08, 34.253039, -117.859194),
+        (29.00, 34.261986, -117.849926),
+        (30.00, 34.270789, -117.846917),
+        (31.03, 34.281437, -117.838682),
+        (32.00, 34.286386, -117.843999),
+        (33.01, 34.288893, -117.834274),
+        (33.80, 34.293015, -117.833608),
+        (34.87, 34.300299, -117.838112),
+        (36.02, 34.303028, -117.841113),
+        (37.04, 34.307051, -117.845277),
+        (37.89, 34.312238, -117.834142),
+    ),
+    "mount_baldy": (
+        (0.42, 34.230969, -117.663264),
+        (1.03, 34.224668, -117.667799),
+        (1.96, 34.212736, -117.676104),
+        (3.01, 34.198632, -117.676963),
+        (4.00, 34.185005, -117.676733),
+        (4.98, 34.171521, -117.678134),
+        (6.11, 34.156899, -117.684047),
     ),
 }

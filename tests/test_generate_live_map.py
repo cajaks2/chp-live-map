@@ -47,6 +47,10 @@ def test_mile_marker_snapshot_covers_crest_and_forest_corridors():
     forest_miles = [point[0] for point in MILE_MARKERS["forest"]]
     big_tujunga_miles = [point[0] for point in MILE_MARKERS["big_tujunga"]]
     upper_big_tujunga_miles = [point[0] for point in MILE_MARKERS["upper_big_tujunga"]]
+    glendora_mountain_miles = [point[0] for point in MILE_MARKERS["glendora_mountain"]]
+    glendora_ridge_miles = [point[0] for point in MILE_MARKERS["glendora_ridge"]]
+    highway_39_miles = [point[0] for point in MILE_MARKERS["highway_39"]]
+    mount_baldy_miles = [point[0] for point in MILE_MARKERS["mount_baldy"]]
 
     assert crest_miles == list(range(25, 83))
     assert forest_miles == sorted(forest_miles)
@@ -59,6 +63,11 @@ def test_mile_marker_snapshot_covers_crest_and_forest_corridors():
     assert (upper_big_tujunga_miles[0], upper_big_tujunga_miles[-1]) == (0.02, 9.0)
     assert 4.66 in upper_big_tujunga_miles
     assert 6.99 not in upper_big_tujunga_miles
+    assert (glendora_mountain_miles[0], glendora_mountain_miles[-1]) == (0.16, 14.0)
+    assert (glendora_ridge_miles[0], glendora_ridge_miles[-1]) == (0.16, 11.93)
+    assert (highway_39_miles[0], highway_39_miles[-1]) == (17.14, 37.89)
+    assert (mount_baldy_miles[0], mount_baldy_miles[-1]) == (0.42, 6.11)
+    assert 5.18 not in mount_baldy_miles
 
 
 def test_load_incidents_returns_active_first_with_detail_entries(tmp_path):
@@ -474,9 +483,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "linked-pill" in html
     assert "This linked incident is outside the selected" in html
     assert "height: 45svh" in html
-    assert "bottom: var(--details-cue-bottom, 14px)" in html
+    assert "bottom: var(--details-cue-bottom, 40px)" in html
     assert "function updateDetailsCuePosition" in html
-    assert "const cueBottom = Math.min(72, 14 + mapBelowViewport);" in html
+    assert "const cueBottom = Math.min(98, 40 + mapBelowViewport);" in html
     assert "const targetY = Math.max" not in html
     assert "window.visualViewport.addEventListener" in html
     assert "selected-pill" in html
@@ -654,12 +663,19 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'pane: "mileMarkers"' in html
     assert 'big_tujunga: "BT"' in html
     assert 'upper_big_tujunga: "UBT"' in html
+    assert 'glendora_mountain: "GMR"' in html
+    assert 'glendora_ridge: "GRR"' in html
+    assert 'highway_39: "SR39"' in html
+    assert 'mount_baldy: "MB"' in html
     assert '${roadLabel} ${label}' in html
     assert ".mile-marker-content" in html
     assert ".mile-marker-content::before" not in html
     assert "font-size: 8px" in html
     assert "box-shadow: none" in html
-    assert "Mileposts: Caltrans + LA County PW" in html
+    assert "Mileposts: Caltrans/LACPW" not in html
+    assert "#map .leaflet-control-attribution" in html
+    assert "bottom: var(--details-cue-bottom, 40px)" in html
+    assert "const cueBottom = Math.min(98, 40 + mapBelowViewport)" in html
     assert "setupMileMarkerLayer();" in html
     assert 'id="locate-user"' in html
     assert 'aria-label="Show my location"' in html
@@ -795,6 +811,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "What This Is" in about_html
     assert "Update Cadence" in about_html
     assert "CHP CAD source" in about_html
+    assert "Mile-marker sources" in about_html
+    assert "https://postmile.dot.ca.gov/" in about_html
+    assert "https://dpw.gis.lacounty.gov/dpw/rest/services/road/MapServer/0" in about_html
     assert '<a class="range-tab is-active" href="?hours=72&amp;region=forest" aria-current="page">72h</a>' in about_html
     assert 'class="view-tab is-active" href="/about?hours=72&amp;region=forest" aria-current="page">About</a>' in about_html
     assert "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" in html

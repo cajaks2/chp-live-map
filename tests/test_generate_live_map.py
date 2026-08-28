@@ -12,6 +12,7 @@ from generate_live_map import (
     load_incident_by_key,
     load_incidents,
 )
+from mile_markers import MILE_MARKERS
 from scrape_chp_traffic import (
     connect_database,
     insert_observation,
@@ -39,6 +40,25 @@ def incident_row(event_key, status, latest_observed_at, incident_no):
         "details_hash": f"hash-{incident_no}",
         "detail_entries": [{"time": "7:37 AM", "entry_no": "0001", "text": f"{status} detail"}],
     }
+
+
+def test_mile_marker_snapshot_covers_crest_and_forest_corridors():
+    crest_miles = [point[0] for point in MILE_MARKERS["crest"]]
+    forest_miles = [point[0] for point in MILE_MARKERS["forest"]]
+    big_tujunga_miles = [point[0] for point in MILE_MARKERS["big_tujunga"]]
+    upper_big_tujunga_miles = [point[0] for point in MILE_MARKERS["upper_big_tujunga"]]
+
+    assert crest_miles == list(range(25, 83))
+    assert forest_miles == sorted(forest_miles)
+    assert forest_miles[0] == 0.34
+    assert forest_miles[-1] == 24.98
+    assert 16.09 in forest_miles
+    assert len(big_tujunga_miles) == 54
+    assert (big_tujunga_miles[0], big_tujunga_miles[-1]) == (0.04, 9.94)
+    assert len(upper_big_tujunga_miles) == 91
+    assert (upper_big_tujunga_miles[0], upper_big_tujunga_miles[-1]) == (0.02, 9.0)
+    assert 4.66 in upper_big_tujunga_miles
+    assert 6.99 not in upper_big_tujunga_miles
 
 
 def test_load_incidents_returns_active_first_with_detail_entries(tmp_path):
@@ -623,6 +643,34 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "function escapeHtml" in html
     assert "no map pin" in html
     assert "window.chpLiveMap" in html
+    assert 'data-mile-markers-toggle' in html
+    assert "const roadwayMileMarkers" in html
+    assert "function renderMileMarkers" in html
+    assert "if (zoom <= 11) return null" in html
+    assert "if (zoom === 12) return 5" in html
+    assert "if (zoom === 12) return 5;\n      return 1;" in html
+    assert "if (step === null) return" in html
+    assert 'map.on("zoomend", renderMileMarkers)' in html
+    assert 'pane: "mileMarkers"' in html
+    assert 'big_tujunga: "BT"' in html
+    assert 'upper_big_tujunga: "UBT"' in html
+    assert '${roadLabel} ${label}' in html
+    assert ".mile-marker-content" in html
+    assert ".mile-marker-content::before" not in html
+    assert "font-size: 8px" in html
+    assert "box-shadow: none" in html
+    assert "Mileposts: Caltrans + LA County PW" in html
+    assert "setupMileMarkerLayer();" in html
+    assert 'id="locate-user"' in html
+    assert 'aria-label="Show my location"' in html
+    assert 'id="location-status"' in html
+    assert "function setupUserLocation" in html
+    assert "navigator.geolocation.getCurrentPosition" in html
+    assert 'pane: "userLocation"' in html
+    assert "user-location-marker" in html
+    assert "accuracy <= 5000" in html
+    assert "map.flyTo(coordinates" in html
+    assert "setupUserLocation();" in html
     assert "touch-action: none" in html
     assert "-webkit-tap-highlight-color: transparent" in html
     assert "svg.leaflet-zoom-animated" in html
@@ -666,6 +714,15 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "L.circleMarker" not in html
     assert "function setupDoubleTapZoom" in html
     assert "setupDoubleTapZoom();" in html
+
+    malibu_html = build_html(
+        incidents,
+        "2026-05-31T08:05:00-07:00",
+        72,
+        region="malibu",
+    )
+    assert 'data-mile-markers-toggle aria-pressed="true"' not in malibu_html
+    assert "const roadwayMileMarkers = {};" in malibu_html
 
     summary_html = build_summary_html(incidents, "2026-05-31T08:05:00-07:00", 72)
     assert "Summary - Crestmap Forest Incidents" in summary_html

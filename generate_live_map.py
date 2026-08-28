@@ -11,6 +11,7 @@ from urllib.parse import urlsplit, urlencode
 
 from ecs_logging import log_event, run_main
 from geo_bounds import clear_coordinates_outside_region_bounds
+from mile_markers import MILE_MARKERS
 
 
 DEFAULT_CENTER = [34.32, -118.12]
@@ -814,6 +815,8 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False, airc
     ]
     if current == "map" and aircraft_tracking_enabled:
         items.insert(4, ("aircraft", "Rescue helicopters", "Shown when airborne", None))
+    if current == "map" and normalize_region(region) == "forest":
+        items.insert(4, ("mile-markers", "Mile markers", "Appears when zoomed in", None))
     rows = []
     for key, label, description, href in items:
         if key == "alerts":
@@ -828,6 +831,15 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False, airc
         if key == "aircraft":
             rows.append(
                 '<button type="button" class="view-menu-row is-active" data-aircraft-layer-toggle '
+                'aria-pressed="true"><span class="view-menu-label">{}</span>'
+                '<span class="view-menu-description">{}</span></button>'.format(
+                    html.escape(label), html.escape(description)
+                )
+            )
+            continue
+        if key == "mile-markers":
+            rows.append(
+                '<button type="button" class="view-menu-row is-active" data-mile-markers-toggle '
                 'aria-pressed="true"><span class="view-menu-label">{}</span>'
                 '<span class="view-menu-description">{}</span></button>'.format(
                     html.escape(label), html.escape(description)
@@ -1083,6 +1095,7 @@ def build_html(
     region = normalize_region(region)
     map_label = region_label(region)
     viewport = region_viewport(region)
+    roadway_mile_markers = MILE_MARKERS if region == "forest" else {}
     status = {**incident_status(incidents, hours), "region": region}
     active_count = status["active_count"]
     mapped_count = status["mapped_count"]
@@ -1309,6 +1322,17 @@ def build_html(
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       color: #182026;
       background: #f6f7f4;
+    }}
+    .visually-hidden {{
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
     }}
     #app {{
       display: grid;
@@ -1795,6 +1819,103 @@ def build_html(
       pointer-events: auto;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
+    }}
+    .mile-marker {{
+      border: 0;
+      background: transparent;
+      pointer-events: none;
+    }}
+    .mile-marker-content {{
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 3px;
+      border: 1px solid rgba(56, 74, 62, 0.16);
+      border-radius: 3px;
+      color: rgba(42, 57, 47, 0.62);
+      background: rgba(250, 251, 247, 0.58);
+      box-shadow: none;
+      font-size: 8px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: 0;
+      white-space: nowrap;
+      transform: translate(2px, -50%);
+    }}
+    #locate-user {{
+      box-sizing: border-box;
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 1000;
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      padding: 0;
+      border: 1px solid rgba(42, 57, 47, 0.25);
+      border-radius: 9px;
+      color: #385142;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 2px 8px rgba(24, 32, 38, 0.16);
+      cursor: pointer;
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
+    }}
+    #locate-user:hover {{
+      color: #1f6840;
+      background: #ffffff;
+    }}
+    #locate-user:focus-visible {{
+      outline: 2px solid rgba(39, 116, 71, 0.55);
+      outline-offset: 2px;
+    }}
+    #locate-user.is-loading svg {{
+      animation: locate-spin 900ms linear infinite;
+    }}
+    #locate-user svg {{
+      display: block;
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }}
+    #location-status {{
+      position: absolute;
+      top: 16px;
+      right: 56px;
+      z-index: 1000;
+      max-width: min(230px, calc(100% - 76px));
+      padding: 5px 8px;
+      border: 1px solid rgba(42, 57, 47, 0.18);
+      border-radius: 7px;
+      color: #45534a;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 1px 5px rgba(24, 32, 38, 0.12);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.25;
+      pointer-events: none;
+      backdrop-filter: blur(3px);
+      -webkit-backdrop-filter: blur(3px);
+    }}
+    #location-status:empty {{
+      display: none;
+    }}
+    .user-location-marker {{
+      box-sizing: border-box;
+      width: 18px;
+      height: 18px;
+      border: 3px solid #ffffff;
+      border-radius: 50%;
+      background: #2878e6;
+      box-shadow: 0 1px 7px rgba(19, 66, 132, 0.48), 0 0 0 2px rgba(40, 120, 230, 0.24);
+      pointer-events: none;
+    }}
+    @keyframes locate-spin {{
+      to {{ transform: rotate(360deg); }}
     }}
     .incident-marker-dot {{
       box-sizing: border-box;
@@ -2499,7 +2620,16 @@ def build_html(
         <button type="button" id="scroll-incidents" aria-label="Scroll incident list down"></button>
       </div>
     </aside>
-    <main id="map"><button type="button" id="details-cue">Incident details below</button></main>
+    <main id="map">
+      <button type="button" id="locate-user" aria-label="Show my location" title="Show my location">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="12" cy="12" r="5"></circle>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+        </svg>
+      </button>
+      <span id="location-status" role="status" aria-live="polite"></span>
+      <button type="button" id="details-cue">Incident details below</button>
+    </main>
     <aside id="details"></aside>
   </div>
 {push_ui_html(base_path)}
@@ -2519,6 +2649,7 @@ def build_html(
     const adminMode = {json.dumps(bool(admin_mode))};
     const adminDetailsBase = "{html.escape(admin_details_base)}";
     const currentRegion = "{html.escape(region)}";
+    const roadwayMileMarkers = {json.dumps(roadway_mile_markers, separators=(",", ":"))};
     let incidents = [];
     let currentDataStatus = initialDataStatus;
     let selectedIncidentKey = new URLSearchParams(window.location.search).get("incident");
@@ -2558,6 +2689,17 @@ def build_html(
     }});
     baseLayer.addTo(map);
 
+    const mileMarkerPane = map.createPane("mileMarkers");
+    mileMarkerPane.style.zIndex = "425";
+    mileMarkerPane.style.pointerEvents = "none";
+    const mileMarkerLayer = L.layerGroup().addTo(map);
+    const userLocationPane = map.createPane("userLocation");
+    userLocationPane.style.zIndex = "575";
+    let mileMarkersVisible = currentRegion === "forest" &&
+      window.localStorage.getItem("crestmap-mile-markers") !== "hidden";
+    let userLocationMarker = null;
+    let userAccuracyCircle = null;
+
     const markers = new Map();
     const aircraftMarkers = new Map();
     const aircraftTrails = new Map();
@@ -2567,7 +2709,161 @@ def build_html(
     const scrollIncidentsButton = document.getElementById("scroll-incidents");
     const detailsPanel = document.getElementById("details");
     const detailsCue = document.getElementById("details-cue");
-    window.chpLiveMap = {{ map, markers, aircraftMarkers, aircraftTrails, incidents, status: currentDataStatus }};
+    window.chpLiveMap = {{ map, markers, aircraftMarkers, aircraftTrails, mileMarkerLayer, incidents, status: currentDataStatus }};
+
+    function mileMarkerStep(zoom) {{
+      if (zoom <= 11) return null;
+      if (zoom === 12) return 5;
+      return 1;
+    }}
+
+    function sampledMileMarkers(points, step) {{
+      if (!step) return points;
+      const nearest = new Map();
+      points.forEach((point) => {{
+        const target = Math.round(Number(point[0]) / step) * step;
+        const distance = Math.abs(Number(point[0]) - target);
+        const previous = nearest.get(target);
+        if (!previous || distance < previous.distance) nearest.set(target, {{ point, distance }});
+      }});
+      return Array.from(nearest.values(), (entry) => entry.point);
+    }}
+
+    function mileMarkerLabel(mile) {{
+      return Number.isInteger(Number(mile)) ? String(mile) : Number(mile).toFixed(2);
+    }}
+
+    function renderMileMarkers() {{
+      mileMarkerLayer.clearLayers();
+      if (!mileMarkersVisible || currentRegion !== "forest") return;
+      const step = mileMarkerStep(map.getZoom());
+      if (step === null) return;
+      Object.entries(roadwayMileMarkers).forEach(([road, points]) => {{
+        sampledMileMarkers(points, step).forEach(([mile, latitude, longitude]) => {{
+          const label = mileMarkerLabel(mile);
+          const roadLabel = {{
+            crest: "ACH",
+            forest: "AFH",
+            big_tujunga: "BT",
+            upper_big_tujunga: "UBT"
+          }}[road] || road.toUpperCase();
+          L.marker([latitude, longitude], {{
+            pane: "mileMarkers",
+            interactive: false,
+            keyboard: false,
+            icon: L.divIcon({{
+              className: `mile-marker is-${{road}}`,
+              iconSize: [1, 1],
+              iconAnchor: [0, 0],
+              html: `<span class="mile-marker-content" aria-hidden="true">${{roadLabel}} ${{label}}</span>`
+            }})
+          }}).addTo(mileMarkerLayer);
+        }});
+      }});
+    }}
+
+    function setupMileMarkerLayer() {{
+      const button = document.querySelector("[data-mile-markers-toggle]");
+      if (currentRegion !== "forest" || !button) return;
+      const updateButton = () => {{
+        button.classList.toggle("is-active", mileMarkersVisible);
+        button.setAttribute("aria-pressed", mileMarkersVisible ? "true" : "false");
+        const description = button.querySelector(".view-menu-description");
+        if (description) description.textContent = mileMarkersVisible ? "Appears when zoomed in" : "Hidden";
+      }};
+      updateButton();
+      renderMileMarkers();
+      map.on("zoomend", renderMileMarkers);
+      button.addEventListener("click", () => {{
+        mileMarkersVisible = !mileMarkersVisible;
+        window.localStorage.setItem("crestmap-mile-markers", mileMarkersVisible ? "shown" : "hidden");
+        updateButton();
+        renderMileMarkers();
+      }});
+      map.attributionControl.addAttribution("Mileposts: Caltrans + LA County PW");
+    }}
+
+    function setupUserLocation() {{
+      const button = document.getElementById("locate-user");
+      const statusElement = document.getElementById("location-status");
+      if (!button || !statusElement) return;
+      L.DomEvent.disableClickPropagation(button);
+
+      const setStatus = (message) => {{
+        statusElement.textContent = message;
+        window.clearTimeout(window.crestmapLocationStatusTimer);
+        if (message) {{
+          window.crestmapLocationStatusTimer = window.setTimeout(() => {{
+            statusElement.textContent = "";
+          }}, 5000);
+        }}
+      }};
+
+      if (!navigator.geolocation) {{
+        button.disabled = true;
+        button.title = "Location is not supported by this browser";
+        return;
+      }}
+
+      button.addEventListener("click", () => {{
+        button.classList.add("is-loading");
+        button.disabled = true;
+        setStatus("Finding your location…");
+        navigator.geolocation.getCurrentPosition((position) => {{
+          const latitude = Number(position.coords.latitude);
+          const longitude = Number(position.coords.longitude);
+          const accuracy = Math.max(0, Number(position.coords.accuracy || 0));
+          const coordinates = [latitude, longitude];
+
+          if (userLocationMarker) userLocationMarker.remove();
+          if (userAccuracyCircle) userAccuracyCircle.remove();
+          if (accuracy > 0 && accuracy <= 5000) {{
+            userAccuracyCircle = L.circle(coordinates, {{
+              radius: accuracy,
+              color: "#2878e6",
+              weight: 1,
+              opacity: 0.42,
+              fillColor: "#5c9cef",
+              fillOpacity: 0.1,
+              interactive: false
+            }}).addTo(map);
+          }} else {{
+            userAccuracyCircle = null;
+          }}
+          userLocationMarker = L.marker(coordinates, {{
+            pane: "userLocation",
+            interactive: false,
+            keyboard: false,
+            zIndexOffset: 750,
+            icon: L.divIcon({{
+              className: "user-location-marker",
+              iconSize: [18, 18],
+              iconAnchor: [9, 9],
+              html: '<span class="visually-hidden">Your location</span>'
+            }})
+          }}).addTo(map);
+          map.flyTo(coordinates, Math.max(map.getZoom(), 13), {{ duration: 0.65 }});
+          const accuracyText = accuracy > 0 ? ` · accurate to about ${{Math.round(accuracy)}} m` : "";
+          setStatus(`Location shown${{accuracyText}}`);
+          button.title = "Recenter on my location";
+          button.classList.remove("is-loading");
+          button.disabled = false;
+        }}, (error) => {{
+          const messages = {{
+            1: "Location permission was not granted.",
+            2: "Your location is currently unavailable.",
+            3: "Location request timed out."
+          }};
+          setStatus(messages[error.code] || "Could not determine your location.");
+          button.classList.remove("is-loading");
+          button.disabled = false;
+        }}, {{
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 30000
+        }});
+      }});
+    }}
 
     const mobileViewport = window.matchMedia("(max-width: 760px)");
 
@@ -3871,6 +4167,8 @@ def build_html(
     setupStaleRefresh();
     setupDoubleTapZoom();
     setupDetailsCuePosition();
+    setupMileMarkerLayer();
+    setupUserLocation();
     setupAircraftLayer();
     list.addEventListener("scroll", updateListScrollCue, {{ passive: true }});
     scrollIncidentsButton?.addEventListener("click", scrollIncidentListDown);

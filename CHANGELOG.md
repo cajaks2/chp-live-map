@@ -11,7 +11,20 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.193 - 2026-08-30
+
 - Added this repository changelog and backfilled its release history.
+- Required future agents/contributors to maintain Unreleased entries and move them
+  into dated version sections when preparing releases.
+- Added configurable rolling admin sessions, an optional 30-day remembered-device
+  login, and a sessions page for per-device and all-device revocation.
+- Prevented background map polling from renewing admin sessions; only active
+  interaction renews normal sessions, with a fixed maximum lifetime.
+- Wired session lifetime settings into DigitalOcean Compose and Kubernetes.
+- Fixed login-card overflow on narrow phone screens.
+- Added persisted, hashed session records. Existing browser logins require one
+  fresh sign-in after this database migration; logout now revokes server-side
+  access as well as clearing the cookie.
 
 ## 0.1.192 - 2026-08-30
 

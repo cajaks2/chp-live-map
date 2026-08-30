@@ -20,6 +20,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 from zoneinfo import ZoneInfo
 
+from admin_sessions import SCHEMA as ADMIN_SESSIONS_SCHEMA
 from ecs_logging import log_event, log_exception, run_main
 from geo_bounds import clear_coordinates_outside_region_bounds, coordinates_in_region_bounds
 
@@ -1355,6 +1356,7 @@ def connect_database(path=None, database_url=None):
 
 
 def init_database_sqlite(conn):
+    conn.execute(ADMIN_SESSIONS_SCHEMA)
     conn.executescript(
         """
         CREATE TABLE IF NOT EXISTS events (
@@ -1613,6 +1615,7 @@ def init_database_postgres(conn):
 
 
 def init_database_postgres_locked(conn):
+    conn.execute(ADMIN_SESSIONS_SCHEMA)
     statements = [
         """
         CREATE TABLE IF NOT EXISTS events (

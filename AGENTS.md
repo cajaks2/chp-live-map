@@ -46,6 +46,9 @@
 - Kubernetes uses a scraper Deployment with one replica, not a CronJob, so scraper metrics are scrapeable and duplicate scraper loops are avoided.
 
 ## Commit & Pull Request Guidelines
+- Keep `CHANGELOG.md` current for every user-visible feature, fix, security change, schema/configuration change, and notable operational change. Add concise entries under `Unreleased` in the same change; do not wait for a later backfill.
+- When preparing a release, move the relevant `Unreleased` entries into a dated section for the exact release version and keep an `Unreleased` heading for future work. Match the synchronized Makefile/Compose/Kubernetes version, document migrations or required reauthentication, and do not claim a deployment or test result that has not been verified.
+- Preserve historical entries and verified commit links. Documentation-only changes need an entry when they change contributor or operational workflow; trivial formatting-only edits do not.
 - Use short, descriptive commit messages such as `Preserve history window in map links`.
 - Summaries should mention user-visible behavior, schema changes, deployment tag bumps, and test results.
 - Do not commit personal contact emails or secrets. Configure `CHP_CONTACT_EMAIL`, `GOOGLE_ANALYTICS_ID`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `COMMENT_IP_HASH_SALT`, database URLs, and passwords through environment files or cluster secrets.

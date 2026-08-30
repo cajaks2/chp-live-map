@@ -379,7 +379,42 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD=replace-with-a-long-random-password
 ADMIN_SESSION_SECRET=replace-with-a-separate-long-random-secret
 ADMIN_SESSION_HOURS=8
+ADMIN_SESSION_MAX_HOURS=24
+ADMIN_REMEMBER_DAYS=30
 ```
+
+### Admin sessions and remembered devices
+
+- A normal login expires after `ADMIN_SESSION_HOURS` without interaction (8 hours
+  by default). Interacting with an admin-enabled map, report, moderation page, or
+  sessions page renews it, up to `ADMIN_SESSION_MAX_HOURS` from login (24 hours by
+  default). Activity renewal is throttled to once per five minutes.
+- Checking **Remember this device** at login keeps that browser signed in for up
+  to `ADMIN_REMEMBER_DAYS` (30 days by default), including after closing and
+  reopening it. This is a fixed maximum, not an indefinitely rolling login.
+- Automatic incident/status polling, open background tabs, and passive page loads
+  never extend a session. Only trusted interaction events in a visible page send
+  the same-origin activity request.
+- To use a longer fixed normal session instead, set both `ADMIN_SESSION_HOURS`
+  and `ADMIN_SESSION_MAX_HOURS` to the same value, such as `168` for seven days.
+- The DigitalOcean web service passes all three settings through from `.env`;
+  Kubernetes sets them explicitly in the web Deployment.
+- **Admin tools → Sessions / remembered devices** lists browser sessions and lets
+  you revoke one, log out all other devices, or log out everywhere. Revocation is
+  enforced on the next request; a copied cookie cannot revive a revoked session.
+  The ordinary **Log out** button also revokes its server-side session.
+- Session records live in SQLite/Postgres so they survive app restarts. Only a
+  hash of each signed token is stored, along with timestamps and a truncated
+  browser user-agent description. Cookies remain HttpOnly, SameSite=Strict, and
+  Secure when served over HTTPS. Expired rows are cleaned up at login.
+- Changing the admin username, password, or signing secret invalidates existing
+  browser cookies. HTTP Basic authentication remains available for existing admin
+  API clients and is not a remembered browser session; revoke that access by
+  changing the credential.
+
+The session-store upgrade adds the `admin_sessions` table to both database
+schemas and requires existing admins to sign in once again. Take a database
+backup before deploying the migration. No credentials are changed by the upgrade.
 
 Prometheus metrics:
 

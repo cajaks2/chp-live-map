@@ -1,7 +1,5 @@
 import base64
 import datetime as dt
-import hashlib
-import hmac
 import html
 import json
 import os
@@ -15,6 +13,15 @@ from urllib.parse import parse_qs, unquote, urlencode, urlsplit
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 
+from admin_sessions import (
+    create_admin_session_token,
+    create_session,
+    list_sessions,
+    load_session,
+    renew_session,
+    revoke_sessions,
+    valid_admin_session_token,
+)
 from aircraft_tracking import load_tracker_status, load_visible_aircraft
 from comments import (
     CommentValidationError,
@@ -52,6 +59,7 @@ from push_notifications import (
 )
 import serve_live_map as web
 from generate_live_map import (
+    admin_activity_script,
     build_about_html,
     build_history_html,
     build_html,
@@ -83,6 +91,8 @@ class WebSettings:
     admin_password: str | None = None
     admin_session_secret: str | None = None
     admin_session_hours: int = 8
+    admin_session_max_hours: int = 24
+    admin_remember_days: int = 30
     r2_account_id: str | None = None
     r2_access_key_id: str | None = None
     r2_secret_access_key: str | None = None
@@ -114,6 +124,8 @@ class WebSettings:
             admin_password=os.environ.get("ADMIN_PASSWORD") or None,
             admin_session_secret=os.environ.get("ADMIN_SESSION_SECRET") or None,
             admin_session_hours=int(os.environ.get("ADMIN_SESSION_HOURS", "8")),
+            admin_session_max_hours=int(os.environ.get("ADMIN_SESSION_MAX_HOURS", "24")),
+            admin_remember_days=int(os.environ.get("ADMIN_REMEMBER_DAYS", "30")),
             r2_account_id=os.environ.get("R2_ACCOUNT_ID") or None,
             r2_access_key_id=os.environ.get("R2_ACCESS_KEY_ID") or None,
             r2_secret_access_key=os.environ.get("R2_SECRET_ACCESS_KEY") or None,
@@ -246,6 +258,8 @@ def route_label(path, settings):
         f"{asset_base}/admin/logout",
         "/admin/session",
         f"{asset_base}/admin/session",
+        f"{asset_base}/admin/session/activity",
+        f"{asset_base}/admin/sessions",
     }:
         return "admin_session"
     if path.startswith("/api/v1/incidents/") and path.endswith("/hidden-details"):
@@ -461,41 +475,26 @@ def admin_session_path(settings):
     return "/admin/session" if base == "/" else f"{base}/admin/session"
 
 
-def admin_session_key(settings):
-    secret = settings.admin_session_secret or settings.admin_password or ""
-    return hashlib.sha256(f"crestmap-admin-session\0{secret}".encode("utf-8")).digest()
+def admin_sessions_path(settings):
+    return admin_session_path(settings) + "s"
 
 
-def create_admin_session_token(settings, now=None):
-    now = int(time.time() if now is None else now)
-    expires_at = now + max(1, settings.admin_session_hours) * 3600
-    payload = json.dumps(
-        {"username": settings.admin_username, "expires_at": expires_at},
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode("utf-8")
-    encoded = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
-    signature = hmac.new(admin_session_key(settings), encoded.encode("ascii"), hashlib.sha256).hexdigest()
-    return f"{encoded}.{signature}"
+def current_admin_session(request):
+    if not hasattr(request.state, "admin_session"):
+        settings = request.app.state.settings
+        token = request.cookies.get(ADMIN_SESSION_COOKIE, "")
+        request.state.admin_session = None
+        if admin_enabled(settings) and valid_admin_session_token(settings, token):
+            with writable_database_connection(request.app) as conn:
+                request.state.admin_session = load_session(conn, settings, token)
+    return request.state.admin_session
 
 
-def valid_admin_session_token(settings, token, now=None):
-    if not token or "." not in token:
-        return False
-    encoded, signature = token.rsplit(".", 1)
-    expected = hmac.new(admin_session_key(settings), encoded.encode("ascii"), hashlib.sha256).hexdigest()
-    if not secrets.compare_digest(signature, expected):
-        return False
-    try:
-        padding = "=" * (-len(encoded) % 4)
-        payload = json.loads(base64.urlsafe_b64decode(encoded + padding))
-        expires_at = int(payload["expires_at"])
-    except (ValueError, TypeError, KeyError, json.JSONDecodeError):
-        return False
-    now = int(time.time() if now is None else now)
-    return (
-        expires_at > now
-        and secrets.compare_digest(str(payload.get("username") or ""), settings.admin_username or "")
+def set_admin_session_cookie(response, request, token, expires_at):
+    response.set_cookie(
+        ADMIN_SESSION_COOKIE, token,
+        max_age=max(0, expires_at - int(time.time())), path="/",
+        secure=request_uses_https(request), httponly=True, samesite="strict",
     )
 
 
@@ -512,8 +511,7 @@ def admin_authorized(request):
     settings = request.app.state.settings
     if not admin_enabled(settings):
         return False
-    token = request.cookies.get(ADMIN_SESSION_COOKIE, "")
-    if valid_admin_session_token(settings, token):
+    if current_admin_session(request):
         return True
     auth = request.headers.get("authorization", "")
     if auth.startswith("Basic "):
@@ -608,8 +606,10 @@ def same_origin_admin_post(request):
     if forwarded_proto and forwarded_host:
         expected_origins.add(f"{forwarded_proto}://{forwarded_host}")
     for value in (origin, referer):
-        if value and not any(value.startswith(expected) for expected in expected_origins):
-            return False
+        if value:
+            parsed = urlsplit(value)
+            if f"{parsed.scheme}://{parsed.netloc}" not in expected_origins:
+                return False
     return True
 
 
@@ -623,12 +623,14 @@ def build_admin_login_html(settings, next_path, error=""):
   <title>Crestmap Admin Login</title>
   <style>
     body {{ min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 20px; box-sizing: border-box; color: #1d252a; background: #f2f5ef; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }}
-    main {{ width: min(100%, 380px); padding: 24px; border: 1px solid #d6ded2; border-radius: 14px; background: #fff; box-shadow: 0 10px 30px rgba(24, 42, 29, 0.09); }}
+    main {{ box-sizing: border-box; width: min(100%, 380px); padding: 24px; border: 1px solid #d6ded2; border-radius: 14px; background: #fff; box-shadow: 0 10px 30px rgba(24, 42, 29, 0.09); }}
     h1 {{ margin: 0 0 6px; font-size: 25px; }}
     p {{ margin: 0 0 20px; color: #59655d; line-height: 1.45; }}
     label {{ display: block; margin-top: 13px; color: #35413a; font-size: 13px; font-weight: 800; }}
     input {{ width: 100%; min-height: 42px; margin-top: 6px; padding: 8px 10px; box-sizing: border-box; border: 1px solid #cbd5ca; border-radius: 8px; font: inherit; }}
     input:focus {{ border-color: #2b7c4a; outline: 3px solid rgba(43, 124, 74, 0.15); }}
+    .remember {{ display: flex; align-items: center; gap: 10px; line-height: 1.4; }}
+    .remember input {{ width: 20px; min-height: 20px; margin: 0; flex-shrink: 0; }}
     button {{ width: 100%; min-height: 44px; margin-top: 18px; border: 0; border-radius: 8px; color: #fff; background: #2b7c4a; font: inherit; font-weight: 850; cursor: pointer; }}
     .error {{ margin-bottom: 14px; padding: 10px 12px; border: 1px solid #e1b2b2; border-radius: 8px; color: #8f2525; background: #fff1f1; }}
     .back {{ display: block; margin-top: 16px; color: #2b6f45; text-align: center; }}
@@ -643,9 +645,10 @@ def build_admin_login_html(settings, next_path, error=""):
       <input type="hidden" name="next" value="{html.escape(next_path)}">
       <label>Username<input name="username" autocomplete="username" required autofocus></label>
       <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+      <label class="remember"><input type="checkbox" name="remember" value="yes">Remember this device for {max(1, settings.admin_remember_days)} days</label>
       <button type="submit">Sign in</button>
     </form>
-    <a class="back" href="/">Back to map</a>
+    <a class="back" href="{html.escape(map_path(settings))}">Back to map</a>
   </main>
 </body>
 </html>"""
@@ -717,16 +720,16 @@ async def handle_admin_login_post(request):
             cache_control="no-store",
         )
     request.app.state.admin_login_attempts.pop(admin_login_attempt_key(request), None)
+    with writable_database_connection(request.app) as conn:
+        previous = load_session(conn, settings, request.cookies.get(ADMIN_SESSION_COOKIE, ""))
+        if previous:
+            revoke_sessions(conn, settings, session_id=previous["session_id"])
+        token, session = create_session(
+            conn, settings, remembered=fields.get("remember") == "yes",
+            user_agent=request.headers.get("user-agent", ""),
+        )
     response = Response(status_code=303, headers={"Location": next_path, "Cache-Control": "no-store"})
-    response.set_cookie(
-        ADMIN_SESSION_COOKIE,
-        create_admin_session_token(settings),
-        max_age=max(1, settings.admin_session_hours) * 3600,
-        path="/",
-        secure=request_uses_https(request),
-        httponly=True,
-        samesite="strict",
-    )
+    set_admin_session_cookie(response, request, token, session["expires_at"])
     web.log_event(
         "info",
         "Admin login completed",
@@ -745,6 +748,10 @@ async def handle_admin_logout_post(request):
         return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404)
     if not same_origin_admin_post(request):
         return byte_response(b"Forbidden\n", "text/plain; charset=utf-8", status_code=403)
+    session = current_admin_session(request)
+    if session:
+        with writable_database_connection(request.app) as conn:
+            revoke_sessions(conn, settings, session_id=session["session_id"])
     response = Response(status_code=303, headers={"Location": map_path(settings), "Cache-Control": "no-store"})
     response.delete_cookie(
         ADMIN_SESSION_COOKIE,
@@ -753,6 +760,103 @@ async def handle_admin_logout_post(request):
         httponly=True,
         samesite="strict",
     )
+    return response
+
+
+def handle_admin_activity_post(request):
+    settings = request.app.state.settings
+    if not admin_enabled(settings):
+        return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404)
+    if request.headers.get("x-crestmap-activity") != "1" or not same_origin_admin_post(request):
+        return byte_response(b"Forbidden\n", "text/plain; charset=utf-8", status_code=403)
+    token = request.cookies.get(ADMIN_SESSION_COOKIE, "")
+    with writable_database_connection(request.app) as conn:
+        session = renew_session(conn, settings, token)
+    if not session:
+        return admin_unauthorized()
+    response = json_response({"authenticated": True}, cache_control="no-store")
+    set_admin_session_cookie(response, request, token, session["expires_at"])
+    return response
+
+
+def handle_admin_sessions_get(request, send_body=True):
+    settings = request.app.state.settings
+    if not admin_enabled(settings):
+        return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404)
+    if not admin_authorized(request):
+        return admin_login_redirect(request)
+    current = current_admin_session(request)
+    with writable_database_connection(request.app) as conn:
+        sessions = list_sessions(conn, settings)
+    action = html.escape(admin_sessions_path(settings))
+    cards = []
+    for session in sessions:
+        is_current = current and session["session_id"] == current["session_id"]
+        label = "This device" if is_current else "Other device"
+        mode = "Remembered" if session["remembered"] else "Standard"
+        def timestamp(field):
+            return dt.datetime.fromtimestamp(session[field], dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        cards.append(f"""<article>
+          <h2>{label} · {mode}</h2>
+          <p class="device">{html.escape(session['user_agent'] or 'Unknown browser')}</p>
+          <p>Signed in: {timestamp('created_at')}<br>
+          Last interaction: {timestamp('last_activity_at')}<br>
+          Expires: {timestamp('expires_at')}<br>
+          Maximum lifetime ends: {timestamp('absolute_expires_at')}</p>
+          <form method="post" action="{action}">
+            <input type="hidden" name="session_id" value="{session['session_id']}">
+            <button name="action" value="revoke">{'Log out this device' if is_current else 'Revoke session'}</button>
+          </form></article>""")
+    body = f"""<!doctype html><html lang="en"><head>
+      <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>Crestmap Admin Sessions</title>
+      <style>
+      body {{ font: 16px system-ui, sans-serif; background: #f2f5ef; color: #1d252a; margin: 0; padding: 20px; }}
+      main {{ max-width: 720px; margin: auto; }}
+      article {{ background: white; border: 1px solid #d6ded2; border-radius: 12px; padding: 16px; margin: 16px 0; }}
+      h2 {{ font-size: 18px; }} p {{ line-height: 1.5; }} .device {{ overflow-wrap: anywhere; }}
+      button, a {{ font: inherit; }} button {{ min-height: 44px; margin: 4px 0; padding: 8px 12px; cursor: pointer; }}
+      </style></head><body><main>
+      <h1>Admin sessions</h1>
+      <p><a href="{html.escape(admin_path(settings))}">Back to admin tools</a></p>
+      <p>Standard sessions renew only when you interact with an admin-enabled page.
+      Remembered devices have a fixed maximum lifetime. Revoking a session signs that browser out on its next request.</p>
+      <form method="post" action="{action}">
+        <button name="action" value="others">Log out all other devices</button>
+        <button name="action" value="all">Log out everywhere</button>
+      </form>
+      {''.join(cards) or '<p>No browser sessions.</p>'}
+      {admin_activity_script(settings.base_path)}
+      </main></body></html>"""
+    return html_response(body, cache_control="no-store", send_body=send_body)
+
+
+async def handle_admin_sessions_post(request):
+    settings = request.app.state.settings
+    if not admin_enabled(settings):
+        return byte_response(b"Not Found\n", "text/plain; charset=utf-8", status_code=404)
+    if not admin_authorized(request):
+        return admin_unauthorized()
+    if not (request.headers.get("origin") or request.headers.get("referer")) or not same_origin_admin_post(request):
+        return byte_response(b"Forbidden\n", "text/plain; charset=utf-8", status_code=403)
+    fields = parse_qs((await request.body()).decode("utf-8", errors="replace"))
+    action = (fields.get("action") or [""])[-1]
+    target = (fields.get("session_id") or [""])[-1]
+    current = current_admin_session(request)
+    if action not in {"all", "others", "revoke"} or (action == "revoke" and not target):
+        return byte_response(b"Invalid action\n", "text/plain; charset=utf-8", status_code=400)
+    with writable_database_connection(request.app) as conn:
+        revoke_sessions(
+            conn, settings, session_id=target if action == "revoke" else None,
+            except_id=current["session_id"] if action == "others" and current else None,
+        )
+    logged_out = action == "all" or (action == "revoke" and current and target == current["session_id"])
+    response = Response(status_code=303, headers={
+        "Location": map_path(settings) if logged_out else admin_sessions_path(settings),
+        "Cache-Control": "no-store",
+    })
+    if logged_out:
+        response.delete_cookie(ADMIN_SESSION_COOKIE, path="/", secure=request_uses_https(request), httponly=True, samesite="strict")
     return response
 
 
@@ -1357,6 +1461,8 @@ def build_admin_comments_html(
     admin_url="/admin/comments",
     admin_incidents_url="/",
     admin_logout_url="/admin/logout",
+    admin_sessions_url="/admin/sessions",
+    activity_script="",
 ):
     tabs = []
     for tab_status, label in (("pending", "Pending"), ("approved", "Approved"), ("rejected", "Rejected")):
@@ -1505,6 +1611,7 @@ def build_admin_comments_html(
     </div>
     <nav class="tabs">
       <a class="tab" href="{html.escape(admin_incidents_url)}">Incident map</a>
+      <a class="tab" href="{html.escape(admin_sessions_url)}">Sessions / remembered devices</a>
       {"".join(tabs)}
       <form method="post" action="{html.escape(admin_logout_url)}"><button class="tab" type="submit">Log out</button></form>
     </nav>
@@ -1513,6 +1620,7 @@ def build_admin_comments_html(
     {message_html}
     {"".join(cards)}
   </main>
+  {activity_script}
 </body>
 </html>"""
 
@@ -1547,6 +1655,8 @@ def handle_admin_comments_get(request, send_body=True, message=""):
             admin_url=admin_path(settings),
             admin_incidents_url=map_path(settings),
             admin_logout_url=admin_logout_path(settings),
+            admin_sessions_url=admin_sessions_path(settings),
+            activity_script=admin_activity_script(settings.base_path),
         )
         return html_response(body, cache_control="no-store", send_body=send_body)
     except Exception as exc:
@@ -1974,6 +2084,8 @@ def create_app(settings=None):
             return handle_admin_login_get(request, send_body=True)
         if _path(request) == admin_session_path(settings):
             return handle_admin_session_get(request, send_body=True)
+        if _path(request) == admin_sessions_path(settings):
+            return handle_admin_sessions_get(request, send_body=True)
         if _path(request) == admin_path(settings):
             return handle_admin_comments_get(request, send_body=True)
         hidden_event_key = hidden_event_key_from_path(_path(request))
@@ -1998,6 +2110,8 @@ def create_app(settings=None):
             return handle_admin_login_get(request, send_body=False)
         if _path(request) == admin_session_path(settings):
             return handle_admin_session_get(request, send_body=False)
+        if _path(request) == admin_sessions_path(settings):
+            return handle_admin_sessions_get(request, send_body=False)
         if _path(request) == admin_path(settings):
             return handle_admin_comments_get(request, send_body=False)
         hidden_event_key = hidden_event_key_from_path(_path(request))
@@ -2016,6 +2130,10 @@ def create_app(settings=None):
             return await handle_admin_login_post(request)
         if _path(request) == admin_logout_path(settings):
             return await handle_admin_logout_post(request)
+        if _path(request) == admin_session_path(settings) + "/activity":
+            return handle_admin_activity_post(request)
+        if _path(request) == admin_sessions_path(settings):
+            return await handle_admin_sessions_post(request)
         if _path(request) == admin_path(settings):
             return await handle_admin_comments_post(request)
         media_parts = media_upload_path_parts(_path(request))

@@ -788,6 +788,33 @@ def view_href(base_path, suffix, hours, region="forest"):
     return href_with_query(app_path(base_path, suffix), hours=f"{hours:g}", region=normalize_region(region))
 
 
+def admin_activity_script(base_path):
+    endpoint = json.dumps(app_path(base_path, "/admin/session/activity"))
+    return f"""<script>
+    (() => {{
+      let lastRenewal = 0;
+      let renewing = false;
+      let expired = false;
+      const renewFromInteraction = (event) => {{
+        if (!event.isTrusted || document.visibilityState !== "visible" || expired || renewing) return;
+        const now = Date.now();
+        if (now - lastRenewal < 5 * 60 * 1000) return;
+        renewing = true;
+        lastRenewal = now;
+        fetch({endpoint}, {{
+          method: "POST", credentials: "same-origin", cache: "no-store", keepalive: true,
+          headers: {{ "X-Crestmap-Activity": "1" }}
+        }}).then((response) => {{
+          if (response.status === 401) expired = true;
+        }}).catch(() => {{}}).finally(() => {{ renewing = false; }});
+      }};
+      for (const name of ["pointerdown", "keydown", "touchstart", "wheel"]) {{
+        document.addEventListener(name, renewFromInteraction, {{ passive: true }});
+      }}
+    }})();
+    </script>"""
+
+
 def view_menu(base_path, current, hours, region="forest", admin_mode=False, aircraft_tracking_enabled=False):
     current_suffix = {
         "map": "/",
@@ -866,6 +893,7 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False, airc
         '<div class="view-menu-popover">'
         + "".join(rows)
         + "</div></details></div>"
+        + (admin_activity_script(base_path) if admin_mode else "")
     )
 
 

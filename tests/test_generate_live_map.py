@@ -681,7 +681,20 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'aria-label="Show my location"' in html
     assert 'id="location-status"' in html
     assert "function setupUserLocation" in html
-    assert "navigator.geolocation.getCurrentPosition" in html
+    assert "navigator.geolocation.watchPosition" in html
+    assert "navigator.geolocation.clearWatch" in html
+    assert 'window.localStorage.setItem("crestmap-location-tracking", "enabled")' in html
+    assert 'window.localStorage.getItem("crestmap-location-tracking") === "enabled"' in html
+    assert "function pauseUserLocationFollowing" in html
+    assert 'map.on("dragstart", pauseUserLocationFollowing)' in html
+    assert 'map.on("dblclick", pauseUserLocationFollowing)' in html
+    assert 'mapEl.addEventListener("wheel", pauseUserLocationFollowing' in html
+    assert 'mapEl.addEventListener("touchmove", pauseUserLocationFollowing' in html
+    assert "event.preventDefault();\n          pauseUserLocationFollowing();" in html
+    assert "if (options.userInitiated) pauseUserLocationFollowing()" in html
+    assert "userLocationMarker.setLatLng(coordinates)" in html
+    assert "userAccuracyCircle.setRadius(accuracy)" in html
+    assert "map.panTo(coordinates" in html
     assert 'pane: "userLocation"' in html
     assert "user-location-marker" in html
     assert "accuracy <= 5000" in html
@@ -725,7 +738,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "function bindMarkerInteraction" in html
     assert 'L.DomEvent.on(element, "touchend", selectFromMarker)' in html
     assert 'L.DomEvent.on(element, "pointerup", selectFromMarker)' in html
-    assert 'selectIncident(incident, { pan: false, revealDetails: true, pulse: true });' in html
+    assert 'selectIncident(incident, { pan: false, revealDetails: true, pulse: true, userInitiated: true });' in html
     assert "L.marker([incident.latitude, incident.longitude]" in html
     assert "L.circleMarker" not in html
     assert "function setupDoubleTapZoom" in html

@@ -2713,6 +2713,10 @@ def build_html(
       window.localStorage.getItem("crestmap-mile-markers") !== "hidden";
     let userLocationMarker = null;
     let userAccuracyCircle = null;
+    let userLocationWatchId = null;
+    let userLocationCoordinates = null;
+    let userLocationFollowing = false;
+    let forceUserLocationRecenter = false;
 
     const markers = new Map();
     const aircraftMarkers = new Map();
@@ -2822,19 +2826,12 @@ def build_html(
         return;
       }}
 
-      button.addEventListener("click", () => {{
-        button.classList.add("is-loading");
-        button.disabled = true;
-        setStatus("Finding your location…");
-        navigator.geolocation.getCurrentPosition((position) => {{
-          const latitude = Number(position.coords.latitude);
-          const longitude = Number(position.coords.longitude);
-          const accuracy = Math.max(0, Number(position.coords.accuracy || 0));
-          const coordinates = [latitude, longitude];
-
-          if (userLocationMarker) userLocationMarker.remove();
-          if (userAccuracyCircle) userAccuracyCircle.remove();
-          if (accuracy > 0 && accuracy <= 5000) {{
+      const updateLocationLayers = (coordinates, accuracy) => {{
+        if (accuracy > 0 && accuracy <= 5000) {{
+          if (userAccuracyCircle) {{
+            userAccuracyCircle.setLatLng(coordinates);
+            userAccuracyCircle.setRadius(accuracy);
+          }} else {{
             userAccuracyCircle = L.circle(coordinates, {{
               radius: accuracy,
               color: "#2878e6",
@@ -2844,9 +2841,15 @@ def build_html(
               fillOpacity: 0.1,
               interactive: false
             }}).addTo(map);
-          }} else {{
-            userAccuracyCircle = null;
           }}
+        }} else if (userAccuracyCircle) {{
+          userAccuracyCircle.remove();
+          userAccuracyCircle = null;
+        }}
+
+        if (userLocationMarker) {{
+          userLocationMarker.setLatLng(coordinates);
+        }} else {{
           userLocationMarker = L.marker(coordinates, {{
             pane: "userLocation",
             interactive: false,
@@ -2859,27 +2862,97 @@ def build_html(
               html: '<span class="visually-hidden">Your location</span>'
             }})
           }}).addTo(map);
-          map.flyTo(coordinates, Math.max(map.getZoom(), 13), {{ duration: 0.65 }});
-          const accuracyText = accuracy > 0 ? ` · accurate to about ${{Math.round(accuracy)}} m` : "";
-          setStatus(`Location shown${{accuracyText}}`);
-          button.title = "Recenter on my location";
+        }}
+      }};
+
+      const handlePosition = (position) => {{
+        const latitude = Number(position.coords.latitude);
+        const longitude = Number(position.coords.longitude);
+        const accuracy = Math.max(0, Number(position.coords.accuracy || 0));
+        const coordinates = [latitude, longitude];
+        const firstFix = !userLocationCoordinates;
+        userLocationCoordinates = coordinates;
+        updateLocationLayers(coordinates, accuracy);
+
+        if (userLocationFollowing) {{
+          if (firstFix || forceUserLocationRecenter) {{
+            map.flyTo(coordinates, Math.max(map.getZoom(), 13), {{ duration: 0.65 }});
+          }} else {{
+            map.panTo(coordinates, {{ animate: true, duration: 0.35 }});
+          }}
+          forceUserLocationRecenter = false;
+        }}
+
+        const accuracyText = accuracy > 0 ? ` · accurate to about ${{Math.round(accuracy)}} m` : "";
+        if (firstFix) setStatus(`Location tracking on${{accuracyText}}`);
+        button.title = userLocationFollowing ? "Following my location" : "Recenter on my location";
+        button.classList.remove("is-loading");
+        button.disabled = false;
+      }};
+
+      const handleLocationError = (error) => {{
+        const messages = {{
+          1: "Location permission was not granted.",
+          2: "Your location is currently unavailable.",
+          3: "Location request timed out."
+        }};
+        setStatus(messages[error.code] || "Could not determine your location.");
+        if (error.code === 1) {{
+          window.localStorage.removeItem("crestmap-location-tracking");
+          userLocationFollowing = false;
+          if (userLocationWatchId !== null) {{
+            navigator.geolocation.clearWatch(userLocationWatchId);
+            userLocationWatchId = null;
+          }}
+        }}
+        button.classList.remove("is-loading");
+        button.disabled = false;
+      }};
+
+      const startLocationTracking = (restored = false) => {{
+        userLocationFollowing = true;
+        forceUserLocationRecenter = true;
+        window.localStorage.setItem("crestmap-location-tracking", "enabled");
+        button.classList.add("is-loading");
+        button.disabled = true;
+        setStatus(restored ? "Restoring location tracking…" : "Finding your location…");
+        if (userLocationWatchId !== null && !userLocationCoordinates) {{
+          navigator.geolocation.clearWatch(userLocationWatchId);
+          userLocationWatchId = null;
+        }}
+        if (userLocationWatchId === null) {{
+          userLocationWatchId = navigator.geolocation.watchPosition(
+            handlePosition,
+            handleLocationError,
+            {{ enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }}
+          );
+        }} else if (userLocationCoordinates) {{
+          map.flyTo(userLocationCoordinates, Math.max(map.getZoom(), 13), {{ duration: 0.65 }});
+          forceUserLocationRecenter = false;
           button.classList.remove("is-loading");
           button.disabled = false;
-        }}, (error) => {{
-          const messages = {{
-            1: "Location permission was not granted.",
-            2: "Your location is currently unavailable.",
-            3: "Location request timed out."
-          }};
-          setStatus(messages[error.code] || "Could not determine your location.");
-          button.classList.remove("is-loading");
-          button.disabled = false;
-        }}, {{
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 30000
-        }});
-      }});
+          button.title = "Following my location";
+          setStatus("Following your location");
+        }}
+      }};
+
+      button.addEventListener("click", () => startLocationTracking(false));
+      if (window.localStorage.getItem("crestmap-location-tracking") === "enabled") {{
+        startLocationTracking(true);
+      }}
+
+      map.on("dragstart", pauseUserLocationFollowing);
+      map.on("dblclick", pauseUserLocationFollowing);
+      mapEl.addEventListener("wheel", pauseUserLocationFollowing, {{ passive: true }});
+      mapEl.addEventListener("touchmove", pauseUserLocationFollowing, {{ passive: true }});
+    }}
+
+    function pauseUserLocationFollowing() {{
+      if (!userLocationFollowing) return;
+      userLocationFollowing = false;
+      forceUserLocationRecenter = false;
+      const button = document.getElementById("locate-user");
+      if (button) button.title = "Recenter on my location";
     }}
 
     const mobileViewport = window.matchMedia("(max-width: 760px)");
@@ -2924,6 +2997,7 @@ def build_html(
 
         if (isDoubleTap) {{
           event.preventDefault();
+          pauseUserLocationFollowing();
           const rect = mapEl.getBoundingClientRect();
           const point = L.point(touch.clientX - rect.left, touch.clientY - rect.top);
           const latLng = map.containerPointToLatLng(point);
@@ -3683,7 +3757,7 @@ def build_html(
           return;
         }}
         lastSelect = now;
-        selectIncident(incident, {{ pan: false, revealDetails: true, pulse: true }});
+        selectIncident(incident, {{ pan: false, revealDetails: true, pulse: true, userInitiated: true }});
       }};
 
       const bindElement = () => {{
@@ -3877,6 +3951,7 @@ def build_html(
       if (!incident) {{
         return;
       }}
+      if (options.userInitiated) pauseUserLocationFollowing();
       selectedIncidentKey = incident.event_key;
       const preserveFocusedComment = options.preserveFocusedComment === true
         && detailsPanel.dataset.selectedIncidentKey === incident.event_key
@@ -4115,7 +4190,7 @@ def build_html(
           ${{locationLines.secondary ? `<span class="incident-location-secondary">${{escapeHtml(locationLines.secondary)}}</span>` : ""}}
           <span>${{escapeHtml(formatIncidentWhen(incident))}} · ${{escapeHtml(incident.area)}} · #${{escapeHtml(incident.incident_no)}}${{hasCoords ? "" : " · no map pin"}}</span>
         `;
-        button.addEventListener("click", () => selectIncident(incident, {{ pulse: true }}));
+        button.addEventListener("click", () => selectIncident(incident, {{ pulse: true, userInitiated: true }}));
         list.appendChild(button);
       }});
 

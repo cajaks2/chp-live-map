@@ -690,8 +690,13 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "function setupUserLocation" in html
     assert "navigator.geolocation.watchPosition" in html
     assert "navigator.geolocation.clearWatch" in html
-    assert 'window.localStorage.setItem("crestmap-location-tracking", "enabled")' in html
-    assert 'window.localStorage.getItem("crestmap-location-tracking") === "enabled"' in html
+    assert 'window.localStorage.setItem("crestmap-location-tracking", "enabled")' not in html
+    assert 'window.localStorage.getItem("crestmap-location-tracking") === "enabled"' not in html
+    assert 'button.addEventListener("click", startLocationTracking)' in html
+    assert "Restoring location tracking" not in html
+    assert 'navigator.permissions.query({ name: "geolocation" })' in html
+    assert 'permission.state !== "granted"' in html
+    assert "if (firstFix && userLocationRequested)" in html
     assert "function pauseUserLocationFollowing" in html
     assert 'map.on("dragstart", pauseUserLocationFollowing)' in html
     assert 'map.on("dblclick", pauseUserLocationFollowing)' in html

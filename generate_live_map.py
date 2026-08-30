@@ -2717,6 +2717,7 @@ def build_html(
     let userLocationCoordinates = null;
     let userLocationFollowing = false;
     let forceUserLocationRecenter = false;
+    let userLocationRequested = false;
 
     const markers = new Map();
     const aircraftMarkers = new Map();
@@ -2885,7 +2886,7 @@ def build_html(
         }}
 
         const accuracyText = accuracy > 0 ? ` · accurate to about ${{Math.round(accuracy)}} m` : "";
-        if (firstFix) setStatus(`Location tracking on${{accuracyText}}`);
+        if (firstFix && userLocationRequested) setStatus(`Location tracking on${{accuracyText}}`);
         button.title = userLocationFollowing ? "Following my location" : "Recenter on my location";
         button.classList.remove("is-loading");
         button.disabled = false;
@@ -2897,9 +2898,10 @@ def build_html(
           2: "Your location is currently unavailable.",
           3: "Location request timed out."
         }};
-        setStatus(messages[error.code] || "Could not determine your location.");
+        if (userLocationRequested) {{
+          setStatus(messages[error.code] || "Could not determine your location.");
+        }}
         if (error.code === 1) {{
-          window.localStorage.removeItem("crestmap-location-tracking");
           userLocationFollowing = false;
           if (userLocationWatchId !== null) {{
             navigator.geolocation.clearWatch(userLocationWatchId);
@@ -2910,13 +2912,13 @@ def build_html(
         button.disabled = false;
       }};
 
-      const startLocationTracking = (restored = false) => {{
+      const startLocationTracking = () => {{
+        userLocationRequested = true;
         userLocationFollowing = true;
         forceUserLocationRecenter = true;
-        window.localStorage.setItem("crestmap-location-tracking", "enabled");
         button.classList.add("is-loading");
         button.disabled = true;
-        setStatus(restored ? "Restoring location tracking…" : "Finding your location…");
+        setStatus("Finding your location…");
         if (userLocationWatchId !== null && !userLocationCoordinates) {{
           navigator.geolocation.clearWatch(userLocationWatchId);
           userLocationWatchId = null;
@@ -2937,9 +2939,19 @@ def build_html(
         }}
       }};
 
-      button.addEventListener("click", () => startLocationTracking(false));
-      if (window.localStorage.getItem("crestmap-location-tracking") === "enabled") {{
-        startLocationTracking(true);
+      button.addEventListener("click", startLocationTracking);
+
+      if (navigator.permissions?.query) {{
+        navigator.permissions.query({{ name: "geolocation" }}).then((permission) => {{
+          if (permission.state !== "granted" || userLocationWatchId !== null) return;
+          userLocationWatchId = navigator.geolocation.watchPosition(
+            handlePosition,
+            handleLocationError,
+            {{ enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }}
+          );
+        }}).catch(() => {{
+          // Permission checks are optional; the location button remains available.
+        }});
       }}
 
       map.on("dragstart", pauseUserLocationFollowing);

@@ -816,7 +816,7 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False, airc
     if current == "map" and aircraft_tracking_enabled:
         items.insert(4, ("aircraft", "Rescue helicopters", "Shown when airborne", None))
     if current == "map" and normalize_region(region) == "forest":
-        items.insert(4, ("mile-markers", "Mile markers", "Appears when zoomed in", None))
+        items.insert(4, ("mile-markers", "Mile markers", "More detail as you zoom", None))
     rows = []
     for key, label, description, href in items:
         if key == "alerts":
@@ -2732,7 +2732,8 @@ def build_html(
     function mileMarkerStep(zoom) {{
       if (zoom <= 11) return null;
       if (zoom === 12) return 5;
-      return 1;
+      if (zoom <= 15) return 1;
+      return 0;
     }}
 
     function sampledMileMarkers(points, step) {{
@@ -2791,7 +2792,7 @@ def build_html(
         button.classList.toggle("is-active", mileMarkersVisible);
         button.setAttribute("aria-pressed", mileMarkersVisible ? "true" : "false");
         const description = button.querySelector(".view-menu-description");
-        if (description) description.textContent = mileMarkersVisible ? "Appears when zoomed in" : "Hidden";
+        if (description) description.textContent = mileMarkersVisible ? "More detail as you zoom" : "Hidden";
       }};
       updateButton();
       renderMileMarkers();
@@ -3878,10 +3879,10 @@ def build_html(
                     <input name="contact" autocomplete="email" maxlength="200" placeholder="Email or phone">
                   </label>
                 </div>
-                <textarea name="body" maxlength="750" required placeholder="Add a comment for review"></textarea>
+                <textarea name="body" maxlength="750" required placeholder="Add a comment"></textarea>
                 {media_form_markup}
                 <input class="comment-honeypot" name="website" tabindex="-1" autocomplete="off">
-                <button type="submit" class="comment-submit">Submit for review</button>
+                <button type="submit" class="comment-submit">Post comment</button>
                 <div class="comment-status" role="status"></div>
               </form>
             </div>
@@ -4089,7 +4090,8 @@ def build_html(
         form.reset();
         const preview = form.querySelector("[data-media-preview]");
         if (preview) preview.innerHTML = "";
-        status.textContent = payload.message || "Comment submitted for review.";
+        status.textContent = payload.message || "Comment published.";
+        if (payload.status === "approved") loadComments(incident);
       }} catch (error) {{
         status.textContent = commentSubmitted
           ? `Comment saved, but media failed: ${{error.message || "upload error"}}`

@@ -322,14 +322,14 @@ GET  /api/v1/incidents/{event_key}/comments
 POST /api/v1/incidents/{event_key}/comments
 ```
 
-The public `GET` endpoint returns only approved comments. The public `POST` endpoint accepts anonymous comments and stores them as `pending` for moderation. Comment bodies are plain text only, stripped of HTML, capped at 750 characters, and protected by a honeypot plus IP/user-agent rate limits. Optional contact information is stored for moderation but is never returned by the public API.
+The public `GET` endpoint returns approved comments. The public `POST` endpoint accepts anonymous comments and publishes them immediately by default. Comment bodies are plain text only, stripped of HTML, capped at 750 characters, and protected by a honeypot plus IP/user-agent rate limits. Optional contact information is stored for moderation but is never returned by the public API. Set `COMMENT_AUTO_APPROVE=false` to restore pre-publication moderation; this affects future submissions only.
 
 Comments can also include up to three photos or one short MP4 video. Photos are resized to a
 maximum 1920-pixel edge and converted to WebP in the visitor's browser before upload. Videos are
 not encoded or transcoded; the browser verifies that they are playable MP4 files and enforces the
-configured duration limit. Attachments upload directly to a private Cloudflare R2 bucket and are
-not publicly viewable until the associated comment is approved. Rejecting or deleting a comment
-also removes its objects from R2.
+configured duration limit. Attachments upload directly to a private Cloudflare R2 bucket and inherit
+the associated comment's moderation status when finalized. Rejecting or deleting a comment also
+removes its objects from R2.
 
 Enable uploads with an R2 API token that has Object Read & Write permission for the private bucket:
 

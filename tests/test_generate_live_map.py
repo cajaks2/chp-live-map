@@ -63,10 +63,14 @@ def test_mile_marker_snapshot_covers_crest_and_forest_corridors():
     assert (upper_big_tujunga_miles[0], upper_big_tujunga_miles[-1]) == (0.02, 9.0)
     assert 4.66 in upper_big_tujunga_miles
     assert 6.99 not in upper_big_tujunga_miles
+    assert len(glendora_mountain_miles) == 99
     assert (glendora_mountain_miles[0], glendora_mountain_miles[-1]) == (0.16, 14.0)
+    assert len(glendora_ridge_miles) == 100
     assert (glendora_ridge_miles[0], glendora_ridge_miles[-1]) == (0.16, 11.93)
-    assert (highway_39_miles[0], highway_39_miles[-1]) == (17.14, 37.89)
-    assert (mount_baldy_miles[0], mount_baldy_miles[-1]) == (0.42, 6.11)
+    assert len(highway_39_miles) == 158
+    assert (highway_39_miles[0], highway_39_miles[-1]) == (17.14, 38.4)
+    assert len(mount_baldy_miles) == 54
+    assert (mount_baldy_miles[0], mount_baldy_miles[-1]) == (0.42, 6.3)
     assert 5.18 not in mount_baldy_miles
 
 
@@ -657,7 +661,10 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "function renderMileMarkers" in html
     assert "if (zoom <= 11) return null" in html
     assert "if (zoom === 12) return 5" in html
-    assert "if (zoom === 12) return 5;\n      return 1;" in html
+    assert "if (zoom <= 15) return 1" in html
+    assert "if (zoom <= 15) return 1;\n      return 0;" in html
+    assert "if (!step) return points" in html
+    assert "More detail as you zoom" in html
     assert "if (step === null) return" in html
     assert 'map.on("zoomend", renderMileMarkers)' in html
     assert 'pane: "mileMarkers"' in html

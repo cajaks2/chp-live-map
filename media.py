@@ -128,11 +128,11 @@ def comment_for_upload(conn, comment_id, event_key):
 
 def create_media_row(conn, comment_id, event_key, upload):
     comment = comment_for_upload(conn, comment_id, event_key)
-    if not comment or comment["status"] != "pending":
-        raise MediaValidationError("The pending comment was not found.", "comment_not_pending")
+    if not comment or comment["status"] not in {"pending", "approved"}:
+        raise MediaValidationError("The comment no longer accepts uploads.", "comment_not_uploadable")
     ph = placeholder(conn)
     existing = conn.execute(
-        f"SELECT kind FROM incident_media WHERE comment_id = {ph} AND status IN ('uploading', 'pending')",
+        f"SELECT kind FROM incident_media WHERE comment_id = {ph} AND status IN ('uploading', 'pending', 'approved')",
         (comment_id,),
     ).fetchall()
     existing_kinds = [dict(row)["kind"] for row in existing]
@@ -197,17 +197,18 @@ def finalize_media_row(conn, media_id, comment_id, actual_size, actual_content_t
     if not row or row["status"] != "uploading":
         raise MediaValidationError("Upload was not found.", "upload_not_found")
     comment = comment_for_upload(conn, comment_id, row["event_key"])
-    if not comment or comment["status"] != "pending":
-        raise MediaValidationError("The comment is no longer pending.", "comment_not_pending")
+    if not comment or comment["status"] not in {"pending", "approved"}:
+        raise MediaValidationError("The comment no longer accepts uploads.", "comment_not_uploadable")
     actual_type = str(actual_content_type or "").lower().split(";", 1)[0].strip()
     if int(actual_size) != int(row["expected_size"]) or actual_type != row["content_type"]:
         raise MediaValidationError("Uploaded file did not match its declaration.", "upload_mismatch")
     ph = placeholder(conn)
+    status = comment["status"]
     conn.execute(
-        f"UPDATE incident_media SET status = 'pending', actual_size = {ph}, uploaded_at = {ph} WHERE id = {ph}",
-        (actual_size, now_iso(), media_id),
+        f"UPDATE incident_media SET status = {ph}, actual_size = {ph}, uploaded_at = {ph} WHERE id = {ph}",
+        (status, actual_size, now_iso(), media_id),
     )
-    row["status"] = "pending"
+    row["status"] = status
     row["actual_size"] = actual_size
     return row
 

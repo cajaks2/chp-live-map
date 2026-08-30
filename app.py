@@ -1709,18 +1709,25 @@ async def handle_comments_post(request, event_key):
                 )
                 result["upload_expires_at"] = expires_at
             conn.commit()
+        comment_status = result["status"]
         web.log_event(
             "info",
-            "Incident comment submitted for moderation",
+            "Incident comment published automatically"
+            if comment_status == "approved"
+            else "Incident comment submitted for moderation",
             **{
                 "event.action": "comments_submit",
                 "event.outcome": "success",
                 "chp.event_key": event_key,
-                "chp.comment.status": "pending",
+                "chp.comment.status": comment_status,
                 **client_log_fields(request),
             },
         )
-        return json_response(result, status_code=202, cache_control="no-store")
+        return json_response(
+            result,
+            status_code=201 if comment_status == "approved" else 202,
+            cache_control="no-store",
+        )
     except CommentValidationError as exc:
         web.COMMENT_SUBMISSIONS_TOTAL[exc.code] += 1
         status_code = 404 if exc.code == "not_found" else 429 if exc.code == "rate_limited" else 400

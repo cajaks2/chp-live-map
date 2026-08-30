@@ -636,7 +636,7 @@ def test_live_map_handler_serves_red_favicon_when_active(tmp_path):
         assert '<link rel="icon" href="https://crestmap.us/favicon.svg?active=1&amp;v=' in body
 
 
-def test_incident_comments_are_pending_until_approved(tmp_path):
+def test_incident_comments_are_published_automatically(tmp_path):
     database = tmp_path / "chp.sqlite"
     event_key = "LACC|2026-06-08|1234"
     conn = connect_database(database)
@@ -648,7 +648,7 @@ def test_incident_comments_are_pending_until_approved(tmp_path):
         response = client.get("/")
         assert response.status_code == 200
         assert "Comments" in response.text
-        assert "Submit for review" in response.text
+        assert "Post comment" in response.text
 
         response = client.get(f"/api/v1/incidents/{event_key}/comments")
         assert response.status_code == 200
@@ -668,24 +668,24 @@ def test_incident_comments_are_pending_until_approved(tmp_path):
                 "User-Agent": "comment-test/1.0",
             },
         )
-        assert response.status_code == 202
-        assert response.json()["status"] == "pending"
+        assert response.status_code == 201
+        assert response.json()["status"] == "approved"
+        assert response.json()["message"] == "Comment published."
 
         response = client.get(f"/api/v1/incidents/{event_key}/comments")
         assert response.status_code == 200
-        assert response.json()["data"] == []
+        assert len(response.json()["data"]) == 1
 
     conn = connect_database(database)
     row = conn.execute("SELECT * FROM incident_comments").fetchone()
-    assert row["status"] == "pending"
+    assert row["status"] == "approved"
+    assert row["approved_at"] == row["created_at"]
     assert row["display_name"] == "Alice"
     assert row["body"] == "alert(1) Road is still icy."
     assert row["contact"] == "alice@example.test"
     assert row["cf_connecting_ip"] == "198.51.100.99"
     assert row["cf_country"] == "US"
     assert row["ip_hash"]
-    set_comment_status(conn, row["id"], "approved")
-    conn.commit()
     conn.close()
 
     with make_client(database) as client:
@@ -706,7 +706,7 @@ def test_incident_comments_are_pending_until_approved(tmp_path):
         assert "contact" not in payload["data"][0]
 
 
-def test_incident_media_upload_uses_comment_moderation_flow(tmp_path):
+def test_incident_media_upload_is_published_with_comment(tmp_path):
     class FakeMediaStore:
         def __init__(self):
             self.deleted = []
@@ -749,7 +749,7 @@ def test_incident_media_upload_uses_comment_moderation_flow(tmp_path):
             f"/api/v1/incidents/{event_key}/comments",
             json={"body": "Photo of a fallen tree.", "media_count": 1},
         )
-        assert comment_response.status_code == 202
+        assert comment_response.status_code == 201
         comment = comment_response.json()
         assert comment["upload_token"]
 
@@ -774,22 +774,15 @@ def test_incident_media_upload_uses_comment_moderation_flow(tmp_path):
             json={"comment_id": comment["id"], "upload_token": comment["upload_token"]},
         )
         assert finalize_response.status_code == 200
-        assert finalize_response.json()["status"] == "pending"
+        assert finalize_response.json()["status"] == "approved"
 
         response = client.get(f"/api/v1/media/{upload['id']}", follow_redirects=False)
-        assert response.status_code == 404
+        assert response.status_code == 302
 
-        admin_page = client.get("/admin/comments", headers=basic_auth())
+        admin_page = client.get("/admin/comments?status=approved", headers=basic_auth())
         assert admin_page.status_code == 200
         assert f'/admin/media/{upload["id"]}' in admin_page.text
         assert "tree.webp" in admin_page.text
-
-        approved = client.post(
-            "/admin/comments",
-            data={"id": comment["id"], "status": "pending", "action": "approve"},
-            headers=basic_auth(),
-        )
-        assert approved.status_code == 200
 
         public_comments = client.get(f"/api/v1/incidents/{event_key}/comments").json()["data"]
         assert public_comments[0]["media"] == [
@@ -841,7 +834,7 @@ def test_comment_honeypot_and_rate_limit(tmp_path):
                 json={"body": f"Valid comment {index}"},
                 headers=headers,
             )
-            assert response.status_code == 202
+            assert response.status_code == 201
 
         response = client.post(
             f"/api/v1/incidents/{event_key}/comments",
@@ -1096,7 +1089,12 @@ def test_admin_comments_approves_pending_comment(tmp_path):
             json={"display_name": "Bob", "body": "Chains required at the top."},
             headers={"CF-Connecting-IP": "198.51.100.50", "User-Agent": "admin-test/1.0"},
         )
-        assert response.status_code == 202
+        assert response.status_code == 201
+
+        conn = connect_database(database)
+        conn.execute("UPDATE incident_comments SET status = 'pending', approved_at = NULL")
+        conn.commit()
+        conn.close()
 
         response = client.get("/admin/comments", headers=basic_auth())
         assert response.status_code == 200

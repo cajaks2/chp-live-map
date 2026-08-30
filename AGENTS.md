@@ -55,4 +55,4 @@
 - Be conservative with scraping: keep the one-minute cadence, road/region filtering, retry backoff, and source metrics.
 - The app stores history indefinitely unless an explicit retention job is added; UI windows such as 72h and 30d only limit what is displayed.
 - Active incidents render red, cleared incidents render grey, and incidents without coordinates remain visible in lists/history even when they cannot be pinned on the map.
-- Public incident comments are stored as pending until approved; contact and IP metadata are for moderation only and must not be exposed through the public comments API.
+- Public incident comments are auto-approved by default; `COMMENT_AUTO_APPROVE=false` restores pre-publication moderation for future submissions. Contact and IP metadata are for moderation only and must not be exposed through the public comments API.

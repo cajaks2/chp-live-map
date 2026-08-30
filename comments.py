@@ -12,6 +12,12 @@ RATE_LIMIT_WINDOW_MINUTES = int(os.environ.get("COMMENT_RATE_LIMIT_WINDOW_MINUTE
 RATE_LIMIT_WINDOW_COUNT = int(os.environ.get("COMMENT_RATE_LIMIT_WINDOW_COUNT", "3"))
 RATE_LIMIT_DAY_COUNT = int(os.environ.get("COMMENT_RATE_LIMIT_DAY_COUNT", "10"))
 IP_HASH_SALT = os.environ.get("COMMENT_IP_HASH_SALT", "")
+AUTO_APPROVE_COMMENTS = os.environ.get("COMMENT_AUTO_APPROVE", "true").strip().lower() not in {
+    "0",
+    "false",
+    "no",
+    "off",
+}
 COMMENT_SUBMISSIONS_TOTAL = Counter()
 
 
@@ -145,14 +151,17 @@ def submit_comment(conn, event_key, payload, headers, client_host=""):
     now = dt.datetime.now(dt.timezone.utc)
     validate_rate_limit(conn, ip_hash, user_agent, now)
     created_at = now.isoformat(timespec="seconds")
+    status = "approved" if AUTO_APPROVE_COMMENTS else "pending"
+    approved_at = created_at if status == "approved" else None
     values = (
         event_key,
-        "pending",
+        status,
         display_name,
         body,
         category,
         contact,
         created_at,
+        approved_at,
         ip_hash,
         user_agent,
         cf_connecting_ip,
@@ -163,9 +172,9 @@ def submit_comment(conn, event_key, payload, headers, client_host=""):
         row = conn.execute(
             """
             INSERT INTO incident_comments (
-                event_key, status, display_name, body, category, contact, created_at,
+                event_key, status, display_name, body, category, contact, created_at, approved_at,
                 ip_hash, user_agent, cf_connecting_ip, cf_country, honeypot_value
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
             """,
             values,
@@ -175,15 +184,16 @@ def submit_comment(conn, event_key, payload, headers, client_host=""):
         cursor = conn.execute(
             """
             INSERT INTO incident_comments (
-                event_key, status, display_name, body, category, contact, created_at,
+                event_key, status, display_name, body, category, contact, created_at, approved_at,
                 ip_hash, user_agent, cf_connecting_ip, cf_country, honeypot_value
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             values,
         )
         comment_id = cursor.lastrowid
-    COMMENT_SUBMISSIONS_TOTAL["pending"] += 1
-    return {"id": comment_id, "status": "pending", "message": "Comment submitted for review."}
+    COMMENT_SUBMISSIONS_TOTAL[status] += 1
+    message = "Comment published." if status == "approved" else "Comment submitted for review."
+    return {"id": comment_id, "status": status, "message": message}
 
 
 def set_comment_status(conn, comment_id, status):

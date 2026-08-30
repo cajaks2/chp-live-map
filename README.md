@@ -61,6 +61,9 @@ The scraper also collects Malibu coast/canyon incidents into `region='malibu'`. 
 
 The generated map uses Leaflet and OpenStreetMap tiles from public CDNs.
 
+See [CHANGELOG.md](CHANGELOG.md) for release notes reconstructed from the Git
+history and deployment versions.
+
 ## Scrape Incidents
 
 Run once with the default Los Angeles/Ventura centers and Angeles Crest/Forest/Malibu corridor keywords:

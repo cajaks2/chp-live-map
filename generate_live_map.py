@@ -832,6 +832,7 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False, airc
         ("summary", "Summary", "Counts + trends", view_href(base_path, "/summary", hours, region)),
         ("history", "History", "Search incidents", view_href(base_path, "/history", hours, region)),
         ("about", "About", "Source + cadence", view_href(base_path, "/about", hours, region)),
+        ("corners", "Corners", "Crash counts by corner", "https://crestmap.us/corners/"),
         ("alerts", "Alerts", "Push notification choices", None),
         (
             "admin",

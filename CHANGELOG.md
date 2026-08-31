@@ -11,6 +11,10 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.194 - 2026-08-30
+
+- Added a Corners link to the navigation menu for the corner crash-count map.
+
 ## 0.1.193 - 2026-08-30
 
 - Added this repository changelog and backfilled its release history.

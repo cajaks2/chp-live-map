@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.195 - 2026-08-31
+
+- Fixed navigation menus being clipped on iPhone; menus now stay within the
+  visible viewport and scroll independently when space is limited.
+
 ## 0.1.194 - 2026-08-30
 
 - Added a Corners link to the navigation menu for the corner crash-count map.

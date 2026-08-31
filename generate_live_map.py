@@ -815,6 +815,40 @@ def admin_activity_script(base_path):
     </script>"""
 
 
+def view_menu_script():
+    """Anchor the fixed menu outside clipped panels, within Safari's visible viewport."""
+    return """<script>
+    (() => {
+      const menu = document.querySelector(".view-menu");
+      const trigger = menu.querySelector("summary");
+      const panel = menu.querySelector(".view-menu-popover");
+      const positionMenu = () => {
+        if (!menu.open) return;
+        const viewport = window.visualViewport;
+        const left = viewport?.offsetLeft || 0;
+        const top = viewport?.offsetTop || 0;
+        const width = viewport?.width || window.innerWidth;
+        const height = viewport?.height || window.innerHeight;
+        const anchor = trigger.getBoundingClientRect();
+        const panelTop = Math.max(top + 12, Math.min(anchor.bottom + 4, top + height - 60));
+        panel.style.maxWidth = `${Math.max(0, width - 24)}px`;
+        const panelLeft = Math.max(left + 12, Math.min(
+          anchor.right - panel.offsetWidth, left + width - panel.offsetWidth - 12
+        ));
+        panel.style.top = `${panelTop}px`;
+        panel.style.left = `${panelLeft}px`;
+        panel.style.right = "auto";
+        panel.style.maxHeight = `${Math.max(0, top + height - panelTop - 12)}px`;
+      };
+      menu.addEventListener("toggle", positionMenu);
+      window.addEventListener("resize", positionMenu, { passive: true });
+      window.addEventListener("scroll", positionMenu, { passive: true });
+      window.visualViewport?.addEventListener("resize", positionMenu, { passive: true });
+      window.visualViewport?.addEventListener("scroll", positionMenu, { passive: true });
+    })();
+    </script>"""
+
+
 def view_menu(base_path, current, hours, region="forest", admin_mode=False, aircraft_tracking_enabled=False):
     current_suffix = {
         "map": "/",
@@ -894,6 +928,7 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False, airc
         '<div class="view-menu-popover">'
         + "".join(rows)
         + "</div></details></div>"
+        + view_menu_script()
         + (admin_activity_script(base_path) if admin_mode else "")
     )
 
@@ -1392,7 +1427,7 @@ def build_html(
     }}
     header {{
       flex: 0 0 auto;
-      z-index: 2;
+      z-index: 4;
       padding: 16px 18px 14px;
       border-bottom: 1px solid #d8ddd2;
       background: #fbfcf8;
@@ -1436,12 +1471,19 @@ def build_html(
       display: none;
     }}
     .view-menu-popover {{
-      position: absolute;
+      position: fixed;
       top: 40px;
       right: 0;
       z-index: 20;
       width: min(290px, calc(100vw - 36px));
+      box-sizing: border-box;
+      max-height: calc(100svh - 64px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      touch-action: pan-y;
+      -webkit-overflow-scrolling: touch;
       padding: 6px;
+      padding-bottom: max(6px, env(safe-area-inset-bottom));
       border: 1px solid #d8ddd2;
       border-radius: 8px;
       background: #ffffff;
@@ -4688,12 +4730,19 @@ def report_shell(
       display: none;
     }}
     .view-menu-popover {{
-      position: absolute;
+      position: fixed;
       top: 36px;
       right: 0;
       z-index: 10;
       width: min(270px, calc(100vw - 24px));
+      box-sizing: border-box;
+      max-height: calc(100svh - 64px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      touch-action: pan-y;
+      -webkit-overflow-scrolling: touch;
       padding: 6px;
+      padding-bottom: max(6px, env(safe-area-inset-bottom));
       border: 1px solid #d8ddd2;
       border-radius: 8px;
       background: #fff;

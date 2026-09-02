@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, urlencode
 
 from ecs_logging import log_event, run_main
-from geo_bounds import clear_coordinates_outside_region_bounds
+from geo_bounds import REGION_BOUNDS, clear_coordinates_outside_region_bounds
 from mile_markers import MILE_MARKERS
 
 
@@ -24,6 +24,86 @@ HISTORY_PRESETS = [(24, "24h"), (72, "72h"), (168, "7d"), (720, "30d")]
 REGION_LABELS = {
     "forest": "Forest",
     "malibu": "Malibu",
+}
+
+# Simplified local geometry for the principal Malibu corridors. These lines are
+# deliberately small enough to ship in the map HTML and remain usable when the
+# raster tile service is unreachable. Coordinates are derived from OpenStreetMap
+# road geometry and retain the normal on-map OpenStreetMap attribution.
+MALIBU_OFFLINE_ROADS = {
+    "Pacific Coast Highway": (
+        (
+            (34.0125, -118.4975), (34.0261, -118.5155), (34.0387, -118.5417),
+            (34.0386, -118.5561), (34.0421, -118.5704), (34.0388, -118.5847),
+            (34.0394, -118.6035), (34.0382, -118.6227), (34.0386, -118.6452),
+            (34.0394, -118.6708), (34.0342, -118.6874), (34.0338, -118.7151),
+            (34.0332, -118.7422), (34.0261, -118.7634), (34.0246, -118.7849),
+            (34.0205, -118.7962), (34.0166, -118.8191), (34.0224, -118.8305),
+            (34.0325, -118.8457), (34.0367, -118.8618), (34.0405, -118.8871),
+            (34.0470, -118.9249), (34.0451, -118.9389), (34.0534, -118.9639),
+            (34.0613, -118.9836), (34.0667, -118.9998), (34.0670, -119.0085),
+            (34.0794, -119.0277), (34.0854, -119.0478), (34.0939, -119.0689),
+            (34.1072, -119.0793),
+        ),
+    ),
+    "Topanga Canyon Boulevard": (
+        (
+            (34.0401, -118.5793), (34.0499, -118.5801), (34.0571, -118.5834),
+            (34.0742, -118.5885), (34.0824, -118.5988), (34.0929, -118.6017),
+            (34.1022, -118.5915), (34.1106, -118.5922), (34.1228, -118.5904),
+            (34.1244, -118.5991), (34.1367, -118.5991), (34.1417, -118.6082),
+            (34.1461, -118.6056), (34.1719, -118.6059), (34.1829, -118.6059),
+            (34.2258, -118.6059), (34.2458, -118.6072), (34.2785, -118.6045),
+        ),
+    ),
+    "Malibu Canyon / Las Virgenes": (
+        (
+            (34.0347, -118.7034), (34.0445, -118.6925), (34.0537, -118.6966),
+            (34.0616, -118.6943), (34.0707, -118.7069),
+        ),
+        (
+            (34.0802, -118.7037), (34.0931, -118.7092), (34.1054, -118.7118),
+            (34.1173, -118.7085), (34.1277, -118.7039), (34.1413, -118.6999),
+        ),
+    ),
+    "Kanan Road": (
+        (
+            (34.0277, -118.7995), (34.0449, -118.7977), (34.0589, -118.7988),
+            (34.0747, -118.8149), (34.0873, -118.8168), (34.0980, -118.8108),
+            (34.1073, -118.8048), (34.1151, -118.8012), (34.1199, -118.7923),
+            (34.1209, -118.7783), (34.1304, -118.7632), (34.1422, -118.7620),
+        ),
+    ),
+    "Decker Road": (
+        (
+            (34.0415, -118.8944), (34.0501, -118.8976), (34.0580, -118.8969),
+            (34.0682, -118.8943), (34.0751, -118.8824), (34.0835, -118.8782),
+            (34.0886, -118.8734),
+        ),
+    ),
+    "Encinal Canyon Road": (
+        (
+            (34.0943, -118.8284), (34.0876, -118.8396), (34.0875, -118.8520),
+            (34.0826, -118.8682), (34.0775, -118.8777), (34.0654, -118.8761),
+            (34.0609, -118.8745), (34.0576, -118.8695), (34.0458, -118.8748),
+            (34.0404, -118.8852),
+        ),
+    ),
+    "Latigo Canyon Road": (
+        (
+            (34.0300, -118.7547), (34.0376, -118.7657), (34.0413, -118.7723),
+            (34.0540, -118.7741), (34.0633, -118.7780), (34.0679, -118.7805),
+            (34.0731, -118.7844), (34.0802, -118.7982), (34.0858, -118.8040),
+            (34.0921, -118.8119), (34.0896, -118.8154),
+        ),
+    ),
+    "Tuna Canyon Road": (
+        (
+            (34.0774, -118.6064), (34.0714, -118.6049), (34.0681, -118.6111),
+            (34.0645, -118.6165), (34.0605, -118.6176), (34.0591, -118.6022),
+            (34.0526, -118.5972), (34.0469, -118.5940), (34.0395, -118.5895),
+        ),
+    ),
 }
 
 
@@ -1160,6 +1240,19 @@ def build_html(
     map_label = region_label(region)
     viewport = region_viewport(region)
     roadway_mile_markers = MILE_MARKERS if region == "forest" else {}
+    offline_road_data = (
+        {}
+        if region == "forest"
+        else {
+            road: [[list(point) for point in line] for line in lines]
+            for road, lines in MALIBU_OFFLINE_ROADS.items()
+        }
+    )
+    lat_min, lat_max, lon_min, lon_max = REGION_BOUNDS[region]
+    offline_region_outline = [
+        [lat_min, lon_min], [lat_max, lon_min], [lat_max, lon_max],
+        [lat_min, lon_max], [lat_min, lon_min],
+    ]
     status = {**incident_status(incidents, hours), "region": region}
     active_count = status["active_count"]
     mapped_count = status["mapped_count"]
@@ -1751,6 +1844,40 @@ def build_html(
       font-weight: 700;
       cursor: pointer;
     }}
+    #connection-status {{
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-top: 8px;
+      color: #3f4d45;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.35;
+    }}
+    #connection-status::before {{
+      content: "";
+      flex: 0 0 auto;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #2f8a4e;
+      box-shadow: 0 0 0 2px rgba(47, 138, 78, 0.14);
+    }}
+    #connection-status[data-state="reconnecting"]::before {{
+      background: #c58b19;
+      box-shadow: 0 0 0 2px rgba(197, 139, 25, 0.16);
+    }}
+    #connection-status[data-state="offline"] {{
+      color: #6b4714;
+    }}
+    #connection-status[data-state="unavailable"] {{
+      color: #6b4714;
+    }}
+    #connection-status[data-state="unavailable"]::before,
+    #connection-status[data-state="offline"]::before {{
+      background: #b76528;
+      box-shadow: 0 0 0 2px rgba(183, 101, 40, 0.16);
+    }}
     .auto-refresh-control {{
       display: inline-flex;
       align-items: center;
@@ -2174,6 +2301,23 @@ def build_html(
     }}
     #map.tiles-ready .leaflet-tile-pane {{
       opacity: 1;
+    }}
+    #map.using-offline-basemap .leaflet-tile-pane {{
+      opacity: 0;
+    }}
+    #map {{
+      background: #eef1e9;
+    }}
+    #map .offline-basemap-road {{
+      filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.85));
+    }}
+    #map .offline-basemap-label {{
+      color: #4a5b50;
+      background: rgba(246, 247, 244, 0.9);
+      border: 0;
+      box-shadow: none;
+      font-size: 9px;
+      font-weight: 800;
     }}
     #details {{
       position: relative;
@@ -2689,6 +2833,7 @@ def build_html(
             Auto refresh
           </label>
         </div>
+        <div id="connection-status" data-state="online" role="status" aria-live="polite">Online</div>
         <nav class="range-tabs" aria-label="History range">{history_controls(hours, region)}</nav>
         <div class="secondary-tabs">
           <nav class="region-tabs" aria-label="Region">{region_tabs(base_path, "map", hours, region, region_statuses)}</nav>
@@ -2735,9 +2880,106 @@ def build_html(
     const adminDetailsBase = "{html.escape(admin_details_base)}";
     const currentRegion = "{html.escape(region)}";
     const roadwayMileMarkers = {json.dumps(roadway_mile_markers, separators=(",", ":"))};
+    const offlineRoadData = {json.dumps(offline_road_data, separators=(",", ":"))};
+    const offlineRoads = currentRegion === "forest"
+      ? Object.fromEntries(Object.entries(roadwayMileMarkers).map(([road, points]) => [
+          road, [points.map(([, latitude, longitude]) => [latitude, longitude])]
+        ]))
+      : offlineRoadData;
+    const offlineRegionOutline = {json.dumps(offline_region_outline, separators=(",", ":"))};
     let incidents = [];
     let currentDataStatus = initialDataStatus;
     let selectedIncidentKey = new URLSearchParams(window.location.search).get("incident");
+
+    // OFFLINE_DATA_HELPERS_START
+    const INCIDENT_SNAPSHOT_DATABASE = "crestmap-offline-data";
+    const INCIDENT_SNAPSHOT_STORE = "incident-snapshots";
+
+    function incidentSnapshotKey(region, hours) {{
+      return `${{region}}:${{Number(hours)}}`;
+    }}
+
+    function incidentSnapshotRecord(payload, context) {{
+      if (!payload || !Array.isArray(payload.incidents) || !payload.status) return null;
+      const hours = Number(context.hours);
+      return {{
+        key: incidentSnapshotKey(context.region, hours),
+        region: context.region,
+        hours,
+        saved_at: context.savedAt || new Date().toISOString(),
+        payload
+      }};
+    }}
+
+    function isUsableIncidentSnapshot(record, context) {{
+      return Boolean(
+        record && record.region === context.region &&
+        Number(record.hours) === Number(context.hours) &&
+        record.payload && Array.isArray(record.payload.incidents) && record.payload.status
+      );
+    }}
+
+    function connectionStateFor({{ online, requestFailed, hasSnapshot, checking = false }}) {{
+      if (online && checking) return {{ state: "reconnecting", hasSnapshot: Boolean(hasSnapshot) }};
+      if (!online) return {{ state: "offline", hasSnapshot: Boolean(hasSnapshot) }};
+      if (requestFailed) return {{ state: "unavailable", hasSnapshot: Boolean(hasSnapshot) }};
+      return {{ state: "online", hasSnapshot: Boolean(hasSnapshot) }};
+    }}
+    // OFFLINE_DATA_HELPERS_END
+
+    function currentSnapshotContext() {{
+      return {{
+        region: currentRegion,
+        hours: Number(new URLSearchParams(window.location.search).get("hours") || currentDataStatus.hours || 72)
+      }};
+    }}
+
+    function openIncidentSnapshotDatabase() {{
+      return new Promise((resolve, reject) => {{
+        if (!window.indexedDB) return reject(new Error("IndexedDB is unavailable"));
+        const request = window.indexedDB.open(INCIDENT_SNAPSHOT_DATABASE, 1);
+        request.onupgradeneeded = () => {{
+          if (!request.result.objectStoreNames.contains(INCIDENT_SNAPSHOT_STORE)) {{
+            request.result.createObjectStore(INCIDENT_SNAPSHOT_STORE, {{ keyPath: "key" }});
+          }}
+        }};
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error("Could not open offline data"));
+      }});
+    }}
+
+    async function readIncidentSnapshot(context) {{
+      const database = await openIncidentSnapshotDatabase();
+      try {{
+        return await new Promise((resolve, reject) => {{
+          const transaction = database.transaction(INCIDENT_SNAPSHOT_STORE, "readonly");
+          const request = transaction.objectStore(INCIDENT_SNAPSHOT_STORE).get(
+            incidentSnapshotKey(context.region, context.hours)
+          );
+          request.onsuccess = () => resolve(request.result || null);
+          request.onerror = () => reject(request.error || new Error("Could not read offline data"));
+        }});
+      }} finally {{
+        database.close();
+      }}
+    }}
+
+    async function saveIncidentSnapshot(payload, context) {{
+      const record = incidentSnapshotRecord(payload, context);
+      if (!record) return false;
+      const database = await openIncidentSnapshotDatabase();
+      try {{
+        await new Promise((resolve, reject) => {{
+          const transaction = database.transaction(INCIDENT_SNAPSHOT_STORE, "readwrite");
+          transaction.objectStore(INCIDENT_SNAPSHOT_STORE).put(record);
+          transaction.oncomplete = () => resolve();
+          transaction.onerror = () => reject(transaction.error || new Error("Could not save offline data"));
+        }});
+        return true;
+      }} finally {{
+        database.close();
+      }}
+    }}
 
     const mapEl = document.getElementById("map");
     mapEl.classList.add("is-loading");
@@ -2752,6 +2994,10 @@ def build_html(
       fadeAnimation: true,
       markerZoomAnimation: true
     }}).setView({json.dumps(viewport["center"])}, {viewport["zoom"]});
+    const offlineBasemapPane = map.createPane("offlineBasemap");
+    offlineBasemapPane.style.zIndex = "175";
+    offlineBasemapPane.style.pointerEvents = "none";
+    const offlineBasemapLayer = L.layerGroup().addTo(map);
     const baseLayer = L.tileLayer("https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png", {{
       subdomains: "abc",
       maxZoom: 19,
@@ -2763,13 +3009,27 @@ def build_html(
     baseLayer.on("load", () => {{
       mapEl.classList.remove("is-loading");
       mapEl.classList.add("tiles-ready");
+      if (tileErrors >= 3) {{
+        mapEl.classList.add("using-offline-basemap");
+        if (connectionStatus?.dataset.state === "online") setConnectivityStatus("online");
+      }} else if (navigator.onLine) {{
+        mapEl.classList.remove("using-offline-basemap");
+      }}
+    }});
+    let tileErrors = 0;
+    baseLayer.on("tileerror", () => {{
+      tileErrors += 1;
+      if (tileErrors >= 3) {{
+        mapEl.classList.add("using-offline-basemap");
+        if (connectionStatus?.dataset.state === "online") setConnectivityStatus("online");
+      }}
     }});
     baseLayer.on("loading", () => {{
+      tileErrors = 0;
       mapEl.classList.add("is-loading");
       window.clearTimeout(window.chpTileLoadingTimer);
       window.chpTileLoadingTimer = window.setTimeout(() => {{
         mapEl.classList.remove("is-loading");
-        mapEl.classList.add("tiles-ready");
       }}, 1800);
     }});
     baseLayer.addTo(map);
@@ -2799,7 +3059,86 @@ def build_html(
     const scrollIncidentsButton = document.getElementById("scroll-incidents");
     const detailsPanel = document.getElementById("details");
     const detailsCue = document.getElementById("details-cue");
-    window.chpLiveMap = {{ map, markers, aircraftMarkers, aircraftTrails, mileMarkerLayer, incidents, status: currentDataStatus }};
+    const connectionStatus = document.getElementById("connection-status");
+    let activeSnapshotSavedAt = null;
+    window.chpLiveMap = {{ map, markers, aircraftMarkers, aircraftTrails, mileMarkerLayer, offlineBasemapLayer, incidents, status: currentDataStatus }};
+
+    function readableSnapshotTime(value) {{
+      const date = new Date(value || "");
+      if (Number.isNaN(date.getTime())) return "an unknown time";
+      return date.toLocaleString([], {{ month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }});
+    }}
+
+    function setConnectivityStatus(state, savedAt = activeSnapshotSavedAt) {{
+      if (!connectionStatus) return;
+      connectionStatus.dataset.state = state;
+      if (state === "online") {{
+        const onlineText = savedAt
+          ? `Online — incident data checked ${{readableSnapshotTime(savedAt)}}`
+          : "Online";
+        connectionStatus.textContent = tileErrors >= 3
+          ? `${{onlineText}} · map tiles unavailable; local road map shown`
+          : onlineText;
+        if (tileErrors < 3) mapEl.classList.remove("using-offline-basemap");
+      }} else if (state === "reconnecting") {{
+        connectionStatus.textContent = savedAt
+          ? `Reconnecting — showing data saved ${{readableSnapshotTime(savedAt)}}`
+          : "Reconnecting — no saved incident data for this view";
+      }} else if (state === "unavailable") {{
+        connectionStatus.textContent = savedAt
+          ? `Crestmap unavailable — showing data saved ${{readableSnapshotTime(savedAt)}}`
+          : "Crestmap unavailable — no saved incident data for this view";
+        mapEl.classList.add("using-offline-basemap");
+      }} else {{
+        connectionStatus.textContent = savedAt
+          ? `Offline — showing data saved ${{readableSnapshotTime(savedAt)}}`
+          : "Offline — no saved incident data for this view";
+        mapEl.classList.add("using-offline-basemap");
+      }}
+    }}
+
+    function setupConnectivityStatus() {{
+      setConnectivityStatus(connectionStateFor({{ online: navigator.onLine }}).state);
+      window.addEventListener("offline", () => setConnectivityStatus("offline"));
+      window.addEventListener("online", () => {{
+        setConnectivityStatus(connectionStateFor({{ online: true, checking: true, hasSnapshot: Boolean(activeSnapshotSavedAt) }}).state);
+        fetchIncidentData({{ force: true, preserveViewport: true }}).catch(() => {{
+          setConnectivityStatus(connectionStateFor({{ online: navigator.onLine, requestFailed: true, hasSnapshot: Boolean(activeSnapshotSavedAt) }}).state);
+        }});
+      }});
+    }}
+
+    function renderOfflineBasemap() {{
+      L.polyline(offlineRegionOutline, {{
+        pane: "offlineBasemap",
+        interactive: false,
+        color: "#91a295",
+        weight: 1,
+        opacity: 0.72,
+        dashArray: "5 5"
+      }}).addTo(offlineBasemapLayer);
+      Object.entries(offlineRoads).forEach(([road, lines]) => {{
+        lines.forEach((points, lineIndex) => {{
+          const roadLine = L.polyline(points, {{
+            pane: "offlineBasemap",
+            interactive: false,
+            color: road === "Pacific Coast Highway" || road === "crest" ? "#61786a" : "#819087",
+            weight: road === "Pacific Coast Highway" || road === "crest" ? 3 : 2,
+            opacity: 0.9,
+            className: "offline-basemap-road"
+          }}).addTo(offlineBasemapLayer);
+          if (lineIndex === 0 && points.length > 2) {{
+            roadLine.bindTooltip(road.replaceAll("_", " "), {{
+              pane: "offlineBasemap",
+              permanent: true,
+              direction: "center",
+              className: "offline-basemap-label",
+              opacity: 0.92
+            }});
+          }}
+        }});
+      }});
+    }}
 
     function mileMarkerStep(zoom) {{
       if (zoom <= 11) return null;
@@ -3197,7 +3536,12 @@ def build_html(
       let resumeRefreshInFlight = false;
       let lastResumeRefreshAt = 0;
       autoRefreshToggle.checked = window.localStorage.getItem("chp-auto-refresh") === "enabled";
-      const refresh = () => fetchIncidentData({{ force: true, preserveViewport: true }});
+      const refresh = () => {{
+        setConnectivityStatus("reconnecting");
+        fetchIncidentData({{ force: true, preserveViewport: true }}).catch(() => {{
+          setConnectivityStatus(connectionStateFor({{ online: navigator.onLine, requestFailed: true, hasSnapshot: Boolean(activeSnapshotSavedAt) }}).state);
+        }});
+      }};
       refreshButton.addEventListener("click", refresh);
       autoRefreshToggle.addEventListener("change", () => {{
         window.localStorage.setItem("chp-auto-refresh", autoRefreshToggle.checked ? "enabled" : "disabled");
@@ -3235,7 +3579,8 @@ def build_html(
         resumeRefreshInFlight = true;
         lastResumeRefreshAt = now;
         try {{
-          await checkForUpdates({{ force: true, refreshData: true }});
+          const refreshed = await checkForUpdates({{ force: true, refreshData: true }});
+          if (refreshed === false) return;
           dismissed = false;
           lastHealthyCheckAt = Date.now();
           hideNotice();
@@ -3265,14 +3610,11 @@ def build_html(
             cache: "no-store",
             headers: {{ "Accept": "application/json" }}
           }});
-          if (!response.ok) {{
-            return;
-          }}
+          if (!response.ok) throw new Error(`status API returned ${{response.status}}`);
           const latest = await response.json();
+          setConnectivityStatus("online", latest.checked_at || activeSnapshotSavedAt);
           lastHealthyCheckAt = Date.now();
-          if (reloadForAppVersion(latest.app_version)) {{
-            return;
-          }}
+          if (reloadForAppVersion(latest.app_version)) return true;
           if (latest.checked_at) {{
             setCheckedAt(latest.checked_at);
           }}
@@ -3281,7 +3623,7 @@ def build_html(
           if (options.refreshData || (latest.version && latest.version !== currentDataStatus.version)) {{
             if (options.refreshData || autoRefreshToggle.checked) {{
               await fetchIncidentData({{ force: true, preserveViewport: true, status: latest }});
-              return;
+              return true;
             }}
             if (!dismissed) {{
               showNotice("New incident data is available.");
@@ -3289,8 +3631,10 @@ def build_html(
           }} else {{
             hideNotice();
           }}
+          return true;
         }} catch (_error) {{
-          // Keep the UI quiet on transient network failures.
+          setConnectivityStatus(connectionStateFor({{ online: navigator.onLine, requestFailed: true, hasSnapshot: Boolean(activeSnapshotSavedAt) }}).state);
+          return false;
         }} finally {{
           checkInFlight = false;
         }}
@@ -3302,7 +3646,9 @@ def build_html(
         if (pageAgeMs > 60000 && document.visibilityState === "visible") {{
           checkForUpdates();
         }}
-        if (!dismissed && healthAgeMs > 180000 && !notice.classList.contains("is-visible")) {{
+        if (!dismissed && healthAgeMs > 180000 &&
+            connectionStatus?.dataset.state === "online" &&
+            !notice.classList.contains("is-visible")) {{
           showNotice("Data may be stale. Background status checks are not confirming current data.");
         }}
       }};
@@ -4294,6 +4640,17 @@ def build_html(
       }});
     }}
 
+    function applyIncidentPayload(payload, options = {{}}) {{
+      incidents = payload.incidents || [];
+      updateSummary(payload.status || options.status || currentDataStatus, payload.region_statuses);
+      if (payload.checked_at) setCheckedAt(payload.checked_at);
+      setLastScrape(payload.last_scrape);
+      render({{
+        preserveViewport: Boolean(options.preserveViewport),
+        preserveFocusedComment: true
+      }});
+    }}
+
     async function fetchIncidentData(options = {{}}) {{
       const hours = new URLSearchParams(window.location.search).get("hours") || String(currentDataStatus.hours || 72);
       const url = new URL(incidentsEndpoint, window.location.origin);
@@ -4317,30 +4674,51 @@ def build_html(
         throw new Error(`incident API returned ${{response.status}}`);
       }}
       const payload = await response.json();
-      incidents = payload.incidents || [];
-      updateSummary(payload.status || options.status || currentDataStatus, payload.region_statuses);
-      if (payload.checked_at) {{
-        setCheckedAt(payload.checked_at);
+      if (!Array.isArray(payload.incidents) || !payload.status) {{
+        throw new Error("incident API returned an invalid snapshot");
       }}
-      setLastScrape(payload.last_scrape);
-      render({{
-        preserveViewport: Boolean(options.preserveViewport),
-        preserveFocusedComment: true
-      }});
+      const context = currentSnapshotContext();
+      const savedAt = payload.checked_at || new Date().toISOString();
+      applyIncidentPayload(payload, options);
+      activeSnapshotSavedAt = savedAt;
+      saveIncidentSnapshot(payload, {{ ...context, savedAt }}).catch(() => {{}});
+      setConnectivityStatus("online", savedAt);
       document.getElementById("stale-notice")?.classList.remove("is-visible");
       return payload;
     }}
 
-    fetchIncidentData().catch(() => {{
-      render();
-      const noticeText = document.getElementById("stale-notice-text");
-      const notice = document.getElementById("stale-notice");
-      if (noticeText && notice) {{
-        noticeText.textContent = "Incident data could not be loaded.";
-        notice.classList.add("is-visible");
+    async function initializeIncidentData() {{
+      const context = currentSnapshotContext();
+      let snapshot = null;
+      try {{
+        const candidate = await readIncidentSnapshot(context);
+        if (isUsableIncidentSnapshot(candidate, context)) snapshot = candidate;
+      }} catch (_error) {{
+        // Browsing remains available even when private storage is disabled.
       }}
-    }});
+      if (snapshot) {{
+        activeSnapshotSavedAt = snapshot.payload.checked_at || snapshot.saved_at;
+        applyIncidentPayload(snapshot.payload, {{ preserveViewport: true }});
+        setConnectivityStatus(navigator.onLine ? "reconnecting" : "offline", activeSnapshotSavedAt);
+      }}
+      try {{
+        await fetchIncidentData({{ preserveViewport: Boolean(snapshot) }});
+      }} catch (_error) {{
+        if (!snapshot) render();
+        setConnectivityStatus(connectionStateFor({{ online: navigator.onLine, requestFailed: true, hasSnapshot: Boolean(activeSnapshotSavedAt) }}).state, activeSnapshotSavedAt);
+        const noticeText = document.getElementById("stale-notice-text");
+        const notice = document.getElementById("stale-notice");
+        if (!snapshot && noticeText && notice) {{
+          noticeText.textContent = "Incident data could not be loaded and no saved snapshot is available for this view.";
+          notice.classList.add("is-visible");
+        }}
+      }}
+    }}
+
+    initializeIncidentData();
     formatGeneratedAt();
+    renderOfflineBasemap();
+    setupConnectivityStatus();
     setupStaleRefresh();
     setupDoubleTapZoom();
     setupDetailsCuePosition();

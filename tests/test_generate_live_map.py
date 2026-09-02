@@ -1,7 +1,13 @@
 import datetime as dt
 import json
+import re
+import shutil
+import subprocess
+
+import pytest
 
 from generate_live_map import (
+    MALIBU_OFFLINE_ROADS,
     build_about_html,
     build_history_html,
     build_html,
@@ -72,6 +78,23 @@ def test_mile_marker_snapshot_covers_crest_and_forest_corridors():
     assert len(mount_baldy_miles) == 54
     assert (mount_baldy_miles[0], mount_baldy_miles[-1]) == (0.42, 6.3)
     assert 5.18 not in mount_baldy_miles
+
+
+def test_offline_malibu_basemap_covers_principal_corridors_with_small_local_geometry():
+    assert set(MALIBU_OFFLINE_ROADS) == {
+        "Pacific Coast Highway",
+        "Topanga Canyon Boulevard",
+        "Malibu Canyon / Las Virgenes",
+        "Kanan Road",
+        "Decker Road",
+        "Encinal Canyon Road",
+        "Latigo Canyon Road",
+        "Tuna Canyon Road",
+    }
+    points = [point for lines in MALIBU_OFFLINE_ROADS.values() for line in lines for point in line]
+    assert 80 <= len(points) <= 160
+    assert all(33.98 <= latitude <= 34.35 for latitude, _ in points)
+    assert all(-119.10 <= longitude <= -118.44 for _, longitude in points)
 
 
 def test_load_incidents_returns_active_first_with_detail_entries(tmp_path):
@@ -387,6 +410,48 @@ def test_summary_uses_malibu_road_buckets_for_malibu_region():
     assert "Other forest roads" not in summary_html
 
 
+def test_offline_snapshot_helpers_cover_cache_validation_failure_and_recovery():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is required for client-side offline helper tests")
+    rendered = build_html([], "2026-09-01T12:00:00-07:00", 72)
+    match = re.search(
+        r"// OFFLINE_DATA_HELPERS_START(?P<script>.*?)// OFFLINE_DATA_HELPERS_END",
+        rendered,
+        re.DOTALL,
+    )
+    assert match
+    harness = match.group("script") + r"""
+const assert = require("node:assert/strict");
+const payload = { incidents: [{ event_key: "one" }], status: { hours: 72 } };
+const record = incidentSnapshotRecord(payload, {
+  region: "forest", hours: 72, savedAt: "2026-09-01T18:00:00Z"
+});
+assert.equal(record.key, "forest:72");
+assert.equal(record.saved_at, "2026-09-01T18:00:00Z");
+assert.equal(isUsableIncidentSnapshot(record, { region: "forest", hours: 72 }), true);
+assert.equal(isUsableIncidentSnapshot(record, { region: "malibu", hours: 72 }), false);
+assert.equal(incidentSnapshotRecord({ incidents: [] }, { region: "forest", hours: 72 }), null);
+assert.deepEqual(
+  connectionStateFor({ online: false, requestFailed: true, hasSnapshot: true }),
+  { state: "offline", hasSnapshot: true }
+);
+assert.deepEqual(
+  connectionStateFor({ online: true, checking: true, hasSnapshot: true }),
+  { state: "reconnecting", hasSnapshot: true }
+);
+assert.deepEqual(
+  connectionStateFor({ online: true, requestFailed: true, hasSnapshot: true }),
+  { state: "unavailable", hasSnapshot: true }
+);
+assert.deepEqual(
+  connectionStateFor({ online: true, requestFailed: false, hasSnapshot: true }),
+  { state: "online", hasSnapshot: true }
+);
+"""
+    subprocess.run([node, "-e", harness], check=True, capture_output=True, text=True)
+
+
 def test_build_html_embeds_counts_and_escaped_incident_data():
     incidents = [
         {
@@ -531,7 +596,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'const incidentsEndpoint = "/incidents.json"' in html
     assert 'const currentRegion = "forest"' in html
     assert "let incidents = []" in html
-    assert "fetchIncidentData()" in html
+    assert "initializeIncidentData()" in html
     assert 'url.searchParams.set("v", version)' in html
     assert "window.location.reload" not in html
     assert 'const appVersion = "test-1"' in html
@@ -600,6 +665,24 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'id="stale-notice"' in html
     assert 'id="stale-notice-text"' in html
     assert 'id="dismiss-stale-notice"' in html
+    assert 'id="connection-status" data-state="online"' in html
+    assert "Offline — showing data saved" in html
+    assert "Reconnecting — showing data saved" in html
+    assert "Crestmap unavailable — showing data saved" in html
+    assert "no saved incident data for this view" in html
+    assert 'window.addEventListener("offline"' in html
+    assert 'window.addEventListener("online"' in html
+    assert 'const INCIDENT_SNAPSHOT_DATABASE = "crestmap-offline-data"' in html
+    assert "openIncidentSnapshotDatabase" in html
+    assert "readIncidentSnapshot(context)" in html
+    assert "saveIncidentSnapshot(payload" in html
+    assert "initializeIncidentData();" in html
+    assert "incident API returned an invalid snapshot" in html
+    assert "renderOfflineBasemap();" in html
+    assert 'map.createPane("offlineBasemap")' in html
+    assert 'baseLayer.on("tileerror"' in html
+    assert 'className: "offline-basemap-road"' in html
+    assert 'const offlineRegionOutline = [[34.15,-118.36]' in html
     assert 'id="auto-refresh-enabled"' in html
     assert "Auto refresh" in html
     assert "refresh-options" not in html
@@ -626,6 +709,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "Crestmap Malibu Incidents" in malibu_html
     assert 'href="/summary?hours=72&amp;region=malibu"' in malibu_html
     assert 'const currentRegion = "malibu"' in malibu_html
+    assert '"Pacific Coast Highway"' in malibu_html
+    assert '"Malibu Canyon / Las Virgenes"' in malibu_html
+    assert 'const offlineRegionOutline = [[33.99,-119.1]' in malibu_html
     assert ".setView([34.09, -118.78], 10)" in malibu_html
     assert ".setView([34.32, -118.12], 10)" not in malibu_html
     assert "Automatically reload when new incident data is available" in html

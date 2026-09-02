@@ -11,6 +11,17 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.196 - 2026-09-01
+
+- Added durable last-known incident snapshots for each map region and history
+  window, with automatic refresh and recovery when connectivity returns.
+- Added explicit online, reconnecting, and offline status with the saved-data
+  timestamp instead of relying only on a generic stale-data warning.
+- Added a lightweight bundled road-and-boundary basemap for Forest and Malibu so
+  incidents, mile markers, and user location remain geographically useful when
+  OpenStreetMap raster tiles are unavailable.
+- Added offline snapshot, connection-state recovery, and bundled-basemap tests.
+
 ## 0.1.195 - 2026-08-31
 
 - Fixed navigation menus being clipped on iPhone; menus now stay within the

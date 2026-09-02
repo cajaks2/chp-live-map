@@ -11,6 +11,15 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.197 - 2026-09-01
+
+- Added versioned application-shell caching so the installed app can launch
+  after being force-closed while the device is offline.
+- Cached the existing pinned unpkg Leaflet JavaScript and CSS without moving
+  those files onto Crestmap hosting.
+- Registered offline support independently of push-notification availability
+  and added a simulated unreachable-origin cold-navigation test.
+
 ## 0.1.196 - 2026-09-01
 
 - Added durable last-known incident snapshots for each map region and history

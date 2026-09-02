@@ -666,11 +666,17 @@ def push_ui_script(base_path):
     const ua = navigator.userAgent;
     const iosDevice = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
     const safari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
-    const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    const serviceWorkerSupported = "serviceWorker" in navigator;
+    const supported = serviceWorkerSupported && "PushManager" in window && "Notification" in window;
     let pushConfig = null;
     let registration = null;
     let currentSubscription = null;
     let serverSubscribed = false;
+    const registrationPromise = serviceWorkerSupported
+      ? navigator.serviceWorker.register(serviceWorkerUrl, {{ scope: "/" }})
+          .then(() => navigator.serviceWorker.ready)
+          .catch(() => null)
+      : Promise.resolve(null);
 
     function setVisible(element, visible) {{
       element?.classList.toggle("is-visible", visible);
@@ -718,8 +724,8 @@ def push_ui_script(base_path):
       }} catch (_error) {{}}
     }}
     async function refreshState() {{
-      registration = await navigator.serviceWorker.register(serviceWorkerUrl, {{ scope: "/" }});
-      await navigator.serviceWorker.ready;
+      registration = registration || await registrationPromise;
+      if (!registration) throw new Error("Crestmap offline support is unavailable in this browser.");
       await clearNotificationBadge();
       currentSubscription = await registration.pushManager.getSubscription();
       let preferences = pushConfig.defaults;

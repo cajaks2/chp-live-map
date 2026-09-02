@@ -895,10 +895,76 @@ def pwa_manifest(settings):
 
 
 SERVICE_WORKER_JS = r"""const DEFAULT_URL = "/";
+const RELEASE_VERSION = "__CRESTMAP_RELEASE_VERSION__";
+const CACHE_PREFIX = "crestmap-app-shell-";
+const CACHE_NAME = `${CACHE_PREFIX}${RELEASE_VERSION}`;
+const SHELL_ASSETS = [
+  "/manifest.webmanifest",
+  "/apple-touch-icon-180x180.png",
+  "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css",
+  "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+];
+const SHELL_ASSET_URLS = new Set(SHELL_ASSETS.map((url) => new URL(url, self.location.origin).href));
 const BADGE_DATABASE = "crestmap-notification-state";
 const BADGE_STORE = "state";
 const BADGE_KEY = "unread-count";
 const MAX_BADGE_COUNT = 99;
+
+async function cacheApplicationShell() {
+  const cache = await caches.open(CACHE_NAME);
+  const shellUrl = `${DEFAULT_URL}?app-shell=${encodeURIComponent(RELEASE_VERSION)}`;
+  const shellResponse = await fetch(shellUrl, { cache: "reload", credentials: "omit" });
+  if (!shellResponse.ok) throw new Error(`Could not cache Crestmap shell (${shellResponse.status})`);
+  await cache.put(DEFAULT_URL, shellResponse);
+  await Promise.all(SHELL_ASSETS.map(async (url) => {
+    const response = await fetch(url, { cache: "reload", credentials: "omit" });
+    if (!response.ok && response.type !== "opaque") {
+      throw new Error(`Could not cache ${url} (${response.status})`);
+    }
+    await cache.put(url, response);
+  }));
+}
+
+async function handleNavigation(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await fetch(request);
+    const cacheControl = response.headers.get("Cache-Control") || "";
+    if (response.ok && !cacheControl.includes("no-store")) {
+      await cache.put(request, response.clone());
+    }
+    if (response.ok) return response;
+    return (await cache.match(request)) || (await cache.match(DEFAULT_URL)) || response;
+  } catch (_error) {
+    return (await cache.match(request)) || (await cache.match(DEFAULT_URL));
+  }
+}
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(cacheApplicationShell().then(() => self.skipWaiting()));
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil((async () => {
+    const names = await caches.keys();
+    await Promise.all(names
+      .filter((name) => name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME)
+      .map((name) => caches.delete(name)));
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener("fetch", (event) => {
+  if (event.request.method !== "GET") return;
+  if (event.request.mode === "navigate") {
+    event.respondWith(handleNavigation(event.request));
+    return;
+  }
+  if (SHELL_ASSET_URLS.has(event.request.url)) {
+    event.respondWith(caches.match(event.request, { ignoreVary: true })
+      .then((cached) => cached || fetch(event.request)));
+  }
+});
 
 function openBadgeDatabase() {
   return new Promise((resolve, reject) => {
@@ -981,6 +1047,13 @@ self.addEventListener("notificationclick", (event) => {
   })());
 });
 """
+
+
+def service_worker_js(settings):
+    return SERVICE_WORKER_JS.replace(
+        '"__CRESTMAP_RELEASE_VERSION__"',
+        json.dumps(settings.service_version),
+    )
 
 
 def handle_push_config_get(request, send_body=True):
@@ -1099,7 +1172,7 @@ def dispatch_request(request, send_body=True):
 
     if path in service_worker_paths:
         response = byte_response(
-            SERVICE_WORKER_JS.encode("utf-8"),
+            service_worker_js(settings).encode("utf-8"),
             "application/javascript; charset=utf-8",
             cache_control="no-cache",
             send_body=send_body,

@@ -1,6 +1,10 @@
 import json
 import base64
 import datetime as dt
+import shutil
+import subprocess
+
+import pytest
 
 from fastapi.testclient import TestClient
 
@@ -11,6 +15,7 @@ from app import (
     WebSettings,
     create_admin_session_token,
     create_app,
+    service_worker_js,
     valid_admin_session_token,
 )
 from aircraft_tracking import save_position
@@ -55,6 +60,77 @@ def make_client(database, **overrides):
 def basic_auth(username="admin", password="secret"):
     token = base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii")
     return {"Authorization": f"Basic {token}"}
+
+
+def test_service_worker_serves_cached_shell_when_origin_is_unreachable():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is required for the service-worker runtime test")
+
+    source = service_worker_js(type("Settings", (), {"service_version": "offline-test"})())
+    script = f"""
+const workerSource = {json.dumps(source)};
+const listeners = {{}};
+const stored = new Map();
+const deleted = [];
+const keyFor = (request) => new URL(typeof request === "string" ? request : request.url, self.location.origin).href;
+const cache = {{
+  async put(request, response) {{ stored.set(keyFor(request), response.clone()); }},
+  async match(request) {{ const response = stored.get(keyFor(request)); return response && response.clone(); }}
+}};
+globalThis.self = {{
+  location: {{ origin: "https://crestmap.us" }},
+  clients: {{ claim: async () => {{}} }},
+  skipWaiting: async () => {{}},
+  addEventListener: (name, callback) => {{ listeners[name] = callback; }}
+}};
+globalThis.caches = {{
+  open: async () => cache,
+  keys: async () => ["crestmap-app-shell-old", "crestmap-app-shell-offline-test"],
+  delete: async (name) => {{ deleted.push(name); return true; }},
+  match: async (request) => cache.match(request)
+}};
+let online = true;
+globalThis.fetch = async (request) => {{
+  const url = new URL(typeof request === "string" ? request : request.url, self.location.origin);
+  if (!online && url.origin === self.location.origin) throw new Error("origin unreachable");
+  return new Response(url.pathname === "/" ? "<html><title>Cached Crestmap</title></html>" : "asset", {{
+    status: 200,
+    headers: {{ "Cache-Control": "public, max-age=30" }}
+  }});
+}};
+eval(workerSource);
+async function lifecycle(name) {{
+  let pending;
+  listeners[name]({{ waitUntil: (promise) => {{ pending = promise; }} }});
+  await pending;
+}}
+(async () => {{
+  await lifecycle("install");
+  await lifecycle("activate");
+  online = false;
+  let navigation;
+  listeners.fetch({{
+    request: {{ method: "GET", mode: "navigate", url: "https://crestmap.us/?region=malibu" }},
+    respondWith: (promise) => {{ navigation = promise; }}
+  }});
+  const response = await navigation;
+  const body = await response.text();
+  if (!body.includes("Cached Crestmap")) throw new Error("cached shell was not returned");
+  if (stored.size !== 5) throw new Error(`expected 5 cached shell entries, got ${{stored.size}}`);
+  if (deleted.join(",") !== "crestmap-app-shell-old") throw new Error("old cache was not retired");
+  console.log("offline navigation passed");
+}})().catch((error) => {{ console.error(error); process.exit(1); }});
+"""
+    result = subprocess.run(
+        [node, "-e", script],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "offline navigation passed"
 
 
 def sample_event(event_key="LACC|2026-06-08|1234", region="forest"):
@@ -136,6 +212,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert 'Remind me in 7 days' in body
         assert 'if (iosDevice && !standalone)' in body
         assert 'setVisible(tutorial, true);' in body
+        assert 'const registrationPromise = serviceWorkerSupported' in body
+        assert 'navigator.serviceWorker.register(serviceWorkerUrl, { scope: "/" })' in body
         assert '<meta property="og:image" content="https://crestmap.us/og-image.png">' in body
         assert response.headers["Cache-Control"] == MAP_CACHE_CONTROL
         assert "s-maxage" not in response.headers["Cache-Control"]
@@ -293,6 +371,15 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert "navigator.setAppBadge(count)" in response.text
         assert "navigator.clearAppBadge()" in response.text
         assert 'event.data?.type === "CLEAR_BADGE"' in response.text
+        assert 'const CACHE_NAME = `${CACHE_PREFIX}${RELEASE_VERSION}`;' in response.text
+        assert '"https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"' in response.text
+        assert '"https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"' in response.text
+        assert 'self.addEventListener("install"' in response.text
+        assert 'self.addEventListener("activate"' in response.text
+        assert 'self.addEventListener("fetch"' in response.text
+        assert 'event.request.mode === "navigate"' in response.text
+        assert 'cache.match(DEFAULT_URL)' in response.text
+        assert 'const RELEASE_VERSION = "test-1";' in response.text
 
         response = client.get("/robots.txt")
         body = response.text

@@ -52,7 +52,7 @@ CONTENT_SECURITY_POLICY = (
     "style-src 'self' 'unsafe-inline' https://unpkg.com; "
     "img-src 'self' data: blob: https://unpkg.com https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://www.google-analytics.com https://*.r2.cloudflarestorage.com; "
     "media-src 'self' blob: https://*.r2.cloudflarestorage.com; "
-    "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.r2.cloudflarestorage.com; "
+    "connect-src 'self' https://unpkg.com https://www.google-analytics.com https://*.google-analytics.com https://*.r2.cloudflarestorage.com; "
     "font-src 'self' data:; "
     "frame-ancestors 'none'; "
     "base-uri 'self'; "

@@ -11,6 +11,13 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.198 - 2026-09-02
+
+- Fixed the service worker's Content Security Policy so it can cache the pinned
+  unpkg Leaflet assets and successfully activate for cold offline launches.
+- Clean up incomplete application-shell caches when installation fails and test
+  that the worker policy permits its required external downloads.
+
 ## 0.1.197 - 2026-09-01
 
 - Added versioned application-shell caching so the installed app can launch

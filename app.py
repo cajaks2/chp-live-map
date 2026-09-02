@@ -911,18 +911,21 @@ const BADGE_KEY = "unread-count";
 const MAX_BADGE_COUNT = 99;
 
 async function cacheApplicationShell() {
-  const cache = await caches.open(CACHE_NAME);
-  const shellUrl = `${DEFAULT_URL}?app-shell=${encodeURIComponent(RELEASE_VERSION)}`;
-  const shellResponse = await fetch(shellUrl, { cache: "reload", credentials: "omit" });
-  if (!shellResponse.ok) throw new Error(`Could not cache Crestmap shell (${shellResponse.status})`);
-  await cache.put(DEFAULT_URL, shellResponse);
-  await Promise.all(SHELL_ASSETS.map(async (url) => {
-    const response = await fetch(url, { cache: "reload", credentials: "omit" });
-    if (!response.ok && response.type !== "opaque") {
-      throw new Error(`Could not cache ${url} (${response.status})`);
-    }
-    await cache.put(url, response);
-  }));
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const shellUrl = `${DEFAULT_URL}?app-shell=${encodeURIComponent(RELEASE_VERSION)}`;
+    const shellResponse = await fetch(shellUrl, { cache: "reload", credentials: "omit" });
+    if (!shellResponse.ok) throw new Error(`Could not cache Crestmap shell (${shellResponse.status})`);
+    await cache.put(DEFAULT_URL, shellResponse);
+    await Promise.all(SHELL_ASSETS.map(async (url) => {
+      const response = await fetch(url, { cache: "reload", credentials: "omit", mode: "cors" });
+      if (!response.ok) throw new Error(`Could not cache ${url} (${response.status})`);
+      await cache.put(url, response);
+    }));
+  } catch (error) {
+    await caches.delete(CACHE_NAME);
+    throw error;
+  }
 }
 
 async function handleNavigation(request) {

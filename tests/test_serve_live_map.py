@@ -133,6 +133,16 @@ async function lifecycle(name) {{
     assert result.stdout.strip() == "offline navigation passed"
 
 
+def test_service_worker_csp_allows_pinned_leaflet_downloads():
+    connect_policy = next(
+        directive
+        for directive in CONTENT_SECURITY_POLICY.split("; ")
+        if directive.startswith("connect-src ")
+    )
+
+    assert "https://unpkg.com" in connect_policy.split()
+
+
 def sample_event(event_key="LACC|2026-06-08|1234", region="forest"):
     return {
         "event_key": event_key,

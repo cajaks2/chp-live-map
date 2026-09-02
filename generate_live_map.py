@@ -965,6 +965,8 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False, airc
         items.insert(4, ("aircraft", "Rescue helicopters", "Shown when airborne", None))
     if current == "map" and normalize_region(region) == "forest":
         items.insert(4, ("mile-markers", "Mile markers", "More detail as you zoom", None))
+    if current == "map":
+        items.insert(4, ("cameras", "ALERTCalifornia cameras", "Shown on map", None))
     rows = []
     for key, label, description, href in items:
         if key == "alerts":
@@ -979,6 +981,15 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False, airc
         if key == "aircraft":
             rows.append(
                 '<button type="button" class="view-menu-row is-active" data-aircraft-layer-toggle '
+                'aria-pressed="true"><span class="view-menu-label">{}</span>'
+                '<span class="view-menu-description">{}</span></button>'.format(
+                    html.escape(label), html.escape(description)
+                )
+            )
+            continue
+        if key == "cameras":
+            rows.append(
+                '<button type="button" class="view-menu-row is-active" data-camera-layer-toggle '
                 'aria-pressed="true"><span class="view-menu-label">{}</span>'
                 '<span class="view-menu-description">{}</span></button>'.format(
                     html.escape(label), html.escape(description)
@@ -1288,6 +1299,9 @@ def build_html(
         status_endpoint = f"{asset_base}/status.json"
         incidents_endpoint = f"{asset_base}/incidents.json"
         aircraft_endpoint = f"{asset_base}/api/v1/aircraft"
+    camera_metadata_endpoint = "https://cameras.alertcalifornia.org/public-camera-data/all_cameras-v3.json"
+    camera_data_base = "https://cameras.alertcalifornia.org/public-camera-data"
+    camera_viewer_base = "https://cameras.alertcalifornia.org/"
     admin_details_base = admin_details_base.rstrip("/")
     media_form_markup = """
                 <label class="comment-field media-picker">
@@ -2143,6 +2157,95 @@ def build_html(
       border-radius: 999px;
       pointer-events: none;
     }}
+    .camera-marker {{
+      background: transparent;
+      border: 0;
+    }}
+    .camera-marker-symbol {{
+      position: absolute;
+      inset: 0;
+      display: block;
+      filter: drop-shadow(0 1px 3px rgba(24, 32, 38, 0.42));
+      pointer-events: none;
+    }}
+    .camera-marker-symbol svg {{
+      display: block;
+      width: 30px;
+      height: 30px;
+      overflow: visible;
+    }}
+    .camera-marker-bearing {{
+      transform: rotate(var(--camera-bearing, 0deg));
+      transform-origin: 15px 15px;
+    }}
+    .camera-marker-arrow {{
+      fill: #2477a6;
+      stroke: #ffffff;
+      stroke-width: 1.8;
+      stroke-linejoin: round;
+    }}
+    .camera-marker-center {{
+      fill: #ffffff;
+      stroke: #185678;
+      stroke-width: 1.4;
+    }}
+    .camera-marker.is-offline .camera-marker-arrow {{
+      fill: #89928c;
+      stroke: #ffffff;
+    }}
+    .camera-marker.is-offline .camera-marker-center {{
+      stroke: #5f6862;
+    }}
+    .camera-marker.is-selected .camera-marker-symbol::before {{
+      content: "";
+      position: absolute;
+      inset: -6px;
+      border: 3px solid rgba(31, 104, 64, 0.78);
+      border-radius: 999px;
+      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.88), 0 2px 12px rgba(24, 32, 38, 0.3);
+    }}
+    .camera-image {{
+      display: block;
+      width: 100%;
+      height: auto;
+      margin-top: 12px;
+      border: 1px solid #d8ddd2;
+      border-radius: 8px;
+      background: #e8ece6;
+    }}
+    .camera-image.is-unavailable {{
+      min-height: 150px;
+      object-fit: contain;
+    }}
+    .camera-image-meta {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 6px;
+      color: #58645d;
+      font-size: 11px;
+      line-height: 1.35;
+    }}
+    .camera-credit {{
+      margin: 8px 0 0;
+      color: #46534b;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.35;
+    }}
+    .camera-direction {{
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }}
+    .camera-direction svg {{
+      width: 16px;
+      height: 16px;
+      fill: #2477a6;
+      transform: rotate(var(--camera-bearing, 0deg));
+      transform-origin: 50% 50%;
+    }}
     .incident-marker-core {{
       box-sizing: border-box;
       position: absolute;
@@ -2878,6 +2981,9 @@ def build_html(
     const incidentsEndpoint = "{html.escape(incidents_endpoint)}";
     const aircraftEndpoint = "{html.escape(aircraft_endpoint)}";
     const aircraftTrackingEnabled = {json.dumps(bool(aircraft_tracking_enabled))};
+    const cameraMetadataEndpoint = "{camera_metadata_endpoint}";
+    const cameraDataBase = "{camera_data_base}";
+    const cameraViewerBase = "{camera_viewer_base}";
     const commentsBaseEndpoint = "/api/v1/incidents";
     const mediaEnabled = {json.dumps(bool(media_enabled))};
     const mediaMaxVideoBytes = {int(media_max_video_bytes)};
@@ -2885,6 +2991,7 @@ def build_html(
     const adminMode = {json.dumps(bool(admin_mode))};
     const adminDetailsBase = "{html.escape(admin_details_base)}";
     const currentRegion = "{html.escape(region)}";
+    const currentRegionBounds = {json.dumps([lat_min, lat_max, lon_min, lon_max])};
     const roadwayMileMarkers = {json.dumps(roadway_mile_markers, separators=(",", ":"))};
     const offlineRoadData = {json.dumps(offline_road_data, separators=(",", ":"))};
     const offlineRoads = currentRegion === "forest"
@@ -3044,6 +3151,13 @@ def build_html(
     mileMarkerPane.style.zIndex = "425";
     mileMarkerPane.style.pointerEvents = "none";
     const mileMarkerLayer = L.layerGroup().addTo(map);
+    const cameraFovPane = map.createPane("cameraFov");
+    cameraFovPane.style.zIndex = "390";
+    cameraFovPane.style.pointerEvents = "none";
+    const cameraMarkerPane = map.createPane("cameraMarkers");
+    cameraMarkerPane.style.zIndex = "540";
+    const cameraLayer = L.layerGroup().addTo(map);
+    const cameraFovLayer = L.layerGroup().addTo(map);
     const userLocationPane = map.createPane("userLocation");
     userLocationPane.style.zIndex = "575";
     let mileMarkersVisible = currentRegion === "forest" &&
@@ -3057,17 +3171,25 @@ def build_html(
     let userLocationRequested = false;
 
     const markers = new Map();
+    const cameraMarkers = new Map();
     const aircraftMarkers = new Map();
     const aircraftTrails = new Map();
     let aircraftLayerVisible = window.localStorage.getItem("crestmap-aircraft-layer") !== "hidden";
+    let cameraLayerVisible = window.localStorage.getItem("crestmap-camera-layer") !== "hidden";
+    let cameraLayerLoadFailed = false;
+    let cameras = [];
+    let selectedCameraId = new URLSearchParams(window.location.search).get("camera");
+    let selectedCamera = null;
+    let cameraImageRefreshTimer = null;
     const listShell = document.getElementById("incident-list-shell");
     const list = document.getElementById("incident-list");
     const scrollIncidentsButton = document.getElementById("scroll-incidents");
     const detailsPanel = document.getElementById("details");
     const detailsCue = document.getElementById("details-cue");
+    const cameraLayerToggle = document.querySelector("[data-camera-layer-toggle]");
     const connectionStatus = document.getElementById("connection-status");
     let activeSnapshotSavedAt = null;
-    window.chpLiveMap = {{ map, markers, aircraftMarkers, aircraftTrails, mileMarkerLayer, offlineBasemapLayer, incidents, status: currentDataStatus }};
+    window.chpLiveMap = {{ map, markers, cameraMarkers, aircraftMarkers, aircraftTrails, cameraLayer, cameraFovLayer, mileMarkerLayer, offlineBasemapLayer, incidents, cameras, status: currentDataStatus }};
 
     function readableSnapshotTime(value) {{
       const date = new Date(value || "");
@@ -3790,6 +3912,7 @@ def build_html(
     function defaultViewUrl() {{
       const url = new URL(window.location.href);
       url.searchParams.delete("incident");
+      url.searchParams.delete("camera");
       ["nocache", "verify", "align", "details", "tapcheck", "markertouch", "statusapi"].forEach((key) => {{
         url.searchParams.delete(key);
       }});
@@ -3821,6 +3944,7 @@ def build_html(
       const url = new URL(window.location.href);
       url.searchParams.set("region", currentRegion);
       url.searchParams.set("incident", incident.event_key);
+      url.searchParams.delete("camera");
       ["nocache", "verify", "align", "details", "tapcheck", "markertouch", "statusapi"].forEach((key) => {{
         url.searchParams.delete(key);
       }});
@@ -4069,6 +4193,367 @@ def build_html(
         iconAnchor: [size / 2, size / 2],
         html: `<span class="incident-marker-dot" aria-hidden="true"${{visualAge ? ` style="--incident-age-saturation: ${{visualAge.saturation.toFixed(3)}}"` : ""}}><span class="incident-marker-core"></span></span>`
       }});
+    }}
+
+    function normalizedBearing(value) {{
+      const bearing = Number(value);
+      return Number.isFinite(bearing) ? ((bearing % 360) + 360) % 360 : 0;
+    }}
+
+    function cameraDirectionLabel(value) {{
+      const bearing = normalizedBearing(value);
+      const labels = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+      return `${{labels[Math.round(bearing / 45) % labels.length]}} · ${{Math.round(bearing)}}°`;
+    }}
+
+    function cameraIsOnline(camera) {{
+      const lastFrame = Number(camera.last_frame_ts || 0);
+      if (!lastFrame) return false;
+      return (Date.now() / 1000) - lastFrame < 15 * 60;
+    }}
+
+    function cameraIcon(camera, selected = false) {{
+      const size = 30;
+      const bearing = normalizedBearing(camera.az_current);
+      const displayOffsetX = Number(camera.display_offset_x || 0);
+      return L.divIcon({{
+        className: `camera-marker${{cameraIsOnline(camera) ? "" : " is-offline"}}${{selected ? " is-selected" : ""}}`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2 - displayOffsetX, size / 2],
+        html: `<span class="camera-marker-symbol" style="--camera-bearing: ${{bearing}}deg" aria-hidden="true">
+          <svg viewBox="0 0 30 30" focusable="false">
+            <g class="camera-marker-bearing"><path class="camera-marker-arrow" d="M15 1.5 24.5 25 15 20.7 5.5 25Z"></path></g>
+            <circle class="camera-marker-center" cx="15" cy="15" r="3.1"></circle>
+          </svg>
+        </span>`
+      }});
+    }}
+
+    function destinationPoint(latitude, longitude, bearing, distanceMeters) {{
+      const radius = 6371000;
+      const angularDistance = distanceMeters / radius;
+      const bearingRadians = normalizedBearing(bearing) * Math.PI / 180;
+      const latitudeRadians = latitude * Math.PI / 180;
+      const longitudeRadians = longitude * Math.PI / 180;
+      const destinationLatitude = Math.asin(
+        Math.sin(latitudeRadians) * Math.cos(angularDistance) +
+        Math.cos(latitudeRadians) * Math.sin(angularDistance) * Math.cos(bearingRadians)
+      );
+      const destinationLongitude = longitudeRadians + Math.atan2(
+        Math.sin(bearingRadians) * Math.sin(angularDistance) * Math.cos(latitudeRadians),
+        Math.cos(angularDistance) - Math.sin(latitudeRadians) * Math.sin(destinationLatitude)
+      );
+      return [destinationLatitude * 180 / Math.PI, destinationLongitude * 180 / Math.PI];
+    }}
+
+    function cameraFovRadius() {{
+      return Math.max(1200, 10000 / Math.pow(2, Math.max(0, map.getZoom() - 10)));
+    }}
+
+    function cameraDisplayLatLng(camera) {{
+      const point = map.project([camera.latitude, camera.longitude], map.getZoom());
+      point.x += Number(camera.display_offset_x || 0);
+      return map.unproject(point, map.getZoom());
+    }}
+
+    function cameraSectorLatLngs(camera) {{
+      const bearing = normalizedBearing(camera.az_current);
+      const fieldOfView = Math.min(100, Math.max(15, Number(camera.fov) || 62.8));
+      const start = bearing - fieldOfView / 2;
+      const displayPosition = cameraDisplayLatLng(camera);
+      const points = [[displayPosition.lat, displayPosition.lng]];
+      for (let step = 0; step <= 12; step += 1) {{
+        points.push(destinationPoint(
+          displayPosition.lat,
+          displayPosition.lng,
+          start + fieldOfView * step / 12,
+          cameraFovRadius()
+        ));
+      }}
+      points.push([displayPosition.lat, displayPosition.lng]);
+      return points;
+    }}
+
+    function renderSelectedCameraFov() {{
+      cameraFovLayer.clearLayers();
+      if (!cameraLayerVisible || !selectedCamera) return;
+      L.polygon(cameraSectorLatLngs(selectedCamera), {{
+        pane: "cameraFov",
+        color: "#2477a6",
+        weight: 2,
+        opacity: 0.78,
+        fillColor: "#49a0cc",
+        fillOpacity: 0.2,
+        interactive: false,
+        lineJoin: "round"
+      }}).addTo(cameraFovLayer);
+    }}
+
+    function cameraImageUrl(camera) {{
+      return `${{cameraDataBase}}/${{encodeURIComponent(camera.id)}}/latest-frame.jpg?rqts=${{Math.floor(Date.now() / 1000)}}`;
+    }}
+
+    function cameraViewerUrl(camera) {{
+      const url = new URL(cameraViewerBase);
+      url.searchParams.set("id", camera.id);
+      return url.toString();
+    }}
+
+    function formatCameraUpdatedAt(camera) {{
+      const date = new Date(Number(camera.last_frame_ts || 0) * 1000);
+      if (!Number(camera.last_frame_ts) || Number.isNaN(date.getTime())) return "No recent image";
+      return date.toLocaleString([], {{ month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" }});
+    }}
+
+    function cameraDetailHtml(camera) {{
+      const online = cameraIsOnline(camera);
+      const bearing = normalizedBearing(camera.az_current);
+      const fieldOfView = Number(camera.fov);
+      const elevation = Number(camera.elevation);
+      return `
+        <div class="detail-panel camera-detail-panel">
+          <div class="detail-header">
+            <div class="detail-title">
+              <div class="status-pill ${{online ? "status-reported" : "status-cleared"}}">${{online ? "Live camera" : "Camera offline"}}</div>
+              <div class="source-pill">ALERTCalifornia</div>
+              <h2>${{escapeHtml(camera.name || "Camera")}}</h2>
+              <div class="meta">${{escapeHtml(currentRegion === "malibu" ? "Malibu area" : "Forest area")}}</div>
+            </div>
+          </div>
+          ${{online ? `<img class="camera-image" data-camera-image src="${{escapeHtml(cameraImageUrl(camera))}}" alt="Current view from ${{escapeHtml(camera.name || "ALERTCalifornia camera")}}">` : ""}}
+          <div class="empty" data-camera-image-error${{online ? " hidden" : ""}}>Current camera image is unavailable.</div>
+          <div class="camera-image-meta"><span>Updated ${{escapeHtml(formatCameraUpdatedAt(camera))}}</span><span>${{online ? "Refreshes every 10s" : "Offline"}}</span></div>
+          <p class="camera-credit">ALERTCalifornia | UC San Diego</p>
+          <section class="detail-section">
+            <dl class="detail-grid">
+              <dt>Direction</dt><dd><span class="camera-direction"><svg viewBox="0 0 16 16" style="--camera-bearing: ${{bearing}}deg" aria-hidden="true"><path d="M8 1 13 14 8 11.5 3 14Z"></path></svg>${{escapeHtml(cameraDirectionLabel(bearing))}}</span></dd>
+              <dt>Field of view</dt><dd>${{Number.isFinite(fieldOfView) ? `${{fieldOfView.toFixed(1)}}°` : "Unknown"}}</dd>
+              <dt>Coordinates</dt><dd>${{camera.latitude.toFixed(5)}}, ${{camera.longitude.toFixed(5)}}</dd>
+              <dt>Elevation</dt><dd>${{Number.isFinite(elevation) ? `${{Math.round(elevation)}} m` : "Unknown"}}</dd>
+              <dt>Source</dt><dd><a href="${{escapeHtml(cameraViewerUrl(camera))}}" rel="noopener" target="_blank">ALERTCalifornia</a></dd>
+            </dl>
+          </section>
+          <p class="camera-credit">The blue map fan shows the camera’s current bearing and field of view. Imagery is displayed without cropping or alteration.</p>
+        </div>
+      `;
+    }}
+
+    function cameraUrl(camera) {{
+      const url = new URL(window.location.href);
+      url.searchParams.set("region", currentRegion);
+      url.searchParams.set("camera", camera.id);
+      url.searchParams.delete("incident");
+      ["nocache", "verify", "align", "details", "tapcheck", "markertouch", "statusapi"].forEach((key) => url.searchParams.delete(key));
+      return url;
+    }}
+
+    function refreshSelectedCameraImage() {{
+      if (!selectedCamera || !cameraIsOnline(selectedCamera)) return;
+      const image = detailsPanel.querySelector("[data-camera-image]");
+      const error = detailsPanel.querySelector("[data-camera-image-error]");
+      if (!image) return;
+      image.onerror = () => {{
+        image.hidden = true;
+        if (error) error.hidden = false;
+      }};
+      image.onload = () => {{
+        image.hidden = false;
+        if (error) error.hidden = true;
+      }};
+      image.src = cameraImageUrl(selectedCamera);
+    }}
+
+    function stopCameraImageRefresh() {{
+      if (cameraImageRefreshTimer) window.clearInterval(cameraImageRefreshTimer);
+      cameraImageRefreshTimer = null;
+    }}
+
+    function clearCameraSelection() {{
+      stopCameraImageRefresh();
+      selectedCamera = null;
+      selectedCameraId = null;
+      cameraFovLayer.clearLayers();
+      delete detailsPanel.dataset.selectedCameraId;
+      cameraMarkers.forEach((marker, cameraId) => {{
+        const camera = cameras.find((item) => item.id === cameraId);
+        if (camera) marker.setIcon(cameraIcon(camera, false));
+      }});
+    }}
+
+    function selectCamera(camera, options = {{}}) {{
+      if (!camera) return;
+      if (options.userInitiated) pauseUserLocationFollowing();
+      clearCameraSelection();
+      selectedCamera = camera;
+      selectedCameraId = camera.id;
+      selectedIncidentKey = null;
+      delete detailsPanel.dataset.selectedIncidentKey;
+      detailsPanel.dataset.selectedCameraId = camera.id;
+      detailsPanel.innerHTML = cameraDetailHtml(camera);
+      if (detailsCue) detailsCue.textContent = "Camera details below";
+      document.querySelectorAll(".incident").forEach((button) => button.setAttribute("aria-current", "false"));
+      markers.forEach((marker, eventKey) => {{
+        const incident = incidents.find((item) => item.event_key === eventKey);
+        if (incident) marker.setIcon(markerIcon(incident));
+      }});
+      cameraMarkers.forEach((marker, cameraId) => {{
+        const markerCamera = cameras.find((item) => item.id === cameraId);
+        if (markerCamera) marker.setIcon(cameraIcon(markerCamera, cameraId === camera.id));
+        marker.setZIndexOffset(cameraId === camera.id ? 1200 : 500);
+      }});
+      renderSelectedCameraFov();
+      refreshSelectedCameraImage();
+      if (cameraIsOnline(camera)) cameraImageRefreshTimer = window.setInterval(refreshSelectedCameraImage, 10000);
+      if (options.pan !== false) map.setView([camera.latitude, camera.longitude], Math.max(map.getZoom(), 12));
+      if (options.revealDetails && window.matchMedia("(max-width: 760px)").matches) {{
+        detailsPanel.scrollIntoView({{ behavior: "smooth", block: "start" }});
+      }}
+      if (options.updateUrl !== false && window.history?.replaceState) {{
+        window.history.replaceState({{ camera: camera.id }}, "", cameraUrl(camera));
+      }}
+    }}
+
+    function bindCameraMarkerInteraction(marker, camera) {{
+      const selectFromMarker = (event) => {{
+        if (event) L.DomEvent.stop(event);
+        selectCamera(camera, {{ pan: false, revealDetails: true, userInitiated: true }});
+      }};
+      marker.on("click", selectFromMarker);
+      marker.on("add", () => {{
+        const element = marker.getElement();
+        if (!element) return;
+        L.DomEvent.disableClickPropagation(element);
+      }});
+    }}
+
+    function cameraFromFeature(feature) {{
+      const coordinates = feature?.geometry?.coordinates;
+      const properties = feature?.properties || {{}};
+      const longitude = Number(coordinates?.[0]);
+      const latitude = Number(coordinates?.[1]);
+      if (!properties.id || !properties.name || !Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+      const [latMin, latMax, lonMin, lonMax] = currentRegionBounds;
+      if (latitude < latMin || latitude > latMax || longitude < lonMin || longitude > lonMax) return null;
+      return {{
+        id: String(properties.id),
+        name: String(properties.name),
+        latitude,
+        longitude,
+        elevation: Number(coordinates?.[2]),
+        last_frame_ts: Number(properties.last_frame_ts || 0),
+        az_current: normalizedBearing(properties.az_current),
+        tilt_current: Number(properties.tilt_current || 0),
+        fov: Number(properties.fov || 62.8)
+      }};
+    }}
+
+    function offsetCollocatedCameras(cameraList) {{
+      const groups = new Map();
+      cameraList.forEach((camera) => {{
+        const key = `${{camera.latitude.toFixed(5)}}:${{camera.longitude.toFixed(5)}}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(camera);
+      }});
+      groups.forEach((group) => {{
+        group.forEach((camera, index) => {{
+          camera.display_offset_x = (index - (group.length - 1) / 2) * 28;
+        }});
+      }});
+      return cameraList;
+    }}
+
+    function clearCameraMarkers() {{
+      cameraLayer.clearLayers();
+      cameraMarkers.clear();
+      cameraFovLayer.clearLayers();
+    }}
+
+    function renderCameras() {{
+      clearCameraMarkers();
+      if (!cameraLayerVisible) return;
+      cameras.forEach((camera) => {{
+        const marker = L.marker([camera.latitude, camera.longitude], {{
+          pane: "cameraMarkers",
+          icon: cameraIcon(camera, selectedCamera?.id === camera.id),
+          keyboard: false,
+          title: `${{camera.name}} · facing ${{cameraDirectionLabel(camera.az_current)}}`,
+          zIndexOffset: selectedCamera?.id === camera.id ? 1200 : 500
+        }}).addTo(cameraLayer);
+        bindCameraMarkerInteraction(marker, camera);
+        cameraMarkers.set(camera.id, marker);
+      }});
+      renderSelectedCameraFov();
+    }}
+
+    function updateCameraLayerButton() {{
+      if (!cameraLayerToggle) return;
+      cameraLayerToggle.classList.remove("is-loading");
+      cameraLayerToggle.classList.toggle("is-active", cameraLayerVisible);
+      cameraLayerToggle.setAttribute("aria-pressed", cameraLayerVisible ? "true" : "false");
+      const action = cameraLayerVisible ? "Hide" : "Show";
+      cameraLayerToggle.setAttribute("aria-label", `${{action}} ALERTCalifornia cameras`);
+      cameraLayerToggle.title = `${{action}} ALERTCalifornia cameras${{cameras.length ? ` (${{cameras.length}})` : ""}}`;
+      const description = cameraLayerToggle.querySelector(".view-menu-description");
+      if (description) {{
+        description.textContent = !cameraLayerVisible
+          ? "Hidden"
+          : cameraLayerLoadFailed
+            ? "Unavailable"
+            : cameras.length
+              ? `${{cameras.length}} in area`
+              : "Shown on map";
+      }}
+    }}
+
+    async function fetchCameraData() {{
+      if (!cameraLayerVisible) return;
+      cameraLayerToggle?.classList.add("is-loading");
+      cameraLayerLoadFailed = false;
+      try {{
+        const response = await fetch(cameraMetadataEndpoint, {{ headers: {{ "Accept": "application/json" }} }});
+        if (!response.ok) throw new Error(`camera API returned ${{response.status}}`);
+        const payload = await response.json();
+        cameras = offsetCollocatedCameras(
+          (payload.features || []).map(cameraFromFeature).filter(Boolean)
+            .sort((left, right) => left.name.localeCompare(right.name))
+        );
+        window.chpLiveMap.cameras = cameras;
+        renderCameras();
+        const linkedCameraId = new URLSearchParams(window.location.search).get("camera");
+        const linkedCamera = cameras.find((camera) => camera.id === linkedCameraId);
+        if (linkedCamera) selectCamera(linkedCamera, {{ updateUrl: false }});
+      }} catch (_error) {{
+        cameraLayerLoadFailed = true;
+        cameras = [];
+        window.chpLiveMap.cameras = cameras;
+        clearCameraMarkers();
+      }} finally {{
+        updateCameraLayerButton();
+      }}
+    }}
+
+    function setupCameraLayer() {{
+      if (!cameraLayerToggle) return;
+      L.DomEvent.disableClickPropagation(cameraLayerToggle);
+      updateCameraLayerButton();
+      map.on("zoomend", renderSelectedCameraFov);
+      cameraLayerToggle.addEventListener("click", () => {{
+        cameraLayerVisible = !cameraLayerVisible;
+        window.localStorage.setItem("crestmap-camera-layer", cameraLayerVisible ? "shown" : "hidden");
+        if (!cameraLayerVisible) {{
+          clearCameraSelection();
+          clearCameraMarkers();
+          const incident = incidents.find((item) => item.event_key === selectedIncidentKey) || incidents[0];
+          if (incident) selectIncident(incident, {{ pan: false }});
+          else showDefaultView();
+        }} else if (cameras.length) {{
+          renderCameras();
+        }} else {{
+          fetchCameraData();
+        }}
+        updateCameraLayerButton();
+      }});
+      if (cameraLayerVisible) fetchCameraData();
     }}
 
     function aircraftIcon(aircraft) {{
@@ -4387,6 +4872,8 @@ def build_html(
       if (!incident) {{
         return;
       }}
+      clearCameraSelection();
+      if (detailsCue) detailsCue.textContent = "Incident details below";
       if (options.userInitiated) pauseUserLocationFollowing();
       selectedIncidentKey = incident.event_key;
       const preserveFocusedComment = options.preserveFocusedComment === true
@@ -4634,6 +5121,14 @@ def build_html(
       setTimeout(() => map.invalidateSize(), 50);
       window.requestAnimationFrame(updateListScrollCue);
       const linkedIncident = incidentFromUrl();
+      const requestedCameraId = new URLSearchParams(window.location.search).get("camera");
+      const linkedCamera = cameraLayerVisible
+        ? cameras.find((camera) => camera.id === requestedCameraId)
+        : null;
+      if (linkedCamera) {{
+        selectCamera(linkedCamera, {{ updateUrl: false }});
+        return;
+      }}
       const preservedIncident = selectedIncidentKey
         ? incidents.find((incident) => incident.event_key === selectedIncidentKey)
         : null;
@@ -4642,7 +5137,7 @@ def build_html(
         pan: Boolean(linkedIncident) && !options.preserveViewport,
         revealList: Boolean(linkedIncident),
         preserveFocusedComment: Boolean(options.preserveFocusedComment),
-        updateUrl: options.updateUrl !== false
+        updateUrl: options.updateUrl !== false && !requestedCameraId
       }});
     }}
 
@@ -4730,6 +5225,7 @@ def build_html(
     setupDetailsCuePosition();
     setupMileMarkerLayer();
     setupUserLocation();
+    setupCameraLayer();
     setupAircraftLayer();
     list.addEventListener("scroll", updateListScrollCue, {{ passive: true }});
     scrollIncidentsButton?.addEventListener("click", scrollIncidentListDown);
@@ -5956,6 +6452,7 @@ def build_about_html(
         <h2>Project Links</h2>
         <div class="result"><strong>CHP CAD source</strong><span><a href="https://cad.chp.ca.gov/Traffic.aspx" rel="noopener">cad.chp.ca.gov/Traffic.aspx</a></span></div>
         <div class="result"><strong>WildWeb source</strong><span><a href="https://www.wildwebe.net/incidents?dc_Name=CAANCC" rel="noopener">wildwebe.net · CAANCC</a></span></div>
+        <div class="result"><strong>Camera source</strong><span><a href="https://cameras.alertcalifornia.org/" rel="noopener">ALERTCalifornia</a> | UC San Diego</span></div>
         <div class="result"><strong>Mile-marker sources</strong><span><a href="https://postmile.dot.ca.gov/" rel="noopener">Caltrans postmiles</a> and <a href="https://dpw.gis.lacounty.gov/dpw/rest/services/road/MapServer/0" rel="noopener">LA County Public Works surveyed markers</a>.</span></div>
         <div class="result"><strong>Project README</strong><span><a href="https://github.com/cajaks2/chp-live-map#readme" rel="noopener">github.com/cajaks2/chp-live-map</a></span></div>
       </section>

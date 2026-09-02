@@ -230,6 +230,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert response.headers["Vary"] == "Cookie, Authorization"
         assert response.headers["Content-Security-Policy"] == CONTENT_SECURITY_POLICY
         assert "form-action 'self'" in response.headers["Content-Security-Policy"]
+        assert "https://cameras.alertcalifornia.org" in response.headers["Content-Security-Policy"]
+        assert response.headers["Content-Security-Policy"].count("https://cameras.alertcalifornia.org") == 2
         assert response.headers["X-Content-Type-Options"] == "nosniff"
         assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
         assert response.headers["Permissions-Policy"] == "camera=(), geolocation=(), microphone=(), payment=(), usb=()"

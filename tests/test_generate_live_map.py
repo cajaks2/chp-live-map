@@ -306,6 +306,40 @@ def test_build_html_does_not_count_linked_incident_in_window_total():
     assert "Back to ${escapeHtml(formatRangeLabel(currentDataStatus.hours))}" in html
 
 
+def test_build_html_adds_directional_alertcalifornia_camera_layer():
+    html = build_html(
+        [],
+        "2026-09-02T10:00:00-07:00",
+        72,
+        region="malibu",
+    )
+
+    assert 'data-camera-layer-toggle' in html
+    assert 'ALERTCalifornia cameras' in html
+    assert 'document.querySelector("[data-camera-layer-toggle]")' in html
+    assert 'id="camera-layer-toggle"' not in html
+    assert "https://cameras.alertcalifornia.org/public-camera-data/all_cameras-v3.json" in html
+    assert "function cameraFromFeature(feature)" in html
+    assert "function offsetCollocatedCameras(cameraList)" in html
+    assert "camera.display_offset_x = (index - (group.length - 1) / 2) * 28" in html
+    assert "function cameraIcon(camera, selected = false)" in html
+    assert '<circle class="camera-marker-center" cx="15" cy="15"' in html
+    assert "transform: rotate(var(--camera-bearing, 0deg))" in html
+    assert "function cameraDisplayLatLng(camera)" in html
+    assert "const displayPosition = cameraDisplayLatLng(camera)" in html
+    assert "function cameraSectorLatLngs(camera)" in html
+    assert 'pane: "cameraFov"' in html
+    assert 'pane: "cameraMarkers"' in html
+    assert "function selectCamera(camera, options = {})" in html
+    assert "ALERTCalifornia | UC San Diego" in html
+    assert "Open source" not in html
+    assert "Imagery is displayed without cropping or alteration." in html
+    assert 'window.localStorage.setItem("crestmap-camera-layer"' in html
+    assert 'url.searchParams.set("camera", camera.id)' in html
+    assert 'url.searchParams.delete("camera")' in html
+    assert "setupCameraLayer();" in html
+
+
 def test_load_incidents_clears_out_of_bounds_coordinates(tmp_path):
     database = tmp_path / "chp.sqlite"
     conn = connect_database(database)
@@ -922,6 +956,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "What This Is" in about_html
     assert "Update Cadence" in about_html
     assert "CHP CAD source" in about_html
+    assert "Camera source" in about_html
+    assert '<a href="https://cameras.alertcalifornia.org/" rel="noopener">ALERTCalifornia</a> | UC San Diego' in about_html
     assert "Mile-marker sources" in about_html
     assert "https://postmile.dot.ca.gov/" in about_html
     assert "https://dpw.gis.lacounty.gov/dpw/rest/services/road/MapServer/0" in about_html

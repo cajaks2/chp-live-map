@@ -11,6 +11,16 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.199 - 2026-09-02
+
+- Added an optional ALERTCalifornia camera layer to the live map. Camera markers
+  show their current viewing direction, selection reveals a bounded field-of-view
+  fan, and the existing detail panel displays the uncropped current image with
+  source attribution and a link to the ALERTCalifornia viewer.
+- Added the camera layer toggle to the map menu, separated collocated cameras,
+  aligned field-of-view fans with their visible marker dots, and credited
+  ALERTCalifornia and UC San Diego on the About page.
+
 ## 0.1.198 - 2026-09-02
 
 - Fixed the service worker's Content Security Policy so it can cache the pinned

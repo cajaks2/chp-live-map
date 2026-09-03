@@ -2204,11 +2204,22 @@ def build_html(
       border-radius: 999px;
       box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.88), 0 2px 12px rgba(24, 32, 38, 0.3);
     }}
+    .camera-image-link {{
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      border-radius: 8px;
+      cursor: zoom-in;
+    }}
+    .camera-image-link:focus-visible {{
+      outline: 3px solid rgba(31, 104, 64, 0.42);
+      outline-offset: 3px;
+    }}
     .camera-image {{
       display: block;
       width: 100%;
       height: auto;
-      margin-top: 12px;
+      margin: 0;
       border: 1px solid #d8ddd2;
       border-radius: 8px;
       background: #e8ece6;
@@ -2216,6 +2227,98 @@ def build_html(
     .camera-image.is-unavailable {{
       min-height: 150px;
       object-fit: contain;
+    }}
+    .camera-lightbox[hidden] {{
+      display: none;
+    }}
+    .camera-lightbox {{
+      position: fixed;
+      inset: 0;
+      z-index: 2400;
+      display: grid;
+      place-items: center;
+      box-sizing: border-box;
+      padding: 24px;
+      background: rgba(10, 15, 12, 0.82);
+      backdrop-filter: blur(4px);
+    }}
+    .camera-lightbox-panel {{
+      display: flex;
+      flex-direction: column;
+      width: min(1180px, 100%);
+      max-height: calc(100dvh - 48px);
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 12px;
+      background: #0c110e;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.46);
+    }}
+    .camera-lightbox-header {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 14px;
+      color: #f4f7ee;
+      background: #18392b;
+    }}
+    .camera-lightbox-heading {{
+      min-width: 0;
+    }}
+    .camera-lightbox-heading strong,
+    .camera-lightbox-heading span {{
+      display: block;
+    }}
+    .camera-lightbox-heading strong {{
+      overflow: hidden;
+      font-size: 15px;
+      line-height: 1.25;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }}
+    .camera-lightbox-heading span {{
+      margin-top: 2px;
+      color: #cfe0d3;
+      font-size: 11px;
+    }}
+    .camera-lightbox-close {{
+      flex: 0 0 auto;
+      min-width: 44px;
+      min-height: 38px;
+      padding: 7px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.38);
+      border-radius: 7px;
+      color: #f4f7ee;
+      background: rgba(255, 255, 255, 0.1);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }}
+    .camera-lightbox-close:hover {{
+      background: rgba(255, 255, 255, 0.18);
+    }}
+    .camera-lightbox-stage {{
+      display: flex;
+      flex: 1 1 auto;
+      align-items: center;
+      justify-content: center;
+      min-height: 0;
+      overflow: auto;
+      background: #080b09;
+      overscroll-behavior: contain;
+    }}
+    .camera-lightbox-image {{
+      display: block;
+      width: auto;
+      max-width: 100%;
+      height: auto;
+      max-height: calc(100dvh - 112px);
+      object-fit: contain;
+      touch-action: pinch-zoom;
+    }}
+    body.camera-lightbox-open {{
+      overflow: hidden;
     }}
     .camera-image-meta {{
       display: flex;
@@ -2782,6 +2885,22 @@ def build_html(
       }}
     }}
     @media (max-width: 760px) {{
+      .camera-lightbox {{
+        padding: 0;
+      }}
+      .camera-lightbox-panel {{
+        width: 100%;
+        height: 100dvh;
+        max-height: none;
+        border: 0;
+        border-radius: 0;
+      }}
+      .camera-lightbox-header {{
+        padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left));
+      }}
+      .camera-lightbox-image {{
+        max-height: calc(100dvh - 70px - env(safe-area-inset-top));
+      }}
       #app {{
         display: block;
         height: auto;
@@ -2970,6 +3089,20 @@ def build_html(
       <button type="button" id="details-cue">Incident details below</button>
     </main>
     <aside id="details"></aside>
+  </div>
+  <div id="camera-lightbox" class="camera-lightbox" role="dialog" aria-modal="true" aria-labelledby="camera-lightbox-title" hidden>
+    <div class="camera-lightbox-panel">
+      <div class="camera-lightbox-header">
+        <div class="camera-lightbox-heading">
+          <strong id="camera-lightbox-title">Camera view</strong>
+          <span>ALERTCalifornia | UC San Diego</span>
+        </div>
+        <button type="button" class="camera-lightbox-close" data-camera-lightbox-close>Close</button>
+      </div>
+      <div class="camera-lightbox-stage">
+        <img class="camera-lightbox-image" data-camera-lightbox-image alt="">
+      </div>
+    </div>
   </div>
 {push_ui_html(base_path)}
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -3177,6 +3310,9 @@ def build_html(
     let aircraftLayerVisible = window.localStorage.getItem("crestmap-aircraft-layer") !== "hidden";
     let cameraLayerVisible = window.localStorage.getItem("crestmap-camera-layer") !== "hidden";
     let cameraLayerLoadFailed = false;
+    const cameraMetadataRefreshMs = 5 * 60 * 1000;
+    let cameraDataFetchedAt = 0;
+    let cameraDataFetchInFlight = false;
     let cameras = [];
     let selectedCameraId = new URLSearchParams(window.location.search).get("camera");
     let selectedCamera = null;
@@ -3186,7 +3322,12 @@ def build_html(
     const scrollIncidentsButton = document.getElementById("scroll-incidents");
     const detailsPanel = document.getElementById("details");
     const detailsCue = document.getElementById("details-cue");
+    const appShell = document.getElementById("app");
     const cameraLayerToggle = document.querySelector("[data-camera-layer-toggle]");
+    const cameraLightbox = document.getElementById("camera-lightbox");
+    const cameraLightboxImage = cameraLightbox?.querySelector("[data-camera-lightbox-image]");
+    const cameraLightboxTitle = document.getElementById("camera-lightbox-title");
+    const cameraLightboxClose = cameraLightbox?.querySelector("[data-camera-lightbox-close]");
     const connectionStatus = document.getElementById("connection-status");
     let activeSnapshotSavedAt = null;
     window.chpLiveMap = {{ map, markers, cameraMarkers, aircraftMarkers, aircraftTrails, cameraLayer, cameraFovLayer, mileMarkerLayer, offlineBasemapLayer, incidents, cameras, status: currentDataStatus }};
@@ -4305,6 +4446,38 @@ def build_html(
       return date.toLocaleString([], {{ month: "short", day: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" }});
     }}
 
+    function closeCameraLightbox() {{
+      if (!cameraLightbox || cameraLightbox.hidden) return;
+      cameraLightbox.hidden = true;
+      delete cameraLightbox.dataset.cameraId;
+      document.body.classList.remove("camera-lightbox-open");
+      if (appShell) appShell.inert = false;
+      const imageLink = detailsPanel.querySelector("[data-camera-image-link]");
+      if (imageLink) imageLink.focus({{ preventScroll: true }});
+    }}
+
+    function openCameraLightbox(camera, imageUrl) {{
+      if (!cameraLightbox || !cameraLightboxImage || !camera) return;
+      cameraLightbox.dataset.cameraId = camera.id;
+      cameraLightboxImage.src = imageUrl;
+      cameraLightboxImage.alt = `Full-size current view from ${{camera.name || "ALERTCalifornia camera"}}`;
+      if (cameraLightboxTitle) cameraLightboxTitle.textContent = camera.name || "Camera view";
+      cameraLightbox.hidden = false;
+      document.body.classList.add("camera-lightbox-open");
+      if (appShell) appShell.inert = true;
+      cameraLightboxClose?.focus({{ preventScroll: true }});
+    }}
+
+    function bindCameraImageLightbox(camera) {{
+      const imageLink = detailsPanel.querySelector("[data-camera-image-link]");
+      if (!imageLink) return;
+      imageLink.addEventListener("click", (event) => {{
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        openCameraLightbox(camera, imageLink.href);
+      }});
+    }}
+
     function cameraDetailHtml(camera) {{
       const online = cameraIsOnline(camera);
       const bearing = normalizedBearing(camera.az_current);
@@ -4320,7 +4493,7 @@ def build_html(
               <div class="meta">${{escapeHtml(currentRegion === "malibu" ? "Malibu area" : "Forest area")}}</div>
             </div>
           </div>
-          ${{online ? `<img class="camera-image" data-camera-image src="${{escapeHtml(cameraImageUrl(camera))}}" alt="Current view from ${{escapeHtml(camera.name || "ALERTCalifornia camera")}}">` : ""}}
+          ${{online ? `<a class="camera-image-link" data-camera-image-link href="${{escapeHtml(cameraImageUrl(camera))}}" rel="noopener" target="_blank" aria-label="Open full-size current view from ${{escapeHtml(camera.name || "ALERTCalifornia camera")}}" title="Open full-size image"><img class="camera-image" data-camera-image src="${{escapeHtml(cameraImageUrl(camera))}}" alt="Current view from ${{escapeHtml(camera.name || "ALERTCalifornia camera")}}"></a>` : ""}}
           <div class="empty" data-camera-image-error${{online ? " hidden" : ""}}>Current camera image is unavailable.</div>
           <div class="camera-image-meta"><span>Updated ${{escapeHtml(formatCameraUpdatedAt(camera))}}</span><span>${{online ? "Refreshes every 10s" : "Offline"}}</span></div>
           <p class="camera-credit">ALERTCalifornia | UC San Diego</p>
@@ -4350,6 +4523,7 @@ def build_html(
     function refreshSelectedCameraImage() {{
       if (!selectedCamera || !cameraIsOnline(selectedCamera)) return;
       const image = detailsPanel.querySelector("[data-camera-image]");
+      const imageLink = detailsPanel.querySelector("[data-camera-image-link]");
       const error = detailsPanel.querySelector("[data-camera-image-error]");
       if (!image) return;
       image.onerror = () => {{
@@ -4360,7 +4534,12 @@ def build_html(
         image.hidden = false;
         if (error) error.hidden = true;
       }};
-      image.src = cameraImageUrl(selectedCamera);
+      const refreshedImageUrl = cameraImageUrl(selectedCamera);
+      image.src = refreshedImageUrl;
+      if (imageLink) imageLink.href = refreshedImageUrl;
+      if (!cameraLightbox?.hidden && cameraLightbox.dataset.cameraId === selectedCamera.id && cameraLightboxImage) {{
+        cameraLightboxImage.src = refreshedImageUrl;
+      }}
     }}
 
     function stopCameraImageRefresh() {{
@@ -4390,6 +4569,7 @@ def build_html(
       delete detailsPanel.dataset.selectedIncidentKey;
       detailsPanel.dataset.selectedCameraId = camera.id;
       detailsPanel.innerHTML = cameraDetailHtml(camera);
+      bindCameraImageLightbox(camera);
       if (detailsCue) detailsCue.textContent = "Camera details below";
       document.querySelectorAll(".incident").forEach((button) => button.setAttribute("aria-current", "false"));
       markers.forEach((marker, eventKey) => {{
@@ -4505,35 +4685,60 @@ def build_html(
       }}
     }}
 
-    async function fetchCameraData() {{
-      if (!cameraLayerVisible) return;
+    async function fetchCameraData(options = {{}}) {{
+      if (!cameraLayerVisible || cameraDataFetchInFlight) return;
+      cameraDataFetchInFlight = true;
       cameraLayerToggle?.classList.add("is-loading");
       cameraLayerLoadFailed = false;
+      const cameraToRestoreId = selectedCamera?.id || selectedCameraId ||
+        new URLSearchParams(window.location.search).get("camera");
       try {{
-        const response = await fetch(cameraMetadataEndpoint, {{ headers: {{ "Accept": "application/json" }} }});
+        const response = await fetch(cameraMetadataEndpoint, {{
+          cache: "no-store",
+          headers: {{ "Accept": "application/json" }}
+        }});
         if (!response.ok) throw new Error(`camera API returned ${{response.status}}`);
         const payload = await response.json();
         cameras = offsetCollocatedCameras(
           (payload.features || []).map(cameraFromFeature).filter(Boolean)
             .sort((left, right) => left.name.localeCompare(right.name))
         );
+        cameraDataFetchedAt = Date.now();
         window.chpLiveMap.cameras = cameras;
         renderCameras();
-        const linkedCameraId = new URLSearchParams(window.location.search).get("camera");
-        const linkedCamera = cameras.find((camera) => camera.id === linkedCameraId);
-        if (linkedCamera) selectCamera(linkedCamera, {{ updateUrl: false }});
+        const cameraToRestore = cameras.find((camera) => camera.id === cameraToRestoreId);
+        if (cameraToRestore) {{
+          const selectionOptions = {{ updateUrl: false }};
+          if (options.preserveViewport) selectionOptions.pan = false;
+          selectCamera(cameraToRestore, selectionOptions);
+        }}
       }} catch (_error) {{
         cameraLayerLoadFailed = true;
-        cameras = [];
-        window.chpLiveMap.cameras = cameras;
-        clearCameraMarkers();
+        if (!cameras.length) clearCameraMarkers();
       }} finally {{
+        cameraDataFetchInFlight = false;
         updateCameraLayerButton();
+      }}
+    }}
+
+    function refreshCameraDataIfStale() {{
+      if (!cameraLayerVisible || document.visibilityState === "hidden") return;
+      if (!cameraDataFetchedAt || Date.now() - cameraDataFetchedAt >= cameraMetadataRefreshMs) {{
+        fetchCameraData({{ preserveViewport: true }});
       }}
     }}
 
     function setupCameraLayer() {{
       if (!cameraLayerToggle) return;
+      cameraLightboxClose?.addEventListener("click", closeCameraLightbox);
+      cameraLightbox?.addEventListener("click", (event) => {{
+        if (event.target === cameraLightbox || event.target.classList.contains("camera-lightbox-stage")) {{
+          closeCameraLightbox();
+        }}
+      }});
+      document.addEventListener("keydown", (event) => {{
+        if (event.key === "Escape" && !cameraLightbox?.hidden) closeCameraLightbox();
+      }});
       L.DomEvent.disableClickPropagation(cameraLayerToggle);
       updateCameraLayerButton();
       map.on("zoomend", renderSelectedCameraFov);
@@ -4548,11 +4753,17 @@ def build_html(
           else showDefaultView();
         }} else if (cameras.length) {{
           renderCameras();
+          refreshCameraDataIfStale();
         }} else {{
           fetchCameraData();
         }}
         updateCameraLayerButton();
       }});
+      window.setInterval(refreshCameraDataIfStale, cameraMetadataRefreshMs);
+      document.addEventListener("visibilitychange", () => {{
+        if (document.visibilityState === "visible") refreshCameraDataIfStale();
+      }});
+      window.addEventListener("focus", refreshCameraDataIfStale);
       if (cameraLayerVisible) fetchCameraData();
     }}
 

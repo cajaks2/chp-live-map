@@ -11,6 +11,15 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.200 - 2026-09-02
+
+- Refresh ALERTCalifornia camera metadata while the map is active and when a
+  backgrounded tab becomes visible again, preventing live cameras from being
+  marked stale based on an old page-load snapshot.
+- Open current camera images in a responsive in-app full-screen viewer that
+  stays synchronized with automatic image refreshes, with the direct image link
+  retained as a fallback.
+
 ## 0.1.199 - 2026-09-02
 
 - Added an optional ALERTCalifornia camera layer to the live map. Camera markers

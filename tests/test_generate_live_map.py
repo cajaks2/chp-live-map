@@ -333,8 +333,22 @@ def test_build_html_adds_directional_alertcalifornia_camera_layer():
     assert "function selectCamera(camera, options = {})" in html
     assert "ALERTCalifornia | UC San Diego" in html
     assert "Open source" not in html
+    assert 'class="camera-image-link" data-camera-image-link' in html
+    assert 'title="Open full-size image"' in html
+    assert "if (imageLink) imageLink.href = refreshedImageUrl" in html
+    assert 'id="camera-lightbox"' in html
+    assert "function openCameraLightbox(camera, imageUrl)" in html
+    assert "function closeCameraLightbox()" in html
+    assert "bindCameraImageLightbox(camera);" in html
+    assert 'event.key === "Escape"' in html
+    assert "appShell.inert = true" in html
     assert "Imagery is displayed without cropping or alteration." in html
     assert 'window.localStorage.setItem("crestmap-camera-layer"' in html
+    assert "const cameraMetadataRefreshMs = 5 * 60 * 1000" in html
+    assert 'cache: "no-store"' in html
+    assert "function refreshCameraDataIfStale()" in html
+    assert 'document.addEventListener("visibilitychange"' in html
+    assert 'window.addEventListener("focus", refreshCameraDataIfStale)' in html
     assert 'url.searchParams.set("camera", camera.id)' in html
     assert 'url.searchParams.delete("camera")' in html
     assert "setupCameraLayer();" in html

@@ -5733,6 +5733,7 @@ def report_shell(
     region_statuses=None,
     extra_params=None,
     admin_mode=False,
+    google_analytics_id=None,
 ):
     region = normalize_region(region)
     label = region_label(region)
@@ -5747,6 +5748,7 @@ def report_shell(
     return f"""<!doctype html>
 <html lang="en">
 <head>
+{analytics_script(google_analytics_id)}\
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{html.escape(title)} - Crestmap {html.escape(label)} Incidents</title>
@@ -6424,6 +6426,7 @@ def build_summary_html(
     region_statuses=None,
     filters=None,
     admin_mode=False,
+    google_analytics_id=None,
 ):
     region = normalize_region(region)
     label = region_label(region)
@@ -6518,6 +6521,7 @@ def build_summary_html(
         region_statuses=region_statuses,
         extra_params=active_filter_params,
         admin_mode=admin_mode,
+        google_analytics_id=google_analytics_id,
     )
 
 
@@ -6531,6 +6535,7 @@ def build_history_html(
     region="forest",
     region_statuses=None,
     admin_mode=False,
+    google_analytics_id=None,
 ):
     region = normalize_region(region)
     label = region_label(region)
@@ -6612,6 +6617,7 @@ def build_history_html(
         region=region,
         region_statuses=region_statuses,
         admin_mode=admin_mode,
+        google_analytics_id=google_analytics_id,
     )
 
 
@@ -6624,6 +6630,7 @@ def build_about_html(
     region="forest",
     region_statuses=None,
     admin_mode=False,
+    google_analytics_id=None,
 ):
     region = normalize_region(region)
     label = region_label(region)
@@ -6683,6 +6690,7 @@ def build_about_html(
         region=region,
         region_statuses=region_statuses,
         admin_mode=admin_mode,
+        google_analytics_id=google_analytics_id,
     )
 
 

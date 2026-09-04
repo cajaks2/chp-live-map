@@ -62,6 +62,26 @@ def basic_auth(username="admin", password="secret"):
     return {"Authorization": f"Basic {token}"}
 
 
+@pytest.mark.parametrize("analytics_id", [None, "G-TEST123"])
+def test_analytics_on_all_public_views(tmp_path, analytics_id):
+    database = tmp_path / "analytics.sqlite"
+    conn = connect_database(database)
+    conn.close()
+    with make_client(database, google_analytics_id=analytics_id) as client:
+        for path in ("/", "/summary", "/history", "/about"):
+            response = client.get(path)
+            assert response.status_code == 200
+            if analytics_id is None:
+                assert "googletagmanager.com/gtag/js" not in response.text
+            else:
+                head = response.text.split("</head>", 1)[0]
+                assert head.count(
+                    f'https://www.googletagmanager.com/gtag/js?id={analytics_id}'
+                ) == 1
+                assert response.text.count("gtag('config',") == 1
+                assert f'gtag(\'config\', "{analytics_id}");' in head
+
+
 def test_service_worker_serves_cached_shell_when_origin_is_unreachable():
     node = shutil.which("node")
     if not node:

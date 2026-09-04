@@ -11,6 +11,13 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.202 - 2026-09-04
+
+- Include the configured Google Analytics tag on Summary, History, and About
+  pages as well as the map, restoring consistent pageview coverage.
+- Use the Google-provided installation tag in production to restore loading
+  and route events to the connected Crestmap Analytics destination.
+
 ## 0.1.201 - 2026-09-03
 
 - Fix comment form fields overlapping or extending past the panel edge, and

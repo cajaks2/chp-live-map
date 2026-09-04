@@ -1255,6 +1255,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                     hours,
                     base_path=self.base_path,
                     public_url=self.public_url,
+                    google_analytics_id=self.google_analytics_id,
                     region=region,
                     region_statuses=region_statuses,
                 ).encode("utf-8")
@@ -1265,6 +1266,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                     hours,
                     base_path=self.base_path,
                     public_url=self.public_url,
+                    google_analytics_id=self.google_analytics_id,
                     filters=self.history_filters(),
                     region=region,
                     region_statuses=region_statuses,
@@ -1276,6 +1278,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                     hours,
                     base_path=self.base_path,
                     public_url=self.public_url,
+                    google_analytics_id=self.google_analytics_id,
                     region=region,
                     region_statuses=region_statuses,
                 ).encode("utf-8")

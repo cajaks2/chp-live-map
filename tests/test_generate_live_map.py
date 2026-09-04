@@ -837,7 +837,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'mapEl.addEventListener("wheel", pauseUserLocationFollowing' in html
     assert 'mapEl.addEventListener("touchmove", pauseUserLocationFollowing' in html
     assert "event.preventDefault();\n          pauseUserLocationFollowing();" in html
-    assert "if (options.userInitiated) pauseUserLocationFollowing()" in html
+    assert "if (options.userInitiated) {\n        pauseUserLocationFollowing();" in html
     assert "userLocationMarker.setLatLng(coordinates)" in html
     assert "userAccuracyCircle.setRadius(accuracy)" in html
     assert "map.panTo(coordinates" in html

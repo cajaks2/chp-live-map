@@ -269,7 +269,7 @@ The browser reads delayed positions from `/api/v1/aircraft`; OpenSky credentials
 
 Backups are written as compressed custom-format `pg_dump` files under `/opt/chp-live-map/backups/postgres` every six hours by default. Tune `BACKUP_INTERVAL_SECONDS` and `BACKUP_RETENTION_DAYS` in `.env`.
 
-Optional GA4 analytics can be enabled by setting `GOOGLE_ANALYTICS_ID` in `.env` to a Measurement ID such as `G-XXXXXXXXXX`. Leave it blank to omit the Google Analytics script entirely.
+Optional GA4 analytics can be enabled by setting `GOOGLE_ANALYTICS_ID` in `.env` to the installation tag ID supplied by Google, such as `G-XXXXXXXXXX`. Leave it blank to omit the Google Analytics script entirely. See [Analytics operations](docs/analytics.md) for interaction events, pageview settings, the reporting property, and internal/developer test modes.
 
 For Postgres-backed deployments, the web service uses a small connection pool. Tune `DATABASE_POOL_MIN` and `DATABASE_POOL_MAX` in `.env`; production defaults are `1` and `5`. `WEB_WORKERS` controls gunicorn worker count and defaults to `1` so process-local Prometheus counters and DB pool sizing remain predictable. If workers are raised later, total possible Postgres connections become `WEB_WORKERS * DATABASE_POOL_MAX`.
 

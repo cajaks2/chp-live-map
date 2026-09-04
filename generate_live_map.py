@@ -798,7 +798,9 @@ def push_ui_script(base_path):
             applicationServerKey: applicationServerKey(pushConfig.public_key)
           }});
         }}
+        const wasSubscribed = serverSubscribed;
         await postSubscription("subscribe", currentSubscription, {{ sources, regions, categories }});
+        if (!wasSubscribed) window.crestmapTrack?.("alert_subscribe");
         serverSubscribed = true;
         renderHeaderAlertState();
         status.textContent = "Alerts enabled. Your choices were saved.";
@@ -1123,18 +1125,93 @@ def incident_status(incidents, hours):
     }
 
 
-def analytics_script(google_analytics_id=None):
+def analytics_script(google_analytics_id=None, region="forest", page="map", admin_mode=False):
     if not google_analytics_id:
         return ""
     escaped_id = html.escape(google_analytics_id, quote=True)
     js_id = json.dumps(google_analytics_id)
+    analytics_region = json.dumps(normalize_region(region))
+    analytics_page = json.dumps(page if page in {"map", "summary", "history", "about"} else "map")
     return f"""  <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id={escaped_id}"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){{dataLayer.push(arguments);}}
     gtag('js', new Date());
-
+    // ANALYTICS_HELPERS_START
+    (() => {{
+      const region = {analytics_region};
+      const page = {analytics_page};
+      const url = new URL(window.location.href);
+      const modeKey = "crestmap-analytics-mode";
+      const requestedMode = url.searchParams.get("analytics_mode");
+      const validModes = ["internal", "developer", "visitor"];
+      let mode = validModes.includes(requestedMode) ? requestedMode : "visitor";
+      try {{
+        if (validModes.includes(requestedMode)) localStorage.setItem(modeKey, requestedMode);
+        else mode = localStorage.getItem(modeKey) || "visitor";
+      }} catch (_error) {{ /* Tracking still works when storage is unavailable. */ }}
+      if ({str(bool(admin_mode)).lower()}) mode = "internal";
+      if (url.searchParams.has("analytics_mode")) {{
+        url.searchParams.delete("analytics_mode");
+        window.history.replaceState(window.history.state, "", url.toString());
+      }}
+      // Keep incident IDs, searches, form values and test markers out of page URLs.
+      const cleanPageUrl = url.origin + url.pathname;
+      let referrer = "";
+      try {{
+        if (document.referrer) {{
+          const source = new URL(document.referrer);
+          referrer = source.origin + source.pathname;
+        }}
+      }} catch (_error) {{}}
+      const common = {{
+        page_location: cleanPageUrl,
+        page_referrer: referrer,
+        page_title: `Crestmap ${{region}} ${{page}}`,
+        map_region: region,
+        page_type: page
+      }};
+      // Preserve conventional campaign labels without forwarding arbitrary URLs.
+      for (const [query, field] of Object.entries({{
+        utm_source: "campaign_source", utm_medium: "campaign_medium",
+        utm_campaign: "campaign_name", utm_id: "campaign_id",
+        utm_term: "campaign_term", utm_content: "campaign_content"
+      }})) {{
+        const value = url.searchParams.get(query);
+        if (value && /^[a-z0-9_. ~-]{{1,100}}$/i.test(value)) common[field] = value;
+      }}
+      if (mode === "internal") common.traffic_type = "internal";
+      if (mode === "developer") common.debug_mode = true;
+      gtag('set', common);
+      const allowedEvents = new Set([
+        "incident_select", "camera_open", "camera_image_open", "region_change", "share", "alert_subscribe"
+      ]);
+      const allowedValues = {{
+        incident_source: ["chp", "wildweb"],
+        camera_status: ["online", "offline"],
+        target_region: ["forest", "malibu"],
+        method: ["copy_link"],
+        content_type: ["incident"]
+      }};
+      window.crestmapTrack = (name, parameters = {{}}) => {{
+        if (!allowedEvents.has(name)) return;
+        const safe = {{ ...common }};
+        for (const [key, values] of Object.entries(allowedValues)) {{
+          if (values.includes(parameters[key])) safe[key] = parameters[key];
+        }}
+        gtag('event', name, safe);
+      }};
+      document.addEventListener("click", (event) => {{
+        const link = event.target.closest?.("a.region-tab");
+        if (!link) return;
+        const target = new URL(link.href).searchParams.get("region");
+        if (target !== region && ["forest", "malibu"].includes(target)) {{
+          window.crestmapTrack("region_change", {{ target_region: target }});
+        }}
+      }});
+    }})();
+    // ANALYTICS_HELPERS_END
     gtag('config', {js_id});
   </script>
 """
@@ -1398,7 +1475,7 @@ def build_html(
   <meta name="twitter:description" content="{html.escape(description)}">
   <meta name="twitter:image" content="{html.escape(urls["og_image"])}">
   <script type="application/ld+json">{structured_data_json}</script>
-{analytics_script(google_analytics_id)}\
+{analytics_script(google_analytics_id, region, "map", admin_mode)}\
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIINfQ9um5Lj053hphD7uW9P4U5F9VAt5x0=" crossorigin="">
   <style>
@@ -4098,6 +4175,7 @@ def build_html(
       const link = incidentUrl(incident).toString();
       try {{
         await navigator.clipboard.writeText(link);
+        window.crestmapTrack?.("share", {{ method: "copy_link", content_type: "incident" }});
         button.textContent = "Copied";
         window.setTimeout(() => {{
           button.textContent = "Copy link";
@@ -4465,6 +4543,7 @@ def build_html(
       cameraLightboxImage.alt = `Full-size current view from ${{camera.name || "ALERTCalifornia camera"}}`;
       if (cameraLightboxTitle) cameraLightboxTitle.textContent = camera.name || "Camera view";
       cameraLightbox.hidden = false;
+      window.crestmapTrack?.("camera_image_open", {{ camera_status: cameraIsOnline(camera) ? "online" : "offline" }});
       document.body.classList.add("camera-lightbox-open");
       if (appShell) appShell.inert = true;
       cameraLightboxClose?.focus({{ preventScroll: true }});
@@ -4563,7 +4642,10 @@ def build_html(
 
     function selectCamera(camera, options = {{}}) {{
       if (!camera) return;
-      if (options.userInitiated) pauseUserLocationFollowing();
+      if (options.userInitiated) {{
+        pauseUserLocationFollowing();
+        window.crestmapTrack?.("camera_open", {{ camera_status: cameraIsOnline(camera) ? "online" : "offline" }});
+      }}
       clearCameraSelection();
       selectedCamera = camera;
       selectedCameraId = camera.id;
@@ -5087,7 +5169,10 @@ def build_html(
       }}
       clearCameraSelection();
       if (detailsCue) detailsCue.textContent = "Incident details below";
-      if (options.userInitiated) pauseUserLocationFollowing();
+      if (options.userInitiated) {{
+        pauseUserLocationFollowing();
+        window.crestmapTrack?.("incident_select", {{ incident_source: incident.source || "chp" }});
+      }}
       selectedIncidentKey = incident.event_key;
       const preserveFocusedComment = options.preserveFocusedComment === true
         && detailsPanel.dataset.selectedIncidentKey === incident.event_key
@@ -5748,8 +5833,8 @@ def report_shell(
     return f"""<!doctype html>
 <html lang="en">
 <head>
-{analytics_script(google_analytics_id)}\
   <meta charset="utf-8">
+{analytics_script(google_analytics_id, region, current, admin_mode)}\
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{html.escape(title)} - Crestmap {html.escape(label)} Incidents</title>
   <meta name="description" content="{html.escape(description)}">

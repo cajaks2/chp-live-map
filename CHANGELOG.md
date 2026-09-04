@@ -11,6 +11,18 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.203 - 2026-09-04
+
+- Measure deliberate incident/camera selections, region changes, copied links and
+  successful new alert subscriptions with restricted event parameters.
+- Stabilize Analytics page titles and omit query strings from reported page URLs;
+  disable history-based pageviews, automatic search and form measurement in both
+  production streams to keep interactions distinct from document loads.
+- Add persistent browser modes for internal/developer traffic and automatically
+  label admin views. Keep exclusion filters in Testing in both GA4 properties.
+- Label the two Analytics properties Primary and Secondary and register usage
+  dimensions in the primary property; document configuration and rollback.
+
 ## 0.1.202 - 2026-09-04
 
 - Include the configured Google Analytics tag on Summary, History, and About

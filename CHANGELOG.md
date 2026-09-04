@@ -11,6 +11,9 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+- Keep only the primary Analytics destination on the installed Google tag; move
+  the duplicate secondary property and empty Analytics account to Trash.
+
 ## 0.1.204 - 2026-09-04
 
 - Pass Analytics dimensions and internal/developer flags directly to the tag

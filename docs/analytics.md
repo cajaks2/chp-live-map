@@ -3,19 +3,22 @@
 ## Reporting property
 
 Use **Crestmap (Primary)**, property `539897947`, in account `396518325`
-for routine reporting. **Crestmap (Secondary)**, property `539916329`, in
-account `396538019`, is a separate property retained for continuity. Both
-properties were connected to the same Google tag on June 1, 2026. Their event
-counts must not be added together when reporting site totals.
+for routine reporting. The secondary property `539916329` and its empty account
+`396538019` were moved to Google Analytics Trash on September 4, 2026 at the
+owner's request. Google schedules final property deletion for October 9, 2026;
+no separate history export was retained.
 
 Use the installation ID from Google's **View tag instructions**, configured
 through production `GOOGLE_ANALYTICS_ID`. A destination Measurement ID is not
 necessarily an independently loadable installation tag. The working tag routes
-to both properties; neither property nor destination has been deleted.
+only to the primary property (`G-F4KY63E6S1`). To remove the obsolete
+`G-FC7Q9801WK` destination, Google required assigning it to an unused tag named
+**Crestmap retired secondary - unused**. That tag is not installed on the site.
+Previously cached Google scripts can continue using old routing until refreshed.
 
 ## Pageviews and events
 
-Keep Enhanced measurement enabled in both streams, with **Page changes based on
+Keep Enhanced measurement enabled in the primary stream, with **Page changes based on
 browser history events** disabled. The normal Google config call produces one
 pageview per document load. Changing the selected incident or camera changes the
 shareable URL but does not create another pageview. Automatic map refreshes do
@@ -58,7 +61,7 @@ still applies to that page load. Authenticated admin views are automatically
 marked internal, independent of the browser marker. Existing open tabs need a
 reload to adopt a newly selected mode.
 
-Both properties have **Internal Traffic** and **Developer Traffic** exclusion
+The primary property has **Internal Traffic** and **Developer Traffic** exclusion
 filters in **Testing** state. No events are discarded: matching visits are
 identified by **Test data filter name**. Validate matching events in reports
 before activating exclusion; activation permanently excludes matching incoming

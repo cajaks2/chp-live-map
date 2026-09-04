@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.201 - 2026-09-03
+
+- Fix comment form fields overlapping or extending past the panel edge, and
+  keep name and contact inputs aligned when their labels wrap.
+
 ## 0.1.200 - 2026-09-02
 
 - Refresh ALERTCalifornia camera metadata while the map is active and when a

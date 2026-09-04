@@ -2715,6 +2715,7 @@ def build_html(
     .comment-form-row {{
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      align-items: end;
       gap: 8px;
     }}
     .comment-field {{
@@ -2732,6 +2733,7 @@ def build_html(
     }}
     .comment-form input,
     .comment-form textarea {{
+      box-sizing: border-box;
       width: 100%;
       min-width: 0;
       padding: 8px 9px;

@@ -473,3 +473,25 @@ Prometheus metrics:
 - `incident_comments`: user-submitted incident comments. Public submissions start as `pending`; only `approved` rows are shown publicly. Contact and IP metadata are moderation-only.
 
 Generated files such as `*.sqlite` and `live_chp_map.html` are intentionally ignored by git.
+
+### Temperature map layer
+
+Forest and Malibu include an optional layer of subtle temperature labels in °F.
+Use **Air temperature** in the navigation menu to toggle the layer. It samples 41
+Forest locations and 31 Malibu locations, primarily along mapped roads, and reveals
+more labels as you zoom. These are Open-Meteo **modeled air temperatures**, not station observations or
+road-surface temperatures. Tap a label for terrain elevation, model valid time,
+and attribution. Each small dot marks the sampled coordinate; its label is offset
+beside it to distinguish air temperature from road-surface conditions. Labels yield space to incidents and the preference persists
+across regions. Missing or over-one-hour-old estimates are hidden.
+
+The web server batches fixed sample coordinates per region and caches results
+for 15 minutes, with a one-minute retry backoff on upstream failures. Open-Meteo's
+terrain elevation/downscaling is enabled; no constant lapse-rate correction or
+interpolation between labels is applied. This does not establish a guaranteed
+mountain-temperature accuracy; local station validation remains future work.
+
+Local evaluation uses the keyless public API. Open-Meteo requires a paid plan for
+commercial API use. Set `OPEN_METEO_API_KEY` in the web service environment to use
+the customer endpoint; the key stays server-side. See
+[Open-Meteo terms and pricing](https://open-meteo.com/en/pricing).

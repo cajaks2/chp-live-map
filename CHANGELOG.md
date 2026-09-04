@@ -11,6 +11,17 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.205 - 2026-09-04
+
+- Add optional, subtle elevation-adjusted temperature estimates to Forest and
+  Malibu maps, with model timestamps, source attribution, and incident-first label
+  placement. Offset labels beside location dots, identify the layer as Air
+  temperature, and show details in opaque popups. Cache Open-Meteo requests
+  server-side; support an optional paid API key in DigitalOcean web configuration.
+  No database migration is required.
+- Exclude local environment files, virtual environments, and workstation
+  instructions from Docker build contexts.
+
 - Keep only the primary Analytics destination on the installed Google tag; move
   the duplicate secondary property and empty Analytics account to Trash.
 

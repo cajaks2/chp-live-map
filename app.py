@@ -22,6 +22,7 @@ from admin_sessions import (
     revoke_sessions,
     valid_admin_session_token,
 )
+from temperature import TemperatureUnavailable, load_temperatures
 from aircraft_tracking import load_tracker_status, load_visible_aircraft
 from comments import (
     CommentValidationError,
@@ -1271,6 +1272,13 @@ def dispatch_request(request, send_body=True):
         )
 
     region = requested_region(request)
+
+    if path in {"/api/v1/temperature", f"{asset_base}/api/v1/temperature"}:
+        try:
+            payload = load_temperatures(region)
+        except TemperatureUnavailable:
+            return api_error("temperature estimates are unavailable", "temperature_unavailable", 503, send_body)
+        return json_response(payload, cache_control="public, max-age=60", send_body=send_body)
 
     if path in status_paths:
         try:

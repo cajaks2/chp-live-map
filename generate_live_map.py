@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, urlencode
 
 from ecs_logging import log_event, run_main
+from temperature_ui import TEMPERATURE_CSS, temperature_script
 from geo_bounds import REGION_BOUNDS, clear_coordinates_outside_region_bounds
 from mile_markers import MILE_MARKERS
 
@@ -969,6 +970,7 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False, airc
         items.insert(4, ("mile-markers", "Mile markers", "More detail as you zoom", None))
     if current == "map":
         items.insert(4, ("cameras", "ALERTCalifornia cameras", "Shown on map", None))
+        items.insert(5, ("temperature", "Air temperature", "Estimated °F · more detail as you zoom", None))
     rows = []
     for key, label, description, href in items:
         if key == "alerts":
@@ -983,6 +985,15 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False, airc
         if key == "aircraft":
             rows.append(
                 '<button type="button" class="view-menu-row is-active" data-aircraft-layer-toggle '
+                'aria-pressed="true"><span class="view-menu-label">{}</span>'
+                '<span class="view-menu-description">{}</span></button>'.format(
+                    html.escape(label), html.escape(description)
+                )
+            )
+            continue
+        if key == "temperature":
+            rows.append(
+                '<button type="button" class="view-menu-row is-active" data-temperature-layer-toggle '
                 'aria-pressed="true"><span class="view-menu-label">{}</span>'
                 '<span class="view-menu-description">{}</span></button>'.format(
                     html.escape(label), html.escape(description)
@@ -1479,6 +1490,7 @@ def build_html(
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     integrity="sha256-p4NxAoJBhIINfQ9um5Lj053hphD7uW9P4U5F9VAt5x0=" crossorigin="">
   <style>
+{TEMPERATURE_CSS}
     .leaflet-container {{
       overflow: hidden;
       touch-action: none;
@@ -5525,6 +5537,7 @@ def build_html(
     setupUserLocation();
     setupCameraLayer();
     setupAircraftLayer();
+    {temperature_script(app_path(base_path, "/api/v1/temperature"))}
     list.addEventListener("scroll", updateListScrollCue, {{ passive: true }});
     scrollIncidentsButton?.addEventListener("click", scrollIncidentListDown);
     window.addEventListener("resize", updateListScrollCue);

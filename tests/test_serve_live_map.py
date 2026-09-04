@@ -79,7 +79,7 @@ def test_analytics_on_all_public_views(tmp_path, analytics_id):
                     f'https://www.googletagmanager.com/gtag/js?id={analytics_id}'
                 ) == 1
                 assert response.text.count("gtag('config',") == 1
-                assert f'gtag(\'config\', "{analytics_id}");' in head
+                assert f'gtag(\'config\', "{analytics_id}", common);' in head
 
 
 def test_service_worker_serves_cached_shell_when_origin_is_unreachable():

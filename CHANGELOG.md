@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.204 - 2026-09-04
+
+- Pass Analytics dimensions and internal/developer flags directly to the tag
+  configuration so initial pageviews receive the same context as interactions.
+
 ## 0.1.203 - 2026-09-04
 
 - Measure deliberate incident/camera selections, region changes, copied links and

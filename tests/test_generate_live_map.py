@@ -746,7 +746,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     )
     assert "Google tag (gtag.js)" in analytics_html
     assert "https://www.googletagmanager.com/gtag/js?id=G-TEST123" in analytics_html
-    assert 'gtag(\'config\', "G-TEST123");' in analytics_html
+    assert 'gtag(\'config\', "G-TEST123", common);' in analytics_html
 
     malibu_html = build_html(
         incidents,

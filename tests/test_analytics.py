@@ -42,6 +42,7 @@ function load(script, {query = "", savedMode = null, storageFails = false} = {})
 const visit = load(script, {query: "&utm_source=newsletter&utm_campaign=forest-update&utm_content=private%40example.test"});
 assert.equal(visit.calls.filter(c => c[0] === "config").length, 1);
 const common = visit.calls.find(c => c[0] === "set")[1];
+assert.equal(visit.calls.find(c => c[0] === "config")[2], common);
 assert.equal(common.page_location, "https://crestmap.us/");
 assert.equal(common.page_referrer, "https://example.test/path");
 assert.equal(common.campaign_source, "newsletter");

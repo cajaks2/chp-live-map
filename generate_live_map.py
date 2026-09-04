@@ -1210,9 +1210,9 @@ def analytics_script(google_analytics_id=None, region="forest", page="map", admi
           window.crestmapTrack("region_change", {{ target_region: target }});
         }}
       }});
+      gtag('config', {js_id}, common);
     }})();
     // ANALYTICS_HELPERS_END
-    gtag('config', {js_id});
   </script>
 """
 

@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.215 - 2026-09-04
+
+- Add San Bernardino CHP dispatch coverage and recognize the mountain segment of
+  Route 2, including `SR2` and Big Pines Highway incident labels.
+
 ## 0.1.214 - 2026-09-04
 
 - Make measured weather-station temperatures easier to distinguish with compact,

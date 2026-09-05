@@ -30,10 +30,16 @@ CHP_MEDIA_XML_URL = "https://media.chp.ca.gov/sa_xml/sa.xml"
 CHP_ROBOTS_URL = "https://cad.chp.ca.gov/robots.txt"
 DEFAULT_USER_AGENT = "chp-live-map/0.1 (+https://crestmap.us/)"
 PACIFIC_TZ = ZoneInfo("America/Los_Angeles")
-DEFAULT_CENTERS = ["LACC", "VTCC"]
+DEFAULT_CENTERS = ["LACC", "VTCC", "SACC"]
 FOREST_ROAD_KEYWORDS = [
     "angeles crest",
     "angeles forest",
+    "big pines hwy",
+    "big pines highway",
+    "sr2",
+    "sr 2",
+    "ca-2",
+    "ca 2",
     "upper big tujunga",
     "big tujunga canyon",
     "mt wilson",
@@ -95,7 +101,12 @@ ROUTE_ALIAS_PATTERNS = {
     "ca 39": re.compile(r"\bca[-\s]*39\b"),
     "sr39": re.compile(r"\bsr\s*39\b"),
     "sr 39": re.compile(r"\bsr\s*39\b"),
+    "sr2": re.compile(r"\bsr\s*2\b"),
+    "sr 2": re.compile(r"\bsr\s*2\b"),
+    "ca-2": re.compile(r"\bca[-\s]*2\b"),
+    "ca 2": re.compile(r"\bca[-\s]*2\b"),
 }
+ROUTE_2_ALIASES = {"sr2", "sr 2", "ca-2", "ca 2"}
 HIGHWAY_14_PRIMARY_PATTERN = re.compile(
     r"^(?:la0*14\d*\s+)?(?:(?:sr|ca|hwy|highway)\s*-?\s*0*14\b|antelope valley (?:fwy|freeway)\b)",
     re.IGNORECASE,
@@ -1126,6 +1137,9 @@ def matching_keywords(incident, keywords):
         ]
     ).casefold()
     matches = [keyword for keyword in keywords if keyword_matches(keyword, haystack)]
+    route_2_matches = [match for match in matches if match in ROUTE_2_ALIASES]
+    if route_2_matches and not is_forest_route_2_match(incident):
+        matches = [match for match in matches if match not in ROUTE_2_ALIASES]
     if "tuna canyon" in matches and is_la_tuna_canyon_match(incident):
         matches = [match for match in matches if match != "tuna canyon"]
     has_highway_39 = any(keyword_matches(alias, haystack) for alias in HIGHWAY_39_ALIASES)
@@ -1133,6 +1147,21 @@ def matching_keywords(incident, keywords):
     if has_highway_39 and has_highway_39_context:
         matches.append("highway 39")
     return matches
+
+
+def is_forest_route_2_match(incident):
+    """Keep bare Route 2 matches scoped to the mountain segment."""
+    if str(incident.get("center") or "").upper() == "SACC":
+        return True
+    latitude = incident.get("latitude")
+    longitude = incident.get("longitude")
+    if latitude is not None and longitude is not None:
+        return coordinates_in_region_bounds(latitude, longitude, "forest")
+    haystack = incident_match_text(incident)
+    return any(
+        context in haystack
+        for context in ("angeles crest", "big pines", "wrightwood", "county line")
+    )
 
 
 def keyword_matches(keyword, haystack):

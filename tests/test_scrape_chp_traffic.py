@@ -690,6 +690,35 @@ def test_default_keywords_do_not_match_bare_sr2_connector():
     assert matching_keywords(incident, DEFAULT_ROAD_KEYWORDS) == []
 
 
+def test_default_keywords_match_san_bernardino_sr2_incident():
+    incident = {
+        "center": "SACC",
+        "type": "Trfc Collision-1141 Enrt",
+        "location": "25642-26099 Sr2",
+        "location_desc": "LAT/LONG -34.371/117.6679",
+        "area": "",
+        "latitude": 34.371050,
+        "longitude": -117.668381,
+    }
+
+    assert "sr2" in matching_keywords(incident, DEFAULT_ROAD_KEYWORDS)
+    assert matching_regions(incident)["forest"]
+
+
+def test_default_keywords_keep_urban_lacc_sr2_outside_forest():
+    incident = {
+        "center": "LACC",
+        "type": "Traffic Hazard",
+        "location": "Sr2 N / Sr2 N Sr134 E Con",
+        "location_desc": "NB 2 TRANS TO EB 134",
+        "area": "Altadena",
+        "latitude": 34.145,
+        "longitude": -118.225,
+    }
+
+    assert matching_keywords(incident, DEFAULT_ROAD_KEYWORDS) == []
+
+
 def test_default_keywords_match_highway_39_variants():
     incidents = [
         {"type": "Traffic Hazard", "location": "Highway 39 / East Fork Rd", "location_desc": "", "area": ""},

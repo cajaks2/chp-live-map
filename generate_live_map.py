@@ -6771,7 +6771,7 @@ def build_about_html(
         <div class="result"><strong>CHP CAD source</strong><span><a href="https://cad.chp.ca.gov/Traffic.aspx" rel="noopener">cad.chp.ca.gov/Traffic.aspx</a></span></div>
         <div class="result"><strong>WildWeb source</strong><span><a href="https://www.wildwebe.net/incidents?dc_Name=CAANCC" rel="noopener">wildwebe.net · CAANCC</a></span></div>
         <div class="result"><strong>Camera source</strong><span><a href="https://cameras.alertcalifornia.org/" rel="noopener">ALERTCalifornia</a> | UC San Diego</span></div>
-        <div class="result"><strong>Air-temperature source</strong><span><a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> elevation-adjusted model estimates.</span></div>
+        <div class="result"><strong>Air-temperature sources</strong><span><a href="https://api.weather.gov/" rel="noopener">National Weather Service</a> station observations and <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> elevation-adjusted model estimates.</span></div>
         <div class="result"><strong>Mile-marker sources</strong><span><a href="https://postmile.dot.ca.gov/" rel="noopener">Caltrans postmiles</a> and <a href="https://dpw.gis.lacounty.gov/dpw/rest/services/road/MapServer/0" rel="noopener">LA County Public Works surveyed markers</a>.</span></div>
         <div class="result"><strong>Project README</strong><span><a href="https://github.com/cajaks2/chp-live-map#readme" rel="noopener">github.com/cajaks2/chp-live-map</a></span></div>
       </section>

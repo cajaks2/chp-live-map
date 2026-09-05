@@ -11,6 +11,13 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.213 - 2026-09-04
+
+- Augment modeled air temperatures with fresh, quality-controlled NWS/MADIS
+  observations from three Forest and three Malibu stations. Distinguish measured
+  readings in map labels and details, and omit missing observations or station
+  reports older than 90 minutes.
+
 ## 0.1.212 - 2026-09-04
 
 - Keep road-temperature labels visible near incident clusters by using tighter

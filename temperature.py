@@ -1,5 +1,6 @@
-"""Bounded, cached elevation-adjusted air temperature estimates from Open-Meteo."""
+"""Cached modeled and measured air temperatures for Crestmap regions."""
 
+from concurrent.futures import ThreadPoolExecutor
 import datetime as dt
 import json
 import math
@@ -11,6 +12,21 @@ from urllib.request import Request, urlopen
 
 from geo_bounds import REGION_BOUNDS, coordinates_in_region_bounds
 from mile_markers import MILE_MARKERS
+
+OBSERVATION_STATIONS = {
+    "forest": (
+        ("CHOC1", "Chilao RAWS", 34.33167, -118.03028, 1661.16),
+        ("BPNC1", "Big Pines RAWS", 34.37915, -117.68771, 2122.6272),
+        ("VLYC1", "Valyermo", 34.44556, -117.85111, 1152.144),
+    ),
+    "malibu": (
+        ("LCBC1", "Leo Carrillo", 34.04511, -118.93599, 15.24),
+        ("CEEC1", "Cheeseboro RAWS", 34.18658, -118.71956, 520.2936),
+        ("TPGC1", "Topanga", 34.13624, -118.60600, 487.68),
+    ),
+}
+NWS_USER_AGENT = "Crestmap-temperature/1.0 (+https://crestmap.us/about)"
+OBSERVATION_MAX_AGE_SECONDS = 5400
 
 GRID_SPACING = {
     "forest": (0.055, 0.065),
@@ -146,6 +162,60 @@ def _number(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def parse_station_observation(payload, station, now):
+    """Return one fresh, quality-controlled NWS station observation."""
+    station_id, name, latitude, longitude, elevation = station
+    properties = payload.get("properties") if isinstance(payload, dict) else None
+    if not isinstance(properties, dict):
+        return None
+    temperature = properties.get("temperature")
+    timestamp = properties.get("timestamp")
+    if not isinstance(temperature, dict) or not isinstance(timestamp, str):
+        return None
+    value = temperature.get("value")
+    if not _number(value) or temperature.get("unitCode") != "wmoUnit:degC":
+        return None
+    try:
+        observed_at = dt.datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        observed_timestamp = observed_at.timestamp()
+    except (TypeError, ValueError):
+        return None
+    if not (-80 <= value <= 60 and -900 <= now - observed_timestamp <= OBSERVATION_MAX_AGE_SECONDS):
+        return None
+    return {
+        "name": name,
+        "station_id": station_id,
+        "latitude": latitude,
+        "longitude": longitude,
+        "temperature_f": round(value * 9 / 5 + 32, 1),
+        "elevation_m": elevation,
+        "valid_at": observed_at.astimezone(dt.timezone.utc).isoformat(),
+        "kind": "observation",
+        "priority": False,
+        "road": False,
+    }
+
+
+def load_station_observations(region, now):
+    """Fetch independent NWS/MADIS stations without failing model estimates."""
+    def fetch(station):
+        station_id = station[0]
+        request = Request(
+            f"https://api.weather.gov/stations/{station_id}/observations/latest?require_qc=true",
+            headers={"User-Agent": NWS_USER_AGENT, "Accept": "application/geo+json"},
+        )
+        try:
+            with urlopen(request, timeout=6) as response:
+                payload = json.loads(response.read(64_000))
+            return parse_station_observation(payload, station, now)
+        except Exception:
+            return None
+
+    stations = OBSERVATION_STATIONS.get(region, ())
+    with ThreadPoolExecutor(max_workers=len(stations) or 1) as executor:
+        return [point for point in executor.map(fetch, stations) if point]
+
+
 def parse_estimates(payload, region, now):
     """Reject missing, implausible and stale values rather than invent readings."""
     samples = SAMPLE_POINTS[region]
@@ -192,8 +262,12 @@ def load_temperatures(region):
         now = time.time()
         cached = _cache.get(region)
         if cached and now - cached[0] < CACHE_SECONDS:
-            fresh_points = [point for point in cached[1]["points"]
-                            if now - dt.datetime.fromisoformat(point["valid_at"]).timestamp() <= MAX_AGE_SECONDS]
+            fresh_points = [
+                point for point in cached[1]["points"]
+                if now - dt.datetime.fromisoformat(point["valid_at"]).timestamp()
+                <= (OBSERVATION_MAX_AGE_SECONDS
+                    if point.get("kind") == "observation" else MAX_AGE_SECONDS)
+            ]
             if fresh_points:
                 return {**cached[1], "points": fresh_points}
         if now < _retry_after.get(region, 0):
@@ -220,6 +294,14 @@ def load_temperatures(region):
             # Do not log request URLs: customer URLs contain the API key.
             _retry_after[region] = now + 60
             raise TemperatureUnavailable() from None
+        observations = load_station_observations(region, now)
+        if observations:
+            result = {
+                **result,
+                "source": "NWS and Open-Meteo",
+                "sources": ["NWS", "Open-Meteo"],
+                "points": observations + result["points"],
+            }
         _cache[region] = (now, result)
         _retry_after.pop(region, None)
         return result

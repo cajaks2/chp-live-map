@@ -16,6 +16,11 @@ TEMPERATURE_CSS = """
     .temperature-label.is-left span { left: -40px; }
     .temperature-label.is-above span { left: -15px; top: -29px; }
     .temperature-label.is-below span { left: -15px; top: 14px; }
+    .temperature-label.is-observation::before {
+      left: 1px; top: 9px; width: 6px; height: 6px; background: #f8fbf7;
+      box-shadow: 0 0 0 2px #27764e;
+    }
+    .temperature-label.is-observation span { color: #28583d; font-weight: 650; }
     .temperature-label:hover span { color: #263122; }
     .temperature-label:focus-visible span { outline: 2px solid #465a3d; border-radius: 3px; }
     .temperature-map-popup { position: absolute; padding-bottom: 10px; text-align: left; }
@@ -72,12 +77,13 @@ TEMPERATURE_JS = r"""
         button.classList.toggle("is-active", enabled);
         button.querySelector(".view-menu-description").textContent = !enabled ? "Hidden from map"
           : state === "loading" ? "Loading estimates…" : state === "error" ? "Estimates unavailable · retry by toggling"
-          : "Estimated °F · more detail as you zoom";
+          : "Measured + estimated °F · more detail as you zoom";
         button.title = `${enabled ? "Hide" : "Show"} estimated air temperatures`;
       }
       function fresh(point) {
         const age = Date.now() - Date.parse(point.valid_at);
-        return Number.isFinite(age) && age >= -900000 && age <= 3600000;
+        const maxAge = point.kind === "observation" ? 5400000 : 3600000;
+        return Number.isFinite(age) && age >= -900000 && age <= maxAge;
       }
       function renderTemperatures() {
         layer.clearLayers();
@@ -87,12 +93,12 @@ TEMPERATURE_JS = r"""
           if (map.hasLayer(marker)) occupied.push(map.latLngToContainerPoint(marker.getLatLng()));
         });
         const placed = [];
-        const displayRank = point => point.priority ? 2 : point.road ? 1 : 0;
+        const displayRank = point => point.kind === "observation" ? 3 : point.priority ? 2 : point.road ? 1 : 0;
         const orderedPoints = [...points].sort((a, b) => displayRank(b) - displayRank(a));
         for (const point of orderedPoints) {
           if (!fresh(point)) continue;
           // Keep the overview road-focused; reveal surrounding terrain after zooming in.
-          if (!point.priority && !point.road && map.getZoom() < 11) continue;
+          if (point.kind !== "observation" && !point.priority && !point.road && map.getZoom() < 11) continue;
           const latlng = [point.latitude, point.longitude];
           if (!map.getBounds().contains(latlng)) continue;
           const pixel = map.latLngToContainerPoint(latlng);
@@ -112,6 +118,7 @@ TEMPERATURE_JS = r"""
           const degrees = Math.round(point.temperature_f);
           const elevation = Math.round(point.elevation_m * 3.28084).toLocaleString();
           const valid = new Date(point.valid_at).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
+          const measured = point.kind === "observation";
           let labelDirection = pixel.x > size.x - 54 ? " is-left" : "";
           if (!labelDirection && nearbyIncident && point.road) {
             const dx = nearbyIncident.x - pixel.x;
@@ -121,13 +128,17 @@ TEMPERATURE_JS = r"""
           }
           const marker = L.marker(latlng, {
             pane: "temperatures", keyboard: true, riseOnHover: false,
-            title: `${point.name}: approximately ${degrees}°F, estimated air temperature`,
-            icon: L.divIcon({className: `temperature-label${labelDirection}`, html: `<span>${degrees}°</span>`, iconSize: [34, 24], iconAnchor: [4, 12]})
+            title: `${point.name}: ${degrees}°F, ${measured ? "measured" : "estimated"} air temperature`,
+            icon: L.divIcon({className: `temperature-label${measured ? " is-observation" : ""}${labelDirection}`, html: `<span>${degrees}°</span>`, iconSize: [34, 24], iconAnchor: [4, 12]})
           });
-          marker.bindPopup(`<div class="temperature-popup"><strong>${degrees}°F · Air temperature</strong><br>
-            Estimated · ${escapeHtml(point.name)}<br>Terrain elevation ${elevation} ft<br>Model valid ${escapeHtml(valid)}<br>
-            <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
-            <small>Elevation-adjusted air temperature. Local conditions may differ; not a station or road-surface reading.</small></div>`, {className: "temperature-map-popup", maxWidth: 270, autoPanPadding: [32, 32]});
+          const detail = measured
+            ? `Measured · ${escapeHtml(point.name)}<br>Station elevation ${elevation} ft<br>Observed ${escapeHtml(valid)}<br>
+              <a href="https://api.weather.gov/stations/${encodeURIComponent(point.station_id)}/observations/latest" target="_blank" rel="noopener">National Weather Service</a>
+              <small>Quality-controlled station observation. Conditions elsewhere along the road may differ.</small>`
+            : `Estimated · ${escapeHtml(point.name)}<br>Terrain elevation ${elevation} ft<br>Model valid ${escapeHtml(valid)}<br>
+              <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
+              <small>Elevation-adjusted air temperature. Local conditions may differ; not a station or road-surface reading.</small>`;
+          marker.bindPopup(`<div class="temperature-popup"><strong>${degrees}°F · ${measured ? "Measured" : "Estimated"} air temperature</strong><br>${detail}</div>`, {className: "temperature-map-popup", maxWidth: 270, autoPanPadding: [32, 32]});
           marker.addTo(layer);
         }
       }
@@ -149,7 +160,7 @@ TEMPERATURE_JS = r"""
           if (!response.ok) throw new Error("unavailable");
           const data = await response.json();
           if (data.region !== currentRegion || !Array.isArray(data.points)) throw new Error("invalid data");
-          points = data.points.filter(p => p.kind === "estimate" && Number.isFinite(p.temperature_f) && Number.isFinite(p.elevation_m) && Number.isFinite(p.latitude) && Number.isFinite(p.longitude) && fresh(p));
+          points = data.points.filter(p => ["estimate", "observation"].includes(p.kind) && Number.isFinite(p.temperature_f) && Number.isFinite(p.elevation_m) && Number.isFinite(p.latitude) && Number.isFinite(p.longitude) && fresh(p));
           state = points.length ? "ready" : "error";
         } catch (_) {
           points = []; // Never quietly present a failed refresh as current data.

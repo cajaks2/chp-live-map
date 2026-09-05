@@ -1,3 +1,4 @@
+import datetime as dt
 import io
 import json
 from urllib.parse import parse_qs, urlsplit
@@ -25,6 +26,7 @@ def clean_cache(monkeypatch):
     weather._retry_after.clear()
     monkeypatch.delenv("OPEN_METEO_API_KEY", raising=False)
     monkeypatch.setattr(weather.time, "time", lambda: NOW)
+    monkeypatch.setattr(weather, "load_station_observations", lambda _region, _now: [])
 
 
 @pytest.mark.parametrize("region", ["forest", "malibu"])
@@ -102,6 +104,56 @@ def test_wrong_units_and_missing_elevation_are_not_displayed():
         weather.parse_estimates([], "forest", NOW)
 
 
+def test_fresh_nws_station_observation_is_measured():
+    station = weather.OBSERVATION_STATIONS["forest"][0]
+    timestamp = dt.datetime.fromtimestamp(NOW - 600, dt.timezone.utc).isoformat()
+    point = weather.parse_station_observation({
+        "properties": {
+            "timestamp": timestamp,
+            "temperature": {"value": 20.0, "unitCode": "wmoUnit:degC"},
+        }
+    }, station, NOW)
+    assert point == {
+        "name": "Chilao RAWS", "station_id": "CHOC1",
+        "latitude": 34.33167, "longitude": -118.03028,
+        "temperature_f": 68.0, "elevation_m": 1661.16,
+        "valid_at": timestamp, "kind": "observation",
+        "priority": False, "road": False,
+    }
+
+
+@pytest.mark.parametrize("temperature,timestamp,unit", [
+    (None, NOW - 60, "wmoUnit:degC"),
+    (20, NOW - 5401, "wmoUnit:degC"),
+    (20, NOW - 60, "wmoUnit:degF"),
+])
+def test_invalid_nws_station_observation_is_omitted(temperature, timestamp, unit):
+    iso = dt.datetime.fromtimestamp(timestamp, dt.timezone.utc).isoformat()
+    payload = {"properties": {"timestamp": iso, "temperature": {
+        "value": temperature, "unitCode": unit,
+    }}}
+    assert weather.parse_station_observation(
+        payload, weather.OBSERVATION_STATIONS["forest"][0], NOW
+    ) is None
+
+
+def test_station_observations_augment_estimates(monkeypatch):
+    observed = {
+        "name": "Chilao RAWS", "station_id": "CHOC1",
+        "latitude": 34.33167, "longitude": -118.03028,
+        "temperature_f": 68.0, "elevation_m": 1661.16,
+        "valid_at": dt.datetime.fromtimestamp(NOW - 60, dt.timezone.utc).isoformat(),
+        "kind": "observation", "priority": False, "road": False,
+    }
+    monkeypatch.setattr(weather, "load_station_observations", lambda _region, _now: [observed])
+    monkeypatch.setattr(weather, "urlopen", lambda *_args, **_kwargs: io.BytesIO(
+        json.dumps(payload()).encode()
+    ))
+    result = weather.load_temperatures("forest")
+    assert result["points"][0] == observed
+    assert result["sources"] == ["NWS", "Open-Meteo"]
+
+
 def test_cache_batches_and_key_stays_in_server_request(monkeypatch):
     requests = []
     def fetch(request, timeout):
@@ -162,6 +214,8 @@ def test_endpoint_and_local_render(tmp_path, monkeypatch, region):
     assert "point.priority ? 6 : 8" in rendered
     assert "is-above" in rendered
     assert "is-below" in rendered
+    assert "Measured + estimated" in rendered
+    assert "National Weather Service" in rendered
     assert "point.priority ? 12 : 32" in rendered
     assert '" is-left"' in rendered
     assert "Temperature estimates:" not in rendered

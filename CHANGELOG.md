@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.217 - 2026-09-04
+
+- Gradually grey and fade measured station temperatures after one hour so their
+  visual prominence communicates observation age through the three-hour cutoff.
+
 ## 0.1.216 - 2026-09-04
 
 - Keep quality-controlled weather-station readings visible for up to three hours

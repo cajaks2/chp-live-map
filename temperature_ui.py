@@ -126,7 +126,7 @@ TEMPERATURE_JS = r"""
           const validDate = new Date(point.valid_at);
           const valid = validDate.toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
           const observationAge = measured ? Math.max(0, Date.now() - validDate.getTime()) : 0;
-          const ageProgress = measured ? Math.min(1, Math.max(0, (observationAge - 3600000) / 7200000)) : 0;
+          const ageProgress = measured ? Math.min(1, Math.max(0, (observationAge - 1800000) / 5400000)) : 0;
           let labelDirection = pixel.x > size.x - 54 ? " is-left" : "";
           if (!labelDirection && nearbyIncident && (point.road || measured)) {
             const dx = nearbyIncident.x - pixel.x;
@@ -149,6 +149,7 @@ TEMPERATURE_JS = r"""
           marker.bindPopup(`<div class="temperature-popup"><strong>${degrees}°F · ${measured ? "Measured" : "Estimated"} air temperature</strong><br>${detail}</div>`, {className: "temperature-map-popup", maxWidth: 270, autoPanPadding: [32, 32]});
           marker.addTo(layer);
           if (measured && ageProgress > 0) {
+            marker.setOpacity(1 - (0.40 * ageProgress));
             const element = marker.getElement();
             if (element) element.style.filter = `grayscale(${Math.round(ageProgress * 100)}%)`;
           }

@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.219 - 2026-09-04
+
+- Make station-reading age much clearer: begin fading and greying after 30
+  minutes, reach full grey by two hours, and retain the reading through three.
+
 ## 0.1.218 - 2026-09-04
 
 - Keep aging weather-station labels fully opaque while continuously shifting

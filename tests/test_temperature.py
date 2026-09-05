@@ -229,7 +229,7 @@ def test_endpoint_and_local_render(tmp_path, monkeypatch, region):
     assert "is-below" in rendered
     assert "Measured + estimated" in rendered
     assert "const ageProgress = measured" in rendered
-    assert "marker.setOpacity" not in rendered
+    assert "marker.setOpacity(1 - (0.40 * ageProgress))" in rendered
     assert "grayscale(${Math.round(ageProgress * 100)}%)" in rendered
     assert "National Weather Service" in rendered
     assert "rgba(248,251,247,.96)" in rendered

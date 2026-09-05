@@ -13,6 +13,7 @@ TEMPERATURE_CSS = """
       color: #454e43; text-align: center; font: 500 11px/16px -apple-system, BlinkMacSystemFont, sans-serif;
       text-shadow: 0 0 3px #fff, 0 1px 2px #fff, 0 -1px 2px #fff;
     }
+    .temperature-label.is-left span { left: -40px; }
     .temperature-label:hover span { color: #263122; }
     .temperature-label:focus-visible span { outline: 2px solid #465a3d; border-radius: 3px; }
     .temperature-map-popup { position: absolute; padding-bottom: 10px; text-align: left; }
@@ -91,18 +92,20 @@ TEMPERATURE_JS = r"""
           if (!map.getBounds().contains(latlng)) continue;
           const pixel = map.latLngToContainerPoint(latlng);
           const size = map.getSize();
-          if (pixel.x < 32 || pixel.y < 38 || pixel.x > size.x - 32 || pixel.y > size.y - 38) continue;
+          const edgeMargin = point.priority ? 12 : 32;
+          if (pixel.x < edgeMargin || pixel.y < 38 || pixel.x > size.x - edgeMargin || pixel.y > size.y - 38) continue;
           // Keep temperature badges clear of incidents and one another.
           if (occupied.some(p => Math.abs(p.x - pixel.x) < 54 && Math.abs(p.y - pixel.y) < 55)) continue;
-          if (placed.some(p => Math.abs(p.x - pixel.x) < 52 && Math.abs(p.y - pixel.y) < 26)) continue;
-          placed.push(pixel);
+          if (placed.some(p => Math.abs(p.pixel.x - pixel.x) < (point.priority && p.priority ? 34 : 52)
+            && Math.abs(p.pixel.y - pixel.y) < 26)) continue;
+          placed.push({pixel, priority: Boolean(point.priority)});
           const degrees = Math.round(point.temperature_f);
           const elevation = Math.round(point.elevation_m * 3.28084).toLocaleString();
           const valid = new Date(point.valid_at).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
           const marker = L.marker(latlng, {
             pane: "temperatures", keyboard: true, riseOnHover: false,
             title: `${point.name}: approximately ${degrees}°F, estimated air temperature`,
-            icon: L.divIcon({className: "temperature-label", html: `<span>${degrees}°</span>`, iconSize: [34, 24], iconAnchor: [4, 12]})
+            icon: L.divIcon({className: `temperature-label${pixel.x > size.x - 54 ? " is-left" : ""}`, html: `<span>${degrees}°</span>`, iconSize: [34, 24], iconAnchor: [4, 12]})
           });
           marker.bindPopup(`<div class="temperature-popup"><strong>${degrees}°F · Air temperature</strong><br>
             Estimated · ${escapeHtml(point.name)}<br>Terrain elevation ${elevation} ft<br>Model valid ${escapeHtml(valid)}<br>

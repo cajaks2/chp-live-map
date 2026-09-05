@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.209 - 2026-09-04
+
+- Retain additional eastern Forest air-temperature samples along Highway 39,
+  Glendora Mountain and Ridge Roads, and upper Mount Baldy Road.
+
 ## 0.1.208 - 2026-09-04
 
 - Keep priority air-temperature samples at Newcomb's Ranch and between the Rock

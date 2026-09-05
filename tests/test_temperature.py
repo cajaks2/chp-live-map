@@ -33,21 +33,31 @@ def test_samples_form_a_broad_terrain_grid(region):
     assert len(points) >= 50
     assert len({latitude for _name, latitude, _longitude in points}) >= 5
     assert len({longitude for _name, _latitude, longitude in points}) >= 8
-    assert all("road" not in name.casefold() and "highway" not in name.casefold()
-               for name, _latitude, _longitude in points)
+    assert all(
+        "road" not in name.casefold() and "highway" not in name.casefold()
+        for name, _latitude, _longitude in points
+        if name not in weather.PRIORITY_POINT_NAMES
+    )
 
 
 def test_named_landmark_samples_are_priority_points():
-    assert weather.SAMPLE_POINTS["forest"][0] == (
-        "Newcomb's Ranch", 34.329766, -118.002015
-    )
+    expected_forest_names = [
+        "Newcomb's Ranch",
+        "Highway 39 lower canyon",
+        "Highway 39 upper canyon",
+        "GMR / GRR junction",
+        "Glendora Ridge Road east",
+        "Mount Baldy Road upper canyon",
+    ]
+    assert [point[0] for point in weather.SAMPLE_POINTS["forest"][:6]] == expected_forest_names
     assert weather.SAMPLE_POINTS["malibu"][0] == (
         "Rock Store / Old Place area", 34.112087, -118.783186
     )
     for region in ("forest", "malibu"):
         result = weather.parse_estimates(payload(region), region, NOW)
-        assert result["points"][0]["priority"] is True
-        assert all(point["priority"] is False for point in result["points"][1:])
+        priority_count = len(weather.PRIORITY_POINTS[region])
+        assert all(point["priority"] is True for point in result["points"][:priority_count])
+        assert all(point["priority"] is False for point in result["points"][priority_count:])
 
 
 @pytest.mark.parametrize("region", ["forest", "malibu"])
@@ -132,6 +142,8 @@ def test_endpoint_and_local_render(tmp_path, monkeypatch, region):
     assert "__TEMPERATURE_ENDPOINT__" not in rendered
     assert "temperature-label" in rendered
     assert "orderedPoints" in rendered
+    assert "point.priority ? 12 : 32" in rendered
+    assert '" is-left"' in rendered
     assert "Temperature estimates:" not in rendered
 
 

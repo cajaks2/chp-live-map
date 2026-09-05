@@ -19,7 +19,14 @@ GRID_SPACING = {
 # Named terrain anchors appear before the general grid so the client retains
 # them when nearby temperature labels need to be thinned at the current zoom.
 PRIORITY_POINTS = {
-    "forest": (("Newcomb's Ranch", 34.329766, -118.002015),),
+    "forest": (
+        ("Newcomb's Ranch", 34.329766, -118.002015),
+        ("Highway 39 lower canyon", 34.236361, -117.851057),
+        ("Highway 39 upper canyon", 34.286386, -117.843999),
+        ("GMR / GRR junction", 34.203687, -117.806336),
+        ("Glendora Ridge Road east", 34.220110, -117.712940),
+        ("Mount Baldy Road upper canyon", 34.230969, -117.663264),
+    ),
     "malibu": (("Rock Store / Old Place area", 34.112087, -118.783186),),
 }
 PRIORITY_POINT_NAMES = {

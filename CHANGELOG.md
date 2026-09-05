@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.218 - 2026-09-04
+
+- Keep aging weather-station labels fully opaque while continuously shifting
+  them from green to grey as their observations approach the cutoff.
+
 ## 0.1.217 - 2026-09-04
 
 - Gradually grey and fade measured station temperatures after one hour so their

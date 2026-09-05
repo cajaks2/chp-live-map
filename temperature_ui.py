@@ -149,9 +149,8 @@ TEMPERATURE_JS = r"""
           marker.bindPopup(`<div class="temperature-popup"><strong>${degrees}°F · ${measured ? "Measured" : "Estimated"} air temperature</strong><br>${detail}</div>`, {className: "temperature-map-popup", maxWidth: 270, autoPanPadding: [32, 32]});
           marker.addTo(layer);
           if (measured && ageProgress > 0) {
-            marker.setOpacity(1 - (0.42 * ageProgress));
             const element = marker.getElement();
-            if (element) element.style.filter = `grayscale(${Math.round(ageProgress * 85)}%)`;
+            if (element) element.style.filter = `grayscale(${Math.round(ageProgress * 100)}%)`;
           }
         }
       }

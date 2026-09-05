@@ -11,6 +11,12 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.212 - 2026-09-04
+
+- Keep road-temperature labels visible near incident clusters by using tighter
+  road-specific clearance, positioning text away from nearby incident markers,
+  and sampling surveyed Forest roads every 2.5 miles.
+
 ## 0.1.211 - 2026-09-04
 
 - Keep the regional overview focused on road and named-location air temperatures;

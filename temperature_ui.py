@@ -14,6 +14,8 @@ TEMPERATURE_CSS = """
       text-shadow: 0 0 3px #fff, 0 1px 2px #fff, 0 -1px 2px #fff;
     }
     .temperature-label.is-left span { left: -40px; }
+    .temperature-label.is-above span { left: -15px; top: -29px; }
+    .temperature-label.is-below span { left: -15px; top: 14px; }
     .temperature-label:hover span { color: #263122; }
     .temperature-label:focus-visible span { outline: 2px solid #465a3d; border-radius: 3px; }
     .temperature-map-popup { position: absolute; padding-bottom: 10px; text-align: left; }
@@ -97,18 +99,30 @@ TEMPERATURE_JS = r"""
           const size = map.getSize();
           const edgeMargin = point.priority ? 12 : 32;
           if (pixel.x < edgeMargin || pixel.y < 38 || pixel.x > size.x - edgeMargin || pixel.y > size.y - 38) continue;
-          // Keep temperature badges clear of incidents and one another.
-          if (occupied.some(p => Math.abs(p.x - pixel.x) < 54 && Math.abs(p.y - pixel.y) < 55)) continue;
+          // Road labels may sit near incidents, but never directly under one.
+          const nearbyIncident = occupied.find(p => Math.abs(p.x - pixel.x) < 54 && Math.abs(p.y - pixel.y) < 55);
+          if (nearbyIncident && !point.road) continue;
+          const directClearanceX = point.priority ? 6 : 8;
+          const directClearanceY = point.priority ? 8 : 10;
+          if (point.road && occupied.some(p => Math.abs(p.x - pixel.x) < directClearanceX
+            && Math.abs(p.y - pixel.y) < directClearanceY)) continue;
           if (placed.some(p => Math.abs(p.pixel.x - pixel.x) < (point.priority && p.priority ? 34 : 52)
             && Math.abs(p.pixel.y - pixel.y) < 26)) continue;
           placed.push({pixel, priority: Boolean(point.priority)});
           const degrees = Math.round(point.temperature_f);
           const elevation = Math.round(point.elevation_m * 3.28084).toLocaleString();
           const valid = new Date(point.valid_at).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
+          let labelDirection = pixel.x > size.x - 54 ? " is-left" : "";
+          if (!labelDirection && nearbyIncident && point.road) {
+            const dx = nearbyIncident.x - pixel.x;
+            const dy = nearbyIncident.y - pixel.y;
+            if (Math.abs(dx) >= Math.abs(dy)) labelDirection = dx > 0 ? " is-left" : "";
+            else labelDirection = dy > 0 ? " is-above" : " is-below";
+          }
           const marker = L.marker(latlng, {
             pane: "temperatures", keyboard: true, riseOnHover: false,
             title: `${point.name}: approximately ${degrees}°F, estimated air temperature`,
-            icon: L.divIcon({className: `temperature-label${pixel.x > size.x - 54 ? " is-left" : ""}`, html: `<span>${degrees}°</span>`, iconSize: [34, 24], iconAnchor: [4, 12]})
+            icon: L.divIcon({className: `temperature-label${labelDirection}`, html: `<span>${degrees}°</span>`, iconSize: [34, 24], iconAnchor: [4, 12]})
           });
           marker.bindPopup(`<div class="temperature-popup"><strong>${degrees}°F · Air temperature</strong><br>
             Estimated · ${escapeHtml(point.name)}<br>Terrain elevation ${elevation} ft<br>Model valid ${escapeHtml(valid)}<br>

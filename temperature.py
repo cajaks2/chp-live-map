@@ -44,15 +44,16 @@ ROAD_NAMES = {
     "highway_39": "Highway 39",
     "mount_baldy": "Mount Baldy Road",
 }
+ROAD_SAMPLE_INTERVAL_MILES = 2.5
 
 
 def forest_road_sample_points():
-    """Select the surveyed marker nearest each five-mile interval per road."""
+    """Select the surveyed marker nearest each 2.5-mile interval per road."""
     samples = []
     for road, points in MILE_MARKERS.items():
         nearest = {}
         for mile, latitude, longitude in points:
-            target = round(float(mile) / 5) * 5
+            target = round(float(mile) / ROAD_SAMPLE_INTERVAL_MILES) * ROAD_SAMPLE_INTERVAL_MILES
             distance = abs(float(mile) - target)
             if target not in nearest or distance < nearest[target][0]:
                 nearest[target] = (distance, mile, latitude, longitude)
@@ -175,7 +176,7 @@ def parse_estimates(payload, region, now):
             "temperature_f": round(value, 1), "elevation_m": elevation,
             "valid_at": dt.datetime.fromtimestamp(timestamp, dt.timezone.utc).isoformat(),
             "kind": "estimate", "priority": name in PRIORITY_POINT_NAMES,
-            "road": name in ROAD_POINT_NAMES,
+            "road": name in ROAD_POINT_NAMES or name in PRIORITY_POINT_NAMES,
         })
     if not points:
         raise TemperatureUnavailable()

@@ -87,7 +87,7 @@ TEMPERATURE_JS = r"""
       }
       function fresh(point) {
         const age = Date.now() - Date.parse(point.valid_at);
-        const maxAge = point.kind === "observation" ? 5400000 : 3600000;
+        const maxAge = point.kind === "observation" ? 10800000 : 3600000;
         return Number.isFinite(age) && age >= -900000 && age <= maxAge;
       }
       function renderTemperatures() {
@@ -101,6 +101,7 @@ TEMPERATURE_JS = r"""
         const displayRank = point => point.kind === "observation" ? 3 : point.priority ? 2 : point.road ? 1 : 0;
         const orderedPoints = [...points].sort((a, b) => displayRank(b) - displayRank(a));
         for (const point of orderedPoints) {
+          const measured = point.kind === "observation";
           if (!fresh(point)) continue;
           // Keep the overview road-focused; reveal surrounding terrain after zooming in.
           if (point.kind !== "observation" && !point.priority && !point.road && map.getZoom() < 11) continue;
@@ -112,7 +113,7 @@ TEMPERATURE_JS = r"""
           if (pixel.x < edgeMargin || pixel.y < 38 || pixel.x > size.x - edgeMargin || pixel.y > size.y - 38) continue;
           // Road labels may sit near incidents, but never directly under one.
           const nearbyIncident = occupied.find(p => Math.abs(p.x - pixel.x) < 54 && Math.abs(p.y - pixel.y) < 55);
-          if (nearbyIncident && !point.road) continue;
+          if (nearbyIncident && !point.road && !measured) continue;
           const directClearanceX = point.priority ? 6 : 8;
           const directClearanceY = point.priority ? 8 : 10;
           if (point.road && occupied.some(p => Math.abs(p.x - pixel.x) < directClearanceX
@@ -123,9 +124,8 @@ TEMPERATURE_JS = r"""
           const degrees = Math.round(point.temperature_f);
           const elevation = Math.round(point.elevation_m * 3.28084).toLocaleString();
           const valid = new Date(point.valid_at).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
-          const measured = point.kind === "observation";
           let labelDirection = pixel.x > size.x - 54 ? " is-left" : "";
-          if (!labelDirection && nearbyIncident && point.road) {
+          if (!labelDirection && nearbyIncident && (point.road || measured)) {
             const dx = nearbyIncident.x - pixel.x;
             const dy = nearbyIncident.y - pixel.y;
             if (Math.abs(dx) >= Math.abs(dy)) labelDirection = dx > 0 ? " is-left" : "";

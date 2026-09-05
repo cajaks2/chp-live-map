@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.216 - 2026-09-04
+
+- Keep quality-controlled weather-station readings visible for up to three hours
+  between remote-station reports, and retain station labels near incidents.
+
 ## 0.1.215 - 2026-09-04
 
 - Add San Bernardino CHP dispatch coverage and recognize the mountain segment of

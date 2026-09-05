@@ -26,7 +26,9 @@ OBSERVATION_STATIONS = {
     ),
 }
 NWS_USER_AGENT = "Crestmap-temperature/1.0 (+https://crestmap.us/about)"
-OBSERVATION_MAX_AGE_SECONDS = 5400
+# Remote RAWS stations can report somewhat less often than hourly. Retain a
+# quality-controlled reading for up to three hours and always expose its time.
+OBSERVATION_MAX_AGE_SECONDS = 3 * 60 * 60
 
 GRID_SPACING = {
     "forest": (0.055, 0.065),

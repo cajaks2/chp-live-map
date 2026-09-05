@@ -122,9 +122,22 @@ def test_fresh_nws_station_observation_is_measured():
     }
 
 
+def test_station_observation_remains_available_between_reports():
+    station = weather.OBSERVATION_STATIONS["forest"][0]
+    timestamp = dt.datetime.fromtimestamp(NOW - 7200, dt.timezone.utc).isoformat()
+    point = weather.parse_station_observation({
+        "properties": {
+            "timestamp": timestamp,
+            "temperature": {"unitCode": "wmoUnit:degC", "value": 20.0},
+        }
+    }, station, NOW)
+
+    assert point is not None
+
+
 @pytest.mark.parametrize("temperature,timestamp,unit", [
     (None, NOW - 60, "wmoUnit:degC"),
-    (20, NOW - 5401, "wmoUnit:degC"),
+    (20, NOW - weather.OBSERVATION_MAX_AGE_SECONDS - 1, "wmoUnit:degC"),
     (20, NOW - 60, "wmoUnit:degF"),
 ])
 def test_invalid_nws_station_observation_is_omitted(temperature, timestamp, unit):

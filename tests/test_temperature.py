@@ -37,6 +37,7 @@ def test_samples_form_a_broad_terrain_grid(region):
         "road" not in name.casefold() and "highway" not in name.casefold()
         for name, _latitude, _longitude in points
         if name not in weather.PRIORITY_POINT_NAMES
+        and name not in weather.ROAD_POINT_NAMES
     )
 
 
@@ -58,6 +59,17 @@ def test_named_landmark_samples_are_priority_points():
         priority_count = len(weather.PRIORITY_POINTS[region])
         assert all(point["priority"] is True for point in result["points"][:priority_count])
         assert all(point["priority"] is False for point in result["points"][priority_count:])
+
+
+def test_road_samples_form_the_baseline_in_both_regions():
+    assert len(weather.ROAD_POINTS["forest"]) >= 30
+    assert len(weather.ROAD_POINTS["malibu"]) >= 15
+    for region in ("forest", "malibu"):
+        names = {name for name, _latitude, _longitude in weather.ROAD_POINTS[region]}
+        result = weather.parse_estimates(payload(region), region, NOW)
+        road_points = [point for point in result["points"] if point["road"]]
+        assert {point["name"] for point in road_points} == names
+        assert all(point["priority"] is False for point in road_points)
 
 
 @pytest.mark.parametrize("region", ["forest", "malibu"])
@@ -142,6 +154,7 @@ def test_endpoint_and_local_render(tmp_path, monkeypatch, region):
     assert "__TEMPERATURE_ENDPOINT__" not in rendered
     assert "temperature-label" in rendered
     assert "orderedPoints" in rendered
+    assert "displayRank" in rendered
     assert "point.priority ? 12 : 32" in rendered
     assert '" is-left"' in rendered
     assert "Temperature estimates:" not in rendered

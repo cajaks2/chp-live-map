@@ -11,6 +11,12 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.210 - 2026-09-04
+
+- Add elevation-aware air-temperature baselines along Forest and Malibu roads,
+  using surveyed Forest mile markers and the map's principal Malibu corridors.
+  Prefer road samples over the surrounding terrain grid when labels need thinning.
+
 ## 0.1.209 - 2026-09-04
 
 - Retain additional eastern Forest air-temperature samples along Highway 39,

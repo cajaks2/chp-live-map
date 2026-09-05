@@ -85,7 +85,8 @@ TEMPERATURE_JS = r"""
           if (map.hasLayer(marker)) occupied.push(map.latLngToContainerPoint(marker.getLatLng()));
         });
         const placed = [];
-        const orderedPoints = [...points].sort((a, b) => Number(Boolean(b.priority)) - Number(Boolean(a.priority)));
+        const displayRank = point => point.priority ? 2 : point.road ? 1 : 0;
+        const orderedPoints = [...points].sort((a, b) => displayRank(b) - displayRank(a));
         for (const point of orderedPoints) {
           if (!fresh(point)) continue;
           const latlng = [point.latitude, point.longitude];

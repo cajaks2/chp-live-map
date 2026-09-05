@@ -89,6 +89,8 @@ TEMPERATURE_JS = r"""
         const orderedPoints = [...points].sort((a, b) => displayRank(b) - displayRank(a));
         for (const point of orderedPoints) {
           if (!fresh(point)) continue;
+          // Keep the overview road-focused; reveal surrounding terrain after zooming in.
+          if (!point.priority && !point.road && map.getZoom() < 11) continue;
           const latlng = [point.latitude, point.longitude];
           if (!map.getBounds().contains(latlng)) continue;
           const pixel = map.latLngToContainerPoint(latlng);

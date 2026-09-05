@@ -155,6 +155,7 @@ def test_endpoint_and_local_render(tmp_path, monkeypatch, region):
     assert "temperature-label" in rendered
     assert "orderedPoints" in rendered
     assert "displayRank" in rendered
+    assert "map.getZoom() < 11" in rendered
     assert "point.priority ? 12 : 32" in rendered
     assert '" is-left"' in rendered
     assert "Temperature estimates:" not in rendered

@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.211 - 2026-09-04
+
+- Keep the regional overview focused on road and named-location air temperatures;
+  reveal surrounding terrain samples only after zooming in.
+
 ## 0.1.210 - 2026-09-04
 
 - Add elevation-aware air-temperature baselines along Forest and Malibu roads,

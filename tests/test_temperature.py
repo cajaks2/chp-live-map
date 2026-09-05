@@ -37,6 +37,19 @@ def test_samples_form_a_broad_terrain_grid(region):
                for name, _latitude, _longitude in points)
 
 
+def test_named_landmark_samples_are_priority_points():
+    assert weather.SAMPLE_POINTS["forest"][0] == (
+        "Newcomb's Ranch", 34.329766, -118.002015
+    )
+    assert weather.SAMPLE_POINTS["malibu"][0] == (
+        "Rock Store / Old Place area", 34.112087, -118.783186
+    )
+    for region in ("forest", "malibu"):
+        result = weather.parse_estimates(payload(region), region, NOW)
+        assert result["points"][0]["priority"] is True
+        assert all(point["priority"] is False for point in result["points"][1:])
+
+
 @pytest.mark.parametrize("region", ["forest", "malibu"])
 def test_coordinates_are_requested_points_and_elevation_is_provider_terrain(region):
     data = payload(region)
@@ -118,6 +131,7 @@ def test_endpoint_and_local_render(tmp_path, monkeypatch, region):
     assert 'const temperatureEndpoint = "/map/api/v1/temperature"' in rendered
     assert "__TEMPERATURE_ENDPOINT__" not in rendered
     assert "temperature-label" in rendered
+    assert "orderedPoints" in rendered
     assert "Temperature estimates:" not in rendered
 
 

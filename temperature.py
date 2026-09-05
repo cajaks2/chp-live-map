@@ -16,6 +16,16 @@ GRID_SPACING = {
     "malibu": (0.040, 0.055),
 }
 
+# Named terrain anchors appear before the general grid so the client retains
+# them when nearby temperature labels need to be thinned at the current zoom.
+PRIORITY_POINTS = {
+    "forest": (("Newcomb's Ranch", 34.329766, -118.002015),),
+    "malibu": (("Rock Store / Old Place area", 34.112087, -118.783186),),
+}
+PRIORITY_POINT_NAMES = {
+    name for points in PRIORITY_POINTS.values() for name, _latitude, _longitude in points
+}
+
 
 def terrain_sample_points(region):
     """Build a staggered, evenly distributed grid inside the product region."""
@@ -30,9 +40,16 @@ def terrain_sample_points(region):
             latitude_value = round(latitude, 6)
             longitude_value = round(longitude, 6)
             if coordinates_in_region_bounds(latitude_value, longitude_value, region):
-                points.append(
-                    (f"{region.title()} terrain sample", latitude_value, longitude_value)
+                near_anchor = any(
+                    abs(anchor_latitude - latitude_value) < lat_step / 2
+                    and abs(anchor_longitude - longitude_value) < lon_step / 2
+                    for _name, anchor_latitude, anchor_longitude
+                    in PRIORITY_POINTS.get(region, ())
                 )
+                if not near_anchor:
+                    points.append(
+                        (f"{region.title()} terrain sample", latitude_value, longitude_value)
+                    )
             longitude += lon_step
         row += 1
         latitude += lat_step
@@ -42,7 +59,8 @@ def terrain_sample_points(region):
 # An even terrain grid avoids implying that estimates belong to roads and keeps
 # coverage visually consistent. These are model locations, not weather stations.
 SAMPLE_POINTS = {
-    region: terrain_sample_points(region) for region in REGION_BOUNDS
+    region: PRIORITY_POINTS.get(region, ()) + terrain_sample_points(region)
+    for region in REGION_BOUNDS
 }
 CACHE_SECONDS = 900
 MAX_AGE_SECONDS = 3600
@@ -88,7 +106,7 @@ def parse_estimates(payload, region, now):
             "name": name, "latitude": latitude, "longitude": longitude,
             "temperature_f": round(value, 1), "elevation_m": elevation,
             "valid_at": dt.datetime.fromtimestamp(timestamp, dt.timezone.utc).isoformat(),
-            "kind": "estimate",
+            "kind": "estimate", "priority": name in PRIORITY_POINT_NAMES,
         })
     if not points:
         raise TemperatureUnavailable()

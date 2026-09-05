@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.208 - 2026-09-04
+
+- Keep priority air-temperature samples at Newcomb's Ranch and between the Rock
+  Store and Old Place when normal label spacing thins the surrounding terrain grid.
+
 ## 0.1.207 - 2026-09-04
 
 - Distribute air-temperature samples across each region on a staggered terrain

@@ -477,15 +477,15 @@ Generated files such as `*.sqlite` and `live_chp_map.html` are intentionally ign
 ### Temperature map layer
 
 Forest and Malibu include an optional layer of subtle temperature labels in °F.
-Use **Air temperature** in the navigation menu to toggle the layer. It samples 41
-Forest locations and 31 Malibu locations, primarily along mapped roads, and reveals
-more labels as you zoom. These are Open-Meteo **modeled air temperatures**, not station observations or
+Use **Air temperature** in the navigation menu to toggle the layer. It samples an
+even, staggered terrain grid clipped to each map region and reveals more labels as
+you zoom. These are Open-Meteo **modeled air temperatures**, not station observations or
 road-surface temperatures. Tap a label for terrain elevation, model valid time,
 and attribution. Each small dot marks the sampled coordinate; its label is offset
 beside it to distinguish air temperature from road-surface conditions. Labels yield space to incidents and the preference persists
 across regions. Missing or over-one-hour-old estimates are hidden.
 
-The web server batches fixed sample coordinates per region and caches results
+The web server batches the fixed terrain-grid coordinates per region and caches results
 for 15 minutes, with a one-minute retry backoff on upstream failures. Open-Meteo's
 terrain elevation/downscaling is enabled; no constant lapse-rate correction or
 interpolation between labels is applied. This does not establish a guaranteed

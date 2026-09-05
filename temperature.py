@@ -9,88 +9,40 @@ import time
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-# Fixed sample locations, not weather stations. Elevations come from the provider's
-# terrain model at the requested coordinate; never substitute model grid coordinates.
-# Road sample coordinates are selected from the existing Caltrans/LA County
-# forest mile markers and OSM-derived Malibu corridor geometry in this project.
-# The extra terrain sample covers Mount Wilson. More labels appear as you zoom.
+from geo_bounds import REGION_BOUNDS, coordinates_in_region_bounds
+
+GRID_SPACING = {
+    "forest": (0.055, 0.065),
+    "malibu": (0.040, 0.055),
+}
+
+
+def terrain_sample_points(region):
+    """Build a staggered, evenly distributed grid inside the product region."""
+    lat_min, lat_max, lon_min, lon_max = REGION_BOUNDS[region]
+    lat_step, lon_step = GRID_SPACING[region]
+    points = []
+    row = 0
+    latitude = lat_min + lat_step / 2
+    while latitude < lat_max:
+        longitude = lon_min + lon_step / 2 + (row % 2) * lon_step / 2
+        while longitude < lon_max:
+            latitude_value = round(latitude, 6)
+            longitude_value = round(longitude, 6)
+            if coordinates_in_region_bounds(latitude_value, longitude_value, region):
+                points.append(
+                    (f"{region.title()} terrain sample", latitude_value, longitude_value)
+                )
+            longitude += lon_step
+        row += 1
+        latitude += lat_step
+    return tuple(points)
+
+
+# An even terrain grid avoids implying that estimates belong to roads and keeps
+# coverage visually consistent. These are model locations, not weather stations.
 SAMPLE_POINTS = {
-    "forest": (
-        ('Mount Wilson area', 34.225, -118.057),
-        ('Angeles Crest Highway · mile 25', 34.214157, -118.200201),
-        ('Angeles Crest Highway · mile 30', 34.257238, -118.196628),
-        ('Angeles Crest Highway · mile 35', 34.266057, -118.134584),
-        ('Angeles Crest Highway · mile 41', 34.267809, -118.06927),
-        ('Angeles Crest Highway · mile 46', 34.285096, -117.993434),
-        ('Angeles Crest Highway · mile 51', 34.330667, -117.999783),
-        ('Angeles Crest Highway · mile 56', 34.353079, -117.946586),
-        ('Angeles Crest Highway · mile 61', 34.352558, -117.886415),
-        ('Angeles Crest Highway · mile 66', 34.34889, -117.82924),
-        ('Angeles Crest Highway · mile 72', 34.368809, -117.781006),
-        ('Angeles Crest Highway · mile 77', 34.376329, -117.726422),
-        ('Angeles Crest Highway · mile 82', 34.367502, -117.656901),
-        ('Angeles Forest Highway · mile 0.81', 34.498346, -118.114513),
-        ('Angeles Forest Highway · mile 10.74', 34.388247, -118.086089),
-        ('Angeles Forest Highway · mile 17.13', 34.32358, -118.127637),
-        ('Angeles Forest Highway · mile 24.98', 34.271479, -118.154222),
-        ('Big Tujunga · mile 0.04', 34.2923, -118.28586),
-        ('Big Tujunga · mile 3.57', 34.294489, -118.236576),
-        ('Big Tujunga · mile 6.02', 34.282837, -118.20736),
-        ('Big Tujunga · mile 9.94', 34.297002, -118.161954),
-        ('Upper Big Tujunga · mile 0.02', 34.328687, -118.119827),
-        ('Upper Big Tujunga · mile 3.05', 34.310395, -118.091554),
-        ('Upper Big Tujunga · mile 6.2', 34.29143, -118.05022),
-        ('Upper Big Tujunga · mile 9', 34.273543, -118.042378),
-        ('Glendora Mountain · mile 0.16', 34.229789, -117.773863),
-        ('Glendora Mountain · mile 4.38', 34.207165, -117.80155),
-        ('Glendora Mountain · mile 10.14', 34.171527, -117.848269),
-        ('Glendora Mountain · mile 14', 34.155449, -117.836643),
-        ('Glendora Ridge · mile 0.16', 34.203687, -117.806336),
-        ('Glendora Ridge · mile 4.55', 34.217726, -117.751811),
-        ('Glendora Ridge · mile 7.9', 34.219375, -117.711292),
-        ('Glendora Ridge · mile 11.93', 34.235399, -117.662231),
-        ('Highway 39 · mile 17.14', 34.158534, -117.903956),
-        ('Highway 39 · mile 22.81', 34.210513, -117.864833),
-        ('Highway 39 · mile 29.57', 34.265133, -117.844701),
-        ('Highway 39 · mile 38.4', 34.312098, -117.839472),
-        ('Mount Baldy · mile 0.42', 34.230969, -117.663264),
-        ('Mount Baldy · mile 2.63', 34.204482, -117.676734),
-        ('Mount Baldy · mile 4.36', 34.180142, -117.677659),
-        ('Mount Baldy · mile 6.3', 34.154477, -117.685729),
-    ),
-    "malibu": (
-        ('Pacific Coast Highway', 34.0125, -118.4975),
-        ('Pacific Coast Highway', 34.0386, -118.5561),
-        ('Pacific Coast Highway', 34.0382, -118.6227),
-        ('Pacific Coast Highway', 34.0342, -118.6874),
-        ('Pacific Coast Highway', 34.0261, -118.7634),
-        ('Pacific Coast Highway', 34.0224, -118.8305),
-        ('Pacific Coast Highway', 34.0405, -118.8871),
-        ('Pacific Coast Highway', 34.0534, -118.9639),
-        ('Pacific Coast Highway', 34.0794, -119.0277),
-        ('Pacific Coast Highway', 34.1072, -119.0793),
-        ('Topanga Canyon Boulevard', 34.0401, -118.5793),
-        ('Topanga Canyon Boulevard', 34.1022, -118.5915),
-        ('Topanga Canyon Boulevard', 34.1461, -118.6056),
-        ('Malibu Canyon / Las Virgenes', 34.0347, -118.7034),
-        ('Malibu Canyon / Las Virgenes', 34.0802, -118.7037),
-        ('Malibu Canyon / Las Virgenes', 34.1413, -118.6999),
-        ('Kanan Road', 34.0277, -118.7995),
-        ('Kanan Road', 34.1073, -118.8048),
-        ('Kanan Road', 34.1422, -118.762),
-        ('Decker Road', 34.0415, -118.8944),
-        ('Decker Road', 34.0682, -118.8943),
-        ('Decker Road', 34.0886, -118.8734),
-        ('Encinal Canyon Road', 34.0943, -118.8284),
-        ('Encinal Canyon Road', 34.0775, -118.8777),
-        ('Encinal Canyon Road', 34.0404, -118.8852),
-        ('Latigo Canyon Road', 34.03, -118.7547),
-        ('Latigo Canyon Road', 34.0679, -118.7805),
-        ('Latigo Canyon Road', 34.0896, -118.8154),
-        ('Tuna Canyon Road', 34.0774, -118.6064),
-        ('Tuna Canyon Road', 34.0605, -118.6176),
-        ('Tuna Canyon Road', 34.0395, -118.5895),
-    ),
+    region: terrain_sample_points(region) for region in REGION_BOUNDS
 }
 CACHE_SECONDS = 900
 MAX_AGE_SECONDS = 3600

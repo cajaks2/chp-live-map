@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.207 - 2026-09-04
+
+- Distribute air-temperature samples across each region on a staggered terrain
+  grid, eliminating broad gaps and avoiding the impression of road temperatures.
+
 ## 0.1.206 - 2026-09-04
 
 - Move Open-Meteo attribution from the map footer to the About page while keeping

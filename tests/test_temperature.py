@@ -28,6 +28,16 @@ def clean_cache(monkeypatch):
 
 
 @pytest.mark.parametrize("region", ["forest", "malibu"])
+def test_samples_form_a_broad_terrain_grid(region):
+    points = weather.SAMPLE_POINTS[region]
+    assert len(points) >= 50
+    assert len({latitude for _name, latitude, _longitude in points}) >= 5
+    assert len({longitude for _name, _latitude, longitude in points}) >= 8
+    assert all("road" not in name.casefold() and "highway" not in name.casefold()
+               for name, _latitude, _longitude in points)
+
+
+@pytest.mark.parametrize("region", ["forest", "malibu"])
 def test_coordinates_are_requested_points_and_elevation_is_provider_terrain(region):
     data = payload(region)
     data[0].update(latitude=0, longitude=0)

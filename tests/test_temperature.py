@@ -108,6 +108,7 @@ def test_endpoint_and_local_render(tmp_path, monkeypatch, region):
     assert 'const temperatureEndpoint = "/map/api/v1/temperature"' in rendered
     assert "__TEMPERATURE_ENDPOINT__" not in rendered
     assert "temperature-label" in rendered
+    assert "Temperature estimates:" not in rendered
 
 
 def test_cached_points_expire_by_model_time(monkeypatch):

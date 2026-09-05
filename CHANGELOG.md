@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.206 - 2026-09-04
+
+- Move Open-Meteo attribution from the map footer to the About page while keeping
+  source details available in each air-temperature popup.
+
 ## 0.1.205 - 2026-09-04
 
 - Add optional, subtle elevation-adjusted temperature estimates to Forest and

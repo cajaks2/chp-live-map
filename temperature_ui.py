@@ -55,14 +55,11 @@ TEMPERATURE_JS = r"""
       let inFlight = false;
       let state = "idle";
       let frame = null;
-      const attribution = 'Temperature estimates: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>';
       const button = document.querySelector("[data-temperature-layer-toggle]");
       if (!button) return;
       button.addEventListener("click", () => {
         enabled = !enabled;
         try { localStorage.setItem("crestmap-temperature", enabled ? "shown" : "hidden"); } catch (_) {}
-        if (enabled) map.attributionControl.addAttribution(attribution);
-        else map.attributionControl.removeAttribution(attribution);
         updateButton();
         renderTemperatures();
         if (enabled) refresh();
@@ -156,7 +153,6 @@ TEMPERATURE_JS = r"""
           renderTemperatures();
         }
       }, 60 * 1000);
-      if (enabled) map.attributionControl.addAttribution(attribution);
       updateButton();
       refresh();
       window.chpLiveMap.temperatureLayer = layer;

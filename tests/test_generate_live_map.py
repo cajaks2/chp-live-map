@@ -972,6 +972,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "CHP CAD source" in about_html
     assert "Camera source" in about_html
     assert '<a href="https://cameras.alertcalifornia.org/" rel="noopener">ALERTCalifornia</a> | UC San Diego' in about_html
+    assert "Air-temperature source" in about_html
+    assert '<a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> elevation-adjusted model estimates.' in about_html
     assert "Mile-marker sources" in about_html
     assert "https://postmile.dot.ca.gov/" in about_html
     assert "https://dpw.gis.lacounty.gov/dpw/rest/services/road/MapServer/0" in about_html

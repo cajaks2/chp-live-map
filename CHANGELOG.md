@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.214 - 2026-09-04
+
+- Make measured weather-station temperatures easier to distinguish with compact,
+  opaque green badges and stronger station dots while estimates remain plain text.
+
 ## 0.1.213 - 2026-09-04
 
 - Augment modeled air temperatures with fresh, quality-controlled NWS/MADIS

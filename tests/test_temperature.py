@@ -216,6 +216,7 @@ def test_endpoint_and_local_render(tmp_path, monkeypatch, region):
     assert "is-below" in rendered
     assert "Measured + estimated" in rendered
     assert "National Weather Service" in rendered
+    assert "rgba(248,251,247,.96)" in rendered
     assert "point.priority ? 12 : 32" in rendered
     assert '" is-left"' in rendered
     assert "Temperature estimates:" not in rendered

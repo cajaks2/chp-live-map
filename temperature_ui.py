@@ -17,10 +17,15 @@ TEMPERATURE_CSS = """
     .temperature-label.is-above span { left: -15px; top: -29px; }
     .temperature-label.is-below span { left: -15px; top: 14px; }
     .temperature-label.is-observation::before {
-      left: 1px; top: 9px; width: 6px; height: 6px; background: #f8fbf7;
-      box-shadow: 0 0 0 2px #27764e;
+      left: 0; top: 8px; width: 8px; height: 8px; background: #27764e;
+      box-shadow: 0 0 0 2px #f8fbf7, 0 0 0 3px #27764e;
     }
-    .temperature-label.is-observation span { color: #28583d; font-weight: 650; }
+    .temperature-label.is-observation span {
+      width: auto; min-width: 39px; padding: 2px 5px; color: #204c34;
+      background: rgba(248,251,247,.96); border: 1px solid #73a989;
+      border-radius: 9px; box-shadow: 0 1px 4px rgba(27,67,45,.20);
+      font-weight: 700; text-shadow: none;
+    }
     .temperature-label:hover span { color: #263122; }
     .temperature-label:focus-visible span { outline: 2px solid #465a3d; border-radius: 3px; }
     .temperature-map-popup { position: absolute; padding-bottom: 10px; text-align: left; }

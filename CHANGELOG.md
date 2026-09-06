@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.220 - 2026-09-06
+
+- Show a compact map status while the initial temperature request loads, with a
+  tap-to-retry error state, while leaving cached readings unobstructed on refresh.
+
 ## 0.1.219 - 2026-09-04
 
 - Make station-reading age much clearer: begin fading and greying after 30

@@ -49,6 +49,22 @@ TEMPERATURE_CSS = """
     .temperature-popup { color: #414940; font: 13px/1.65 -apple-system, BlinkMacSystemFont, sans-serif; }
     .temperature-popup strong { font-size: 17px; color: #263122; }
     .temperature-popup small { display: block; margin-top: 6px; max-width: 220px; }
+    .temperature-load-status {
+      position: absolute; left: 10px; bottom: 28px; z-index: 431; display: none;
+      align-items: center; gap: 7px; max-width: calc(100% - 110px); padding: 6px 9px;
+      border: 1px solid #c8cec3; border-radius: 9px; background: rgba(251,252,248,.96);
+      color: #4b554a; box-shadow: 0 1px 5px rgba(24,32,38,.16);
+      font: 600 11px/15px -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    .temperature-load-status.is-visible { display: flex; }
+    .temperature-load-status.is-error { cursor: pointer; color: #34483b; }
+    .temperature-load-spinner {
+      width: 10px; height: 10px; flex: 0 0 auto; border: 2px solid #b9c3b8;
+      border-top-color: #397654; border-radius: 50%; animation: temperature-spin .8s linear infinite;
+    }
+    .temperature-load-status.is-error .temperature-load-spinner { display: none; }
+    @keyframes temperature-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .temperature-load-spinner { animation: none; } }
 """
 
 
@@ -70,6 +86,14 @@ TEMPERATURE_JS = r"""
       let frame = null;
       const button = document.querySelector("[data-temperature-layer-toggle]");
       if (!button) return;
+      const loadStatus = document.createElement("button");
+      loadStatus.type = "button";
+      loadStatus.className = "temperature-load-status";
+      loadStatus.setAttribute("aria-live", "polite");
+      loadStatus.innerHTML = '<span class="temperature-load-spinner" aria-hidden="true"></span><span></span>';
+      map.getContainer().appendChild(loadStatus);
+      L.DomEvent.disableClickPropagation(loadStatus);
+      loadStatus.addEventListener("click", () => { if (state === "error") refresh(); });
       button.addEventListener("click", () => {
         enabled = !enabled;
         try { localStorage.setItem("crestmap-temperature", enabled ? "shown" : "hidden"); } catch (_) {}
@@ -84,6 +108,16 @@ TEMPERATURE_JS = r"""
           : state === "loading" ? "Loading estimates…" : state === "error" ? "Estimates unavailable · retry by toggling"
           : "Measured + estimated °F · more detail as you zoom";
         button.title = `${enabled ? "Hide" : "Show"} estimated air temperatures`;
+        updateLoadStatus();
+      }
+      function updateLoadStatus() {
+        const initialLoading = enabled && state === "loading" && !points.length;
+        const initialError = enabled && state === "error" && !points.length;
+        loadStatus.classList.toggle("is-visible", initialLoading || initialError);
+        loadStatus.classList.toggle("is-error", initialError);
+        loadStatus.disabled = !initialError;
+        loadStatus.querySelector("span:last-child").textContent = initialError
+          ? "Temperatures unavailable · Tap to retry" : "Loading temperatures…";
       }
       function fresh(point) {
         const age = Date.now() - Date.parse(point.valid_at);

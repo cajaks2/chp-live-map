@@ -3424,6 +3424,16 @@ def build_html(
 
     const mapEl = document.getElementById("map");
     mapEl.classList.add("is-loading");
+    let restoredMapView = null;
+    try {{
+      const savedView = JSON.parse(window.sessionStorage.getItem("crestmap-region-handoff") || "null");
+      window.sessionStorage.removeItem("crestmap-region-handoff");
+      if (savedView?.region === currentRegion && Date.now() - Number(savedView.savedAt) < 15000
+          && Number.isFinite(savedView.latitude) && Number.isFinite(savedView.longitude)
+          && Number.isFinite(savedView.zoom)) {{
+        restoredMapView = savedView;
+      }}
+    }} catch (_error) {{}}
     const map = L.map("map", {{
       preferCanvas: false,
       tap: true,
@@ -3434,7 +3444,10 @@ def build_html(
       zoomAnimation: true,
       fadeAnimation: true,
       markerZoomAnimation: true
-    }}).setView({json.dumps(viewport["center"])}, {viewport["zoom"]});
+    }}).setView(
+      restoredMapView ? [restoredMapView.latitude, restoredMapView.longitude] : {json.dumps(viewport["center"])},
+      restoredMapView ? restoredMapView.zoom : {viewport["zoom"]}
+    );
     const offlineBasemapPane = map.createPane("offlineBasemap");
     offlineBasemapPane.style.zIndex = "175";
     offlineBasemapPane.style.pointerEvents = "none";
@@ -3704,6 +3717,43 @@ def build_html(
         window.localStorage.setItem("crestmap-incident-layer", incidentLayerVisible ? "shown" : "hidden");
         updateButton();
         updateMarkers();
+      }});
+    }}
+
+    function setupAutomaticRegionHandoff() {{
+      let manualPan = false;
+      let switching = false;
+      const regionAt = (latitude, longitude) => {{
+        // Use interior handoff zones so a pan near the gap between collection
+        // regions does not bounce between views.
+        if (latitude >= 33.99 && latitude <= 34.18 && longitude >= -119.10 && longitude <= -118.45) return "malibu";
+        if (latitude >= 34.205 && latitude <= 34.56 && longitude >= -118.36 && longitude <= -117.58) return "forest";
+        return null;
+      }};
+      map.on("dragstart", () => {{ manualPan = true; }});
+      map.on("moveend", () => {{
+        if (!manualPan || switching) return;
+        manualPan = false;
+        const center = map.getCenter();
+        const targetRegion = regionAt(center.lat, center.lng);
+        if (!targetRegion || targetRegion === currentRegion) return;
+        switching = true;
+        try {{
+          window.sessionStorage.setItem("crestmap-region-handoff", JSON.stringify({{
+            region: targetRegion,
+            latitude: center.lat,
+            longitude: center.lng,
+            zoom: map.getZoom(),
+            savedAt: Date.now()
+          }}));
+        }} catch (_error) {{}}
+        const status = document.getElementById("location-status");
+        if (status) status.textContent = `Switching to ${{targetRegion === "malibu" ? "Malibu" : "Forest"}}…`;
+        const url = new URL(window.location.href);
+        url.searchParams.set("region", targetRegion);
+        url.searchParams.delete("incident");
+        url.searchParams.delete("camera");
+        window.setTimeout(() => window.location.assign(url), 120);
       }});
     }}
 
@@ -5678,6 +5728,7 @@ def build_html(
     }}
 
     setupMapLayerMenu();
+    setupAutomaticRegionHandoff();
     setupIncidentLayer();
     initializeIncidentData();
     formatGeneratedAt();

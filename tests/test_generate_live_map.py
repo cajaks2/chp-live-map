@@ -765,8 +765,12 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '"Pacific Coast Highway"' in malibu_html
     assert '"Malibu Canyon / Las Virgenes"' in malibu_html
     assert 'const offlineRegionOutline = [[33.99,-119.1]' in malibu_html
-    assert ".setView([34.09, -118.78], 10)" in malibu_html
-    assert ".setView([34.32, -118.12], 10)" not in malibu_html
+    assert "restoredMapView ? [restoredMapView.latitude, restoredMapView.longitude] : [34.09, -118.78]" in malibu_html
+    assert "restoredMapView ? [restoredMapView.latitude, restoredMapView.longitude] : [34.32, -118.12]" not in malibu_html
+    assert 'window.sessionStorage.setItem("crestmap-region-handoff"' in malibu_html
+    assert 'map.on("dragstart", () => { manualPan = true; });' in malibu_html
+    assert 'url.searchParams.set("region", targetRegion);' in malibu_html
+    assert 'url.searchParams.delete("incident");' in malibu_html
     assert "Automatically reload when new incident data is available" in html
     assert "let dismissed = false" in html
     assert "async () =>" in html
@@ -986,7 +990,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '<nav class="view-tabs" aria-label="View navigation">' not in about_html
     assert "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" in html
     assert "basemaps.cartocdn.com/light_all" not in html
-    assert ".setView([34.32, -118.12], 10)" in html
+    assert "restoredMapView ? [restoredMapView.latitude, restoredMapView.longitude] : [34.32, -118.12]" in html
     assert "map.fitBounds" not in html
     assert json.dumps(incidents, ensure_ascii=False) not in html
 

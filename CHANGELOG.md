@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.229 - 2026-09-06
+
+- Automatically hand off between Forest and Malibu after a manual map pan
+  clearly enters the other region, preserving the map center and zoom.
+
 ## 0.1.228 - 2026-09-06
 
 - Extend the bundled offline Malibu basemap along Yerba Buena Road, Little

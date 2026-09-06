@@ -65,6 +65,7 @@ TEMPERATURE_CSS = """
     .temperature-load-status.is-error .temperature-load-spinner { display: none; }
     @keyframes temperature-spin { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { .temperature-load-spinner { animation: none; } }
+    @media (max-width: 760px) { .temperature-load-status { bottom: 88px; } }
 """
 
 

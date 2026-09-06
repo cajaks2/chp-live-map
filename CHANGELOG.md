@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.221 - 2026-09-06
+
+- Move the temporary temperature-loading pill above the mobile incident-details
+  control so the two statuses do not overlap.
+
 ## 0.1.220 - 2026-09-06
 
 - Show a compact map status while the initial temperature request loads, with a

@@ -74,6 +74,15 @@ def test_forecast_keeps_separate_rain_periods():
     assert len(point["periods"]) == 2
 
 
+def test_forecast_drops_hourly_periods_that_have_already_ended():
+    payload = forecast_payload("malibu", probability=10, rain=0, snow=0)
+    for row in payload:
+        row["hourly"]["time"] = [NOW - 7200, NOW - 3600, NOW, NOW + 3600, NOW + 7200, NOW + 10800]
+        row["hourly"]["precipitation_probability"][:2] = [80, 80]
+        row["hourly"]["rain"][:2] = [0.1, 0.1]
+    assert weather.parse_forecasts(payload, "malibu", NOW) == []
+
+
 def test_alerts_are_filtered_to_region_and_weather_events():
     result = weather.parse_alerts({"features": [
         {"properties": {"id": "one", "event": "Winter Storm Warning", "areaDesc": "Los Angeles County", "severity": "Severe", "headline": "Heavy snow expected"}},
@@ -127,6 +136,7 @@ def test_endpoint_and_map_layer_menu(tmp_path, monkeypatch):
     assert "point.hazard.toUpperCase()" in rendered
     assert 'className: "road-weather-map-popup"' in rendered
     assert "forecastWindow" in rendered
+    assert 'start.getTime() <= now && now < end.getTime() ? "Now"' in rendered
     assert "bindTooltip(label" not in rendered
     assert "Timing is hourly guidance and may shift" in rendered
     assert "if (popupOpen) return" in rendered

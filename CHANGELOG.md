@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.230 - 2026-09-06
+
+- Remove completed hourly rain, snow, and ice periods from the map and label a
+  forecast window as Now only while that interval is actually underway.
+
 ## 0.1.229 - 2026-09-06
 
 - Automatically hand off between Forest and Malibu after a manual map pan

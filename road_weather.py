@@ -14,7 +14,6 @@ from temperature import PRIORITY_POINTS, ROAD_POINTS
 
 CACHE_SECONDS = 15 * 60
 FORECAST_HOURS = 6
-MAX_AGE_SECONDS = 2 * 60 * 60
 NWS_USER_AGENT = "Crestmap-road-weather/1.0 (+https://crestmap.us/about)"
 REGION_ALERT_TERMS = {
     "forest": ("Los Angeles", "San Bernardino"),
@@ -70,7 +69,10 @@ def parse_forecasts(payload, region, now):
             values = (times[index], temperatures[index], probabilities[index], rain[index], snowfall[index], freezing[index])
             if not all(_number(value) for value in values):
                 continue
-            if -900 <= now - times[index] <= MAX_AGE_SECONDS or 0 <= times[index] - now <= FORECAST_HOURS * 3600:
+            # Open-Meteo timestamps mark the start of an hourly interval. Keep
+            # the current interval and future intervals, never one that has
+            # already ended.
+            if times[index] + 3600 > now and times[index] <= now + FORECAST_HOURS * 3600:
                 usable.append(values)
         if not usable:
             continue

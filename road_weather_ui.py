@@ -110,11 +110,12 @@ ROAD_WEATHER_JS = r"""
           const periods = Array.isArray(point.periods) && point.periods.length
             ? point.periods : [{ starts_at: point.starts_at, ends_at: point.ends_at }];
           const time = new Intl.DateTimeFormat([], { hour: "numeric" });
+          const now = Date.now();
           const forecastWindow = periods.map(period => {
             const start = new Date(period.starts_at);
             const end = new Date(period.ends_at);
             if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
-            const startLabel = start.getTime() <= Date.now() + 3600000 ? "Now" : time.format(start);
+            const startLabel = start.getTime() <= now && now < end.getTime() ? "Now" : time.format(start);
             return `${startLabel}–${time.format(end)}`;
           }).filter(Boolean).join(", ") || "Within the next six hours";
           const marker = L.marker(latlng, {

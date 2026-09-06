@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.226 - 2026-09-06
+
+- Close the expanded map layer menu when the user taps elsewhere on the page,
+  and support closing it with Escape for keyboard users.
+
 ## 0.1.225 - 2026-09-06
 
 - Keep the map layer menu within the mobile map viewport and make its controls

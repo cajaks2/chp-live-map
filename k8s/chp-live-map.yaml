@@ -140,7 +140,7 @@ spec:
     spec:
       containers:
         - name: scrape
-          image: cajaks2/chp-live-map:0.1.225
+          image: cajaks2/chp-live-map:0.1.226
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -159,7 +159,7 @@ spec:
                   name: chp-live-map-db
                   key: DATABASE_URL
             - name: SERVICE_VERSION
-              value: "0.1.225"
+              value: "0.1.226"
             - name: CHP_USER_AGENT
               value: "chp-live-map/0.1 (+https://crestmap.us/)"
             - name: CHP_SOURCE_MODE
@@ -235,7 +235,7 @@ spec:
     spec:
       containers:
         - name: wildweb
-          image: cajaks2/chp-live-map:0.1.225
+          image: cajaks2/chp-live-map:0.1.226
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -250,7 +250,7 @@ spec:
                   name: chp-live-map-db
                   key: DATABASE_URL
             - name: SERVICE_VERSION
-              value: "0.1.225"
+              value: "0.1.226"
             - name: WILDWEB_INTERVAL_SECONDS
               value: "120"
             - name: WILDWEB_MAX_AGE_HOURS
@@ -326,7 +326,7 @@ spec:
     spec:
       containers:
         - name: aircraft
-          image: cajaks2/chp-live-map:0.1.225
+          image: cajaks2/chp-live-map:0.1.226
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -338,7 +338,7 @@ spec:
                   name: chp-live-map-db
                   key: DATABASE_URL
             - name: SERVICE_VERSION
-              value: "0.1.225"
+              value: "0.1.226"
             - name: OPENSKY_CLIENT_ID
               valueFrom:
                 secretKeyRef:
@@ -378,7 +378,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: cajaks2/chp-live-map:0.1.225
+          image: cajaks2/chp-live-map:0.1.226
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -398,7 +398,7 @@ spec:
             - name: HTTP_PORT
               value: "8080"
             - name: SERVICE_VERSION
-              value: "0.1.225"
+              value: "0.1.226"
             - name: BASE_PATH
               value: /
             - name: PUBLIC_URL

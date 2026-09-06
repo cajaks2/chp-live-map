@@ -3679,6 +3679,20 @@ def build_html(
       }});
     }}
 
+    function setupMapLayerMenu() {{
+      const menu = document.querySelector(".map-layer-menu");
+      if (!menu) return;
+      document.addEventListener("pointerdown", (event) => {{
+        if (menu.open && !menu.contains(event.target)) menu.removeAttribute("open");
+      }}, true);
+      document.addEventListener("keydown", (event) => {{
+        if (event.key === "Escape" && menu.open) {{
+          menu.removeAttribute("open");
+          menu.querySelector("summary")?.focus();
+        }}
+      }});
+    }}
+
     function setupUserLocation() {{
       const button = document.getElementById("locate-user");
       const statusElement = document.getElementById("location-status");
@@ -5635,6 +5649,7 @@ def build_html(
       }}
     }}
 
+    setupMapLayerMenu();
     setupIncidentLayer();
     initializeIncidentData();
     formatGeneratedAt();

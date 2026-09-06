@@ -131,3 +131,4 @@ def test_endpoint_and_map_layer_menu(tmp_path, monkeypatch):
     assert "Timing is hourly guidance and may shift" in rendered
     assert "if (popupOpen) return" in rendered
     assert 'marker.on("popupopen"' in rendered
+    assert 'if (menu.open && !menu.contains(event.target))' in rendered

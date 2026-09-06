@@ -477,7 +477,7 @@ Generated files such as `*.sqlite` and `live_chp_map.html` are intentionally ign
 ### Temperature map layer
 
 Forest and Malibu include an optional layer of subtle temperature labels in °F.
-Use **Air temperature** in the navigation menu to toggle the layer. It samples an
+Use **Air temperature** in the map layer menu to toggle the layer. It samples an
 even, staggered terrain grid clipped to each map region and reveals more labels as
 you zoom. These are Open-Meteo **modeled air temperatures**, not station observations or
 road-surface temperatures. Tap a label for terrain elevation, model valid time,
@@ -495,3 +495,11 @@ Local evaluation uses the keyless public API. Open-Meteo requires a paid plan fo
 commercial API use. Set `OPEN_METEO_API_KEY` in the web service environment to use
 the customer endpoint; the key stays server-side. See
 [Open-Meteo terms and pricing](https://open-meteo.com/en/pricing).
+
+The map layer menu also includes optional **Road weather** guidance. The server
+batches a lighter set of road and named-location samples through Open-Meteo every
+15 minutes and evaluates the next six hours for rain, modeled snowfall, or
+possible freezing conditions at the sampled elevation. Relevant active National
+Weather Service alerts appear as a compact map banner. These markers are forecast
+guidance rather than measured pavement conditions; incident and closure sources
+remain authoritative for posted closures and chain controls.

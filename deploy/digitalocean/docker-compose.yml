@@ -14,7 +14,7 @@ services:
       retries: 5
 
   web:
-    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.222}
+    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.223}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -26,7 +26,7 @@ services:
       HTTP_PORT: "8080"
       BASE_PATH: /
       PUBLIC_URL: https://crestmap.us/
-      SERVICE_VERSION: ${VERSION:-0.1.222}
+      SERVICE_VERSION: ${VERSION:-0.1.223}
       OPEN_METEO_API_KEY: ${OPEN_METEO_API_KEY:-}
       GOOGLE_ANALYTICS_ID: ${GOOGLE_ANALYTICS_ID:-}
       DATABASE_POOL_MIN: ${DATABASE_POOL_MIN:-1}
@@ -53,14 +53,14 @@ services:
       - "127.0.0.1:8080:8080"
 
   scrape:
-    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.222}
+    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.223}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      SERVICE_VERSION: ${VERSION:-0.1.222}
+      SERVICE_VERSION: ${VERSION:-0.1.223}
       CHP_SOURCE_MODE: ${CHP_SOURCE_MODE:-xml}
       CHP_XML_MAX_AGE_MINUTES: ${CHP_XML_MAX_AGE_MINUTES:-5}
       CHP_XML_SHADOW_COMPARE: ${CHP_XML_SHADOW_COMPARE:-false}
@@ -81,14 +81,14 @@ services:
       - "3"
 
   wildweb:
-    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.222}
+    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.223}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      SERVICE_VERSION: ${VERSION:-0.1.222}
+      SERVICE_VERSION: ${VERSION:-0.1.223}
       WILDWEB_INTERVAL_SECONDS: ${WILDWEB_INTERVAL_SECONDS:-120}
       WILDWEB_MAX_AGE_HOURS: ${WILDWEB_MAX_AGE_HOURS:-72}
       WILDWEB_USER_AGENT: ${WILDWEB_USER_AGENT:-crestmap-wildweb/0.1 (+https://crestmap.us/)}
@@ -105,14 +105,14 @@ services:
       - /app/scrape_wildweb_incidents.py
 
   aircraft:
-    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.222}
+    image: ${IMAGE_REPO:-cajaks2/chp-live-map}:${VERSION:-0.1.223}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      SERVICE_VERSION: ${VERSION:-0.1.222}
+      SERVICE_VERSION: ${VERSION:-0.1.223}
       OPENSKY_CLIENT_ID: ${OPENSKY_CLIENT_ID:-}
       OPENSKY_CLIENT_SECRET: ${OPENSKY_CLIENT_SECRET:-}
       AIRCRAFT_POLL_SECONDS: ${AIRCRAFT_POLL_SECONDS:-30}

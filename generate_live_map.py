@@ -11,6 +11,7 @@ from urllib.parse import urlsplit, urlencode
 
 from ecs_logging import log_event, run_main
 from temperature_ui import TEMPERATURE_CSS, temperature_script
+from road_weather_ui import ROAD_WEATHER_CSS, road_weather_script
 from geo_bounds import REGION_BOUNDS, clear_coordinates_outside_region_bounds
 from mile_markers import MILE_MARKERS
 
@@ -964,13 +965,6 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False, airc
             admin_href,
         ),
     ]
-    if current == "map" and aircraft_tracking_enabled:
-        items.insert(4, ("aircraft", "Rescue helicopters", "Shown when airborne", None))
-    if current == "map" and normalize_region(region) == "forest":
-        items.insert(4, ("mile-markers", "Mile markers", "More detail as you zoom", None))
-    if current == "map":
-        items.insert(4, ("cameras", "ALERTCalifornia cameras", "Shown on map", None))
-        items.insert(5, ("temperature", "Air temperature", "Estimated °F · more detail as you zoom", None))
     rows = []
     for key, label, description, href in items:
         if key == "alerts":
@@ -1040,6 +1034,42 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False, airc
         + "</div></details></div>"
         + view_menu_script()
         + (admin_activity_script(base_path) if admin_mode else "")
+    )
+
+
+def map_layer_menu(region="forest", aircraft_tracking_enabled=False):
+    rows = [
+        '<button type="button" class="view-menu-row is-active" data-road-weather-layer-toggle aria-label="Toggle road weather" '
+        'aria-pressed="true"><span class="view-menu-label">Road weather</span>'
+        '<span class="view-menu-description">Rain · snow · ice by elevation</span><span class="map-layer-switch" aria-hidden="true"></span></button>',
+        '<button type="button" class="view-menu-row is-active" data-temperature-layer-toggle aria-label="Toggle air temperature" '
+        'aria-pressed="true"><span class="view-menu-label">Air temperature</span>'
+        '<span class="view-menu-description">Measured + estimated °F</span><span class="map-layer-switch" aria-hidden="true"></span></button>',
+        '<button type="button" class="view-menu-row is-active" data-camera-layer-toggle aria-label="Toggle fire cameras" '
+        'aria-pressed="true"><span class="view-menu-label">Fire cameras</span>'
+        '<span class="view-menu-description">ALERTCalifornia cameras</span><span class="map-layer-switch" aria-hidden="true"></span></button>',
+    ]
+    if normalize_region(region) == "forest":
+        rows.append(
+            '<button type="button" class="view-menu-row is-active" data-mile-markers-toggle aria-label="Toggle mile markers" '
+            'aria-pressed="true"><span class="view-menu-label">Mile markers</span>'
+            '<span class="view-menu-description">More detail as you zoom</span><span class="map-layer-switch" aria-hidden="true"></span></button>'
+        )
+    if aircraft_tracking_enabled:
+        rows.append(
+            '<button type="button" class="view-menu-row is-active" data-aircraft-layer-toggle aria-label="Toggle rescue helicopters" '
+            'aria-pressed="true"><span class="view-menu-label">Rescue helicopters</span>'
+            '<span class="view-menu-description">Shown when airborne</span><span class="map-layer-switch" aria-hidden="true"></span></button>'
+        )
+    return (
+        '<details class="map-layer-menu">'
+        '<summary aria-label="Open map layers" title="Map layers">'
+        '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+        '<path d="M4 7h16M4 12h16M4 17h16"></path></svg></summary>'
+        '<div class="map-layer-popover"><div class="map-layer-heading">'
+        '<strong>Map layers</strong><span>Controls that only affect the map</span></div>'
+        + "".join(rows)
+        + '</div></details>'
     )
 
 
@@ -2203,6 +2233,43 @@ def build_html(
       stroke-linecap: round;
       stroke-linejoin: round;
     }}
+    .map-layer-menu {{
+      position: absolute; top: 12px; left: 12px; z-index: 1001;
+    }}
+    .map-layer-menu summary {{
+      box-sizing: border-box; display: grid; place-items: center; width: 36px; height: 36px;
+      padding: 0; border: 1px solid rgba(42,57,47,.25); border-radius: 9px;
+      color: #385142; background: rgba(255,255,255,.96); box-shadow: 0 2px 8px rgba(24,32,38,.16);
+      cursor: pointer; list-style: none;
+    }}
+    .map-layer-menu summary::-webkit-details-marker {{ display: none; }}
+    .map-layer-menu[open] summary {{ color: #fff; border-color: #277447; background: #277447; }}
+    .map-layer-menu summary:focus-visible {{ outline: 2px solid rgba(39,116,71,.55); outline-offset: 2px; }}
+    .map-layer-menu summary svg {{ width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }}
+    .map-layer-popover {{
+      position: absolute; top: 42px; left: 0; width: min(276px, calc(100vw - 80px)); overflow: hidden;
+      border: 1px solid rgba(56,74,62,.22); border-radius: 13px; background: rgba(251,252,248,.98);
+      box-shadow: 0 8px 24px rgba(24,32,38,.2); color: #344239;
+    }}
+    .map-layer-heading {{ padding: 11px 13px 9px; border-bottom: 1px solid #d8ddd2; }}
+    .map-layer-heading strong, .map-layer-heading span {{ display: block; }}
+    .map-layer-heading strong {{ font-size: 14px; }}
+    .map-layer-heading span {{ margin-top: 2px; color: #687268; font-size: 10px; }}
+    .map-layer-popover .view-menu-row {{
+      min-height: 48px; border-radius: 0; border: 0; border-bottom: 1px solid #e1e5dc; box-shadow: none;
+    }}
+    .map-layer-popover .view-menu-row:last-child {{ border-bottom: 0; }}
+    .map-layer-popover .view-menu-description {{ flex: 1 1 auto; }}
+    .map-layer-switch {{
+      position: relative; flex: 0 0 auto; width: 30px; height: 18px; border-radius: 999px;
+      background: #b7c0b8; transition: background 150ms ease;
+    }}
+    .map-layer-switch::after {{
+      content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px;
+      border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(24,32,38,.25); transition: transform 150ms ease;
+    }}
+    .map-layer-popover .view-menu-row[aria-pressed="true"] .map-layer-switch {{ background: #277447; }}
+    .map-layer-popover .view-menu-row[aria-pressed="true"] .map-layer-switch::after {{ transform: translateX(12px); }}
     #location-status {{
       position: absolute;
       top: 16px;
@@ -3136,6 +3203,7 @@ def build_html(
     }}
   </style>
   <style>{push_ui_css()}</style>
+  <style>{ROAD_WEATHER_CSS}</style>
 </head>
 <body>
   <div id="app">
@@ -3170,6 +3238,7 @@ def build_html(
       </div>
     </aside>
     <main id="map">
+      {map_layer_menu(region, aircraft_tracking_enabled)}
       <button type="button" id="locate-user" aria-label="Show my location" title="Show my location">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <circle cx="12" cy="12" r="5"></circle>
@@ -5538,6 +5607,7 @@ def build_html(
     setupCameraLayer();
     setupAircraftLayer();
     {temperature_script(app_path(base_path, "/api/v1/temperature"))}
+    {road_weather_script(app_path(base_path, "/api/v1/road-weather"))}
     list.addEventListener("scroll", updateListScrollCue, {{ passive: true }});
     scrollIncidentsButton?.addEventListener("click", scrollIncidentListDown);
     window.addEventListener("resize", updateListScrollCue);
@@ -6772,6 +6842,7 @@ def build_about_html(
         <div class="result"><strong>WildWeb source</strong><span><a href="https://www.wildwebe.net/incidents?dc_Name=CAANCC" rel="noopener">wildwebe.net · CAANCC</a></span></div>
         <div class="result"><strong>Camera source</strong><span><a href="https://cameras.alertcalifornia.org/" rel="noopener">ALERTCalifornia</a> | UC San Diego</span></div>
         <div class="result"><strong>Air-temperature sources</strong><span><a href="https://api.weather.gov/" rel="noopener">National Weather Service</a> station observations and <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> elevation-adjusted model estimates.</span></div>
+        <div class="result"><strong>Road-weather sources</strong><span><a href="https://api.weather.gov/alerts" rel="noopener">National Weather Service</a> active alerts and <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> six-hour elevation-aware precipitation forecasts. Road-weather markers are forecasts, not measured pavement conditions.</span></div>
         <div class="result"><strong>Mile-marker sources</strong><span><a href="https://postmile.dot.ca.gov/" rel="noopener">Caltrans postmiles</a> and <a href="https://dpw.gis.lacounty.gov/dpw/rest/services/road/MapServer/0" rel="noopener">LA County Public Works surveyed markers</a>.</span></div>
         <div class="result"><strong>Project README</strong><span><a href="https://github.com/cajaks2/chp-live-map#readme" rel="noopener">github.com/cajaks2/chp-live-map</a></span></div>
       </section>

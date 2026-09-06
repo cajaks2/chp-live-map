@@ -11,6 +11,20 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.223 - 2026-09-06
+
+- Move map-only overlays into a compact menu on the map, and add a subtle
+  elevation-aware six-hour rain, snow, and possible-ice forecast layer using
+  Open-Meteo road forecasts and relevant National Weather Service alerts.
+- Label ALERTCalifornia views as Fire cameras and use explicit RAIN, SNOW, and
+  ICE road labels so forecasts cannot be mistaken for temperature sample dots.
+- Keep road-weather labels above mile markers, render forecast details in an
+  opaque map card, and show the expected start and end times for each condition.
+- Remove redundant floating weather tooltips and present non-contiguous model
+  hours as separate approximate periods, using “Now” for the current hour.
+- Keep an opened road-weather popup visible while Leaflet pans the map to fit it,
+  then resume viewport-based marker placement after the popup closes.
+
 ## 0.1.222 - 2026-09-06
 
 - Center the temporary temperature-loading status along the top of the map,

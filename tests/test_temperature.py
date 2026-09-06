@@ -26,7 +26,7 @@ def clean_cache(monkeypatch):
     weather._retry_after.clear()
     monkeypatch.delenv("OPEN_METEO_API_KEY", raising=False)
     monkeypatch.setattr(weather.time, "time", lambda: NOW)
-    monkeypatch.setattr(weather, "load_station_observations", lambda _region, _now: [])
+    monkeypatch.setattr(weather, "load_station_observations", lambda _region, _now: ([], {"success": 0, "invalid": 0, "failure": 0}))
 
 
 @pytest.mark.parametrize("region", ["forest", "malibu"])
@@ -164,7 +164,7 @@ def test_station_observations_augment_estimates(monkeypatch):
         "valid_at": dt.datetime.fromtimestamp(NOW - 60, dt.timezone.utc).isoformat(),
         "kind": "observation", "priority": False, "road": False,
     }
-    monkeypatch.setattr(weather, "load_station_observations", lambda _region, _now: [observed])
+    monkeypatch.setattr(weather, "load_station_observations", lambda _region, _now: ([observed], {"success": 1, "invalid": 0, "failure": 0}))
     monkeypatch.setattr(weather, "urlopen", lambda *_args, **_kwargs: io.BytesIO(
         json.dumps(payload()).encode()
     ))

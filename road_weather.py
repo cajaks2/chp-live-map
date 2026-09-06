@@ -9,7 +9,9 @@ import time
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from ecs_logging import log_event
 from temperature import PRIORITY_POINTS, ROAD_POINTS
+from weather_metrics import record_cache, record_provider, record_refresh
 
 
 CACHE_SECONDS = 15 * 60
@@ -160,9 +162,13 @@ def load_road_weather(region):
         now = time.time()
         cached = _cache.get(region)
         if cached and now - cached[0] < CACHE_SECONDS:
+            record_cache("road_weather", region, "hit")
             return cached[1]
         if now < _retry_after.get(region, 0):
+            record_cache("road_weather", region, "retry_suppressed")
             raise RoadWeatherUnavailable()
+        record_cache("road_weather", region, "miss")
+        refresh_started = time.monotonic()
         samples = forecast_points(region)
         params = {
             "latitude": ",".join(str(point[1]) for point in samples),
@@ -183,17 +189,37 @@ def load_road_weather(region):
             with urlopen(request, timeout=12) as response:
                 forecast_payload = json.loads(response.read(512_000))
             points = parse_forecasts(forecast_payload, region, now)
-        except Exception:
+            record_provider("road_weather", region, "open_meteo", "success")
+        except Exception as exc:
+            duration = time.monotonic() - refresh_started
+            record_provider("road_weather", region, "open_meteo", "failure")
+            record_refresh("road_weather", region, "failure", duration)
+            log_event(
+                "warning", "Road weather refresh failed",
+                **{"event.action": "weather_refresh", "event.outcome": "failure",
+                   "weather.pipeline": "road_weather", "weather.region": region,
+                   "weather.provider": "open_meteo", "event.duration": round(duration * 1_000_000_000),
+                   "error.type": exc.__class__.__name__},
+            )
             _retry_after[region] = now + 60
             raise RoadWeatherUnavailable() from None
 
         alerts = []
+        nws_outcome = "success"
         try:
             request = Request("https://api.weather.gov/alerts/active?area=CA", headers={"User-Agent": NWS_USER_AGENT, "Accept": "application/geo+json"})
             with urlopen(request, timeout=8) as response:
                 alerts = parse_alerts(json.loads(response.read(1_000_000)), region)
-        except Exception:
-            pass
+            record_provider("road_weather", region, "nws_alerts", "success")
+        except Exception as exc:
+            nws_outcome = "failure"
+            record_provider("road_weather", region, "nws_alerts", "failure")
+            log_event(
+                "warning", "Road weather alert refresh failed",
+                **{"event.action": "weather_provider_request", "event.outcome": "failure",
+                   "weather.pipeline": "road_weather", "weather.region": region,
+                   "weather.provider": "nws_alerts", "error.type": exc.__class__.__name__},
+            )
         result = {
             "region": region,
             "source": "NWS and Open-Meteo",
@@ -204,4 +230,19 @@ def load_road_weather(region):
         }
         _cache[region] = (now, result)
         _retry_after.pop(region, None)
+        duration = time.monotonic() - refresh_started
+        hazard_counts = {hazard: sum(point.get("hazard") == hazard for point in points) for hazard in ("rain", "snow", "ice")}
+        record_refresh(
+            "road_weather", region, "success", duration, now,
+            {"total": len(points), "alerts": len(alerts), **hazard_counts},
+        )
+        log_event(
+            "info", "Road weather refresh completed",
+            **{"event.action": "weather_refresh", "event.outcome": "success",
+               "weather.pipeline": "road_weather", "weather.region": region,
+               "weather.points": len(points), "weather.alerts": len(alerts),
+               "weather.rain": hazard_counts["rain"], "weather.snow": hazard_counts["snow"],
+               "weather.ice": hazard_counts["ice"], "weather.nws_outcome": nws_outcome,
+               "event.duration": round(duration * 1_000_000_000)},
+        )
         return result

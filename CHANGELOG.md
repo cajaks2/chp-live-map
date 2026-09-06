@@ -11,6 +11,12 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.232 - 2026-09-06
+
+- Add Prometheus metrics and structured logs for temperature and road-weather
+  refresh outcomes, upstream providers, cache behavior, latency, freshness,
+  station availability, alerts, and rain, snow, and ice result counts.
+
 ## 0.1.231 - 2026-09-06
 
 - Raise weather, temperature, and aircraft popup cards above their originating

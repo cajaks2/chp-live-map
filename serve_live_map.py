@@ -36,6 +36,7 @@ from generate_live_map import (
     region_label,
 )
 from scrape_chp_traffic import connect_database
+from weather_metrics import snapshot as weather_metrics_snapshot
 
 
 # Browser freshness stays in the origin response; Cloudflare edge TTLs are managed
@@ -546,6 +547,81 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
                 {"method": method, "route": route, "status": status_code},
             )
         )
+    weather_metrics = weather_metrics_snapshot()
+    lines.extend([
+        "# HELP chp_live_map_weather_refreshes_total Weather data refresh attempts by pipeline and outcome.",
+        "# TYPE chp_live_map_weather_refreshes_total counter",
+    ])
+    for pipeline in ("temperature", "road_weather"):
+        for region in METRIC_REGIONS:
+            for outcome in ("success", "failure"):
+                lines.append(metric_line(
+                    "chp_live_map_weather_refreshes_total",
+                    weather_metrics["refresh_total"].get((pipeline, region, outcome), 0),
+                    {"pipeline": pipeline, "region": region, "outcome": outcome},
+                ))
+    lines.extend([
+        "# HELP chp_live_map_weather_cache_events_total Weather cache hits, misses, and retry-suppressed requests.",
+        "# TYPE chp_live_map_weather_cache_events_total counter",
+    ])
+    for pipeline in ("temperature", "road_weather"):
+        for region in METRIC_REGIONS:
+            for outcome in ("hit", "miss", "retry_suppressed"):
+                lines.append(metric_line(
+                    "chp_live_map_weather_cache_events_total",
+                    weather_metrics["cache_total"].get((pipeline, region, outcome), 0),
+                    {"pipeline": pipeline, "region": region, "outcome": outcome},
+                ))
+    lines.extend([
+        "# HELP chp_live_map_weather_provider_requests_total Weather upstream provider request outcomes.",
+        "# TYPE chp_live_map_weather_provider_requests_total counter",
+    ])
+    providers = {
+        "temperature": {"open_meteo": ("success", "failure"), "nws_stations": ("success", "invalid", "failure")},
+        "road_weather": {"open_meteo": ("success", "failure"), "nws_alerts": ("success", "failure")},
+    }
+    for pipeline, pipeline_providers in providers.items():
+        for region in METRIC_REGIONS:
+            for provider, outcomes in pipeline_providers.items():
+                for outcome in outcomes:
+                    lines.append(metric_line(
+                        "chp_live_map_weather_provider_requests_total",
+                        weather_metrics["provider_total"].get((pipeline, region, provider, outcome), 0),
+                        {"pipeline": pipeline, "region": region, "provider": provider, "outcome": outcome},
+                    ))
+    lines.extend([
+        "# HELP chp_live_map_weather_last_refresh_duration_seconds Duration of the latest upstream refresh attempt.",
+        "# TYPE chp_live_map_weather_last_refresh_duration_seconds gauge",
+        "# HELP chp_live_map_weather_last_success_timestamp_seconds Unix timestamp of the latest successful refresh.",
+        "# TYPE chp_live_map_weather_last_success_timestamp_seconds gauge",
+    ])
+    for pipeline in ("temperature", "road_weather"):
+        for region in METRIC_REGIONS:
+            labels = {"pipeline": pipeline, "region": region}
+            lines.append(metric_line(
+                "chp_live_map_weather_last_refresh_duration_seconds",
+                f'{weather_metrics["last_duration"].get((pipeline, region), 0):.6f}', labels,
+            ))
+            lines.append(metric_line(
+                "chp_live_map_weather_last_success_timestamp_seconds",
+                f'{weather_metrics["last_success"].get((pipeline, region), 0):.3f}', labels,
+            ))
+    lines.extend([
+        "# HELP chp_live_map_weather_points Latest successful weather result counts by kind.",
+        "# TYPE chp_live_map_weather_points gauge",
+    ])
+    point_kinds = {
+        "temperature": ("total", "estimate", "observation"),
+        "road_weather": ("total", "alerts", "rain", "snow", "ice"),
+    }
+    for pipeline, kinds in point_kinds.items():
+        for region in METRIC_REGIONS:
+            for kind in kinds:
+                lines.append(metric_line(
+                    "chp_live_map_weather_points",
+                    weather_metrics["point_counts"].get((pipeline, region, kind), 0),
+                    {"pipeline": pipeline, "region": region, "kind": kind},
+                ))
     if pool_stats:
         pool_size = int(pool_stats.get("pool_size", 0))
         pool_available = int(pool_stats.get("pool_available", 0))

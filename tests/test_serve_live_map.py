@@ -35,6 +35,7 @@ from serve_live_map import (
     MAP_CACHE_CONTROL,
     prometheus_metrics,
 )
+from weather_metrics import record_cache, record_provider, record_refresh, reset as reset_weather_metrics
 from scrape_chp_traffic import (
     connect_database,
     insert_observation,
@@ -523,6 +524,25 @@ def test_prometheus_metrics_include_pool_stats(tmp_path):
     assert 'chp_live_map_db_pool_connections{state="available"} 2' in body
     assert 'chp_live_map_db_pool_connections{state="in_use"} 1' in body
     assert "chp_live_map_db_pool_requests_waiting 4" in body
+
+
+def test_prometheus_metrics_include_weather_refresh_health(tmp_path):
+    reset_weather_metrics()
+    record_cache("temperature", "malibu", "miss")
+    record_provider("temperature", "malibu", "open_meteo", "success")
+    record_provider("temperature", "malibu", "nws_stations", "failure", 2)
+    record_refresh(
+        "temperature", "malibu", "success", 0.625, 1788550000,
+        {"total": 61, "estimate": 59, "observation": 2},
+    )
+    body = prometheus_metrics(tmp_path / "missing.sqlite", None, 72.0).decode("utf-8")
+    assert 'chp_live_map_weather_refreshes_total{pipeline="temperature",region="malibu",outcome="success"} 1' in body
+    assert 'chp_live_map_weather_cache_events_total{pipeline="temperature",region="malibu",outcome="miss"} 1' in body
+    assert 'chp_live_map_weather_provider_requests_total{pipeline="temperature",region="malibu",provider="nws_stations",outcome="failure"} 2' in body
+    assert 'chp_live_map_weather_last_refresh_duration_seconds{pipeline="temperature",region="malibu"} 0.625000' in body
+    assert 'chp_live_map_weather_last_success_timestamp_seconds{pipeline="temperature",region="malibu"} 1788550000.000' in body
+    assert 'chp_live_map_weather_points{pipeline="temperature",region="malibu",kind="observation"} 2' in body
+    reset_weather_metrics()
 
 
 def test_aircraft_api_returns_delayed_verified_position(tmp_path):

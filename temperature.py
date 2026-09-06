@@ -10,8 +10,10 @@ import time
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+from ecs_logging import log_event
 from geo_bounds import REGION_BOUNDS, coordinates_in_region_bounds
 from mile_markers import MILE_MARKERS
+from weather_metrics import record_cache, record_provider, record_refresh
 
 OBSERVATION_STATIONS = {
     "forest": (
@@ -213,13 +215,21 @@ def load_station_observations(region, now):
         try:
             with urlopen(request, timeout=6) as response:
                 payload = json.loads(response.read(64_000))
-            return parse_station_observation(payload, station, now)
+            point = parse_station_observation(payload, station, now)
+            return point, "success" if point else "invalid"
         except Exception:
-            return None
+            return None, "failure"
 
     stations = OBSERVATION_STATIONS.get(region, ())
     with ThreadPoolExecutor(max_workers=len(stations) or 1) as executor:
-        return [point for point in executor.map(fetch, stations) if point]
+        results = list(executor.map(fetch, stations))
+    outcomes = {"success": 0, "invalid": 0, "failure": 0}
+    points = []
+    for point, outcome in results:
+        outcomes[outcome] += 1
+        if point:
+            points.append(point)
+    return points, outcomes
 
 
 def parse_estimates(payload, region, now):
@@ -275,9 +285,13 @@ def load_temperatures(region):
                     if point.get("kind") == "observation" else MAX_AGE_SECONDS)
             ]
             if fresh_points:
+                record_cache("temperature", region, "hit")
                 return {**cached[1], "points": fresh_points}
         if now < _retry_after.get(region, 0):
+            record_cache("temperature", region, "retry_suppressed")
             raise TemperatureUnavailable()
+        record_cache("temperature", region, "miss")
+        refresh_started = time.monotonic()
         samples = SAMPLE_POINTS[region]
         params = {
             "latitude": ",".join(str(p[1]) for p in samples),
@@ -296,11 +310,25 @@ def load_temperatures(region):
             with urlopen(request, timeout=10) as response:
                 payload = json.loads(response.read(256_000))
             result = parse_estimates(payload, region, now)
-        except Exception:
+            record_provider("temperature", region, "open_meteo", "success")
+        except Exception as exc:
             # Do not log request URLs: customer URLs contain the API key.
+            duration = time.monotonic() - refresh_started
+            record_provider("temperature", region, "open_meteo", "failure")
+            record_refresh("temperature", region, "failure", duration)
+            log_event(
+                "warning", "Temperature refresh failed",
+                **{"event.action": "weather_refresh", "event.outcome": "failure",
+                   "weather.pipeline": "temperature", "weather.region": region,
+                   "weather.provider": "open_meteo", "event.duration": round(duration * 1_000_000_000),
+                   "error.type": exc.__class__.__name__},
+            )
             _retry_after[region] = now + 60
             raise TemperatureUnavailable() from None
-        observations = load_station_observations(region, now)
+        observations, station_outcomes = load_station_observations(region, now)
+        for outcome, count in station_outcomes.items():
+            if count:
+                record_provider("temperature", region, "nws_stations", outcome, count)
         if observations:
             result = {
                 **result,
@@ -310,4 +338,21 @@ def load_temperatures(region):
             }
         _cache[region] = (now, result)
         _retry_after.pop(region, None)
+        duration = time.monotonic() - refresh_started
+        estimate_count = sum(point.get("kind") == "estimate" for point in result["points"])
+        observation_count = len(observations)
+        record_refresh(
+            "temperature", region, "success", duration, now,
+            {"total": len(result["points"]), "estimate": estimate_count, "observation": observation_count},
+        )
+        log_event(
+            "info", "Temperature refresh completed",
+            **{"event.action": "weather_refresh", "event.outcome": "success",
+               "weather.pipeline": "temperature", "weather.region": region,
+               "weather.points": len(result["points"]), "weather.estimates": estimate_count,
+               "weather.observations": observation_count,
+               "weather.nws_failures": station_outcomes["failure"],
+               "weather.nws_invalid": station_outcomes["invalid"],
+               "event.duration": round(duration * 1_000_000_000)},
+        )
         return result

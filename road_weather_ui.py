@@ -111,13 +111,16 @@ ROAD_WEATHER_JS = r"""
             ? point.periods : [{ starts_at: point.starts_at, ends_at: point.ends_at }];
           const time = new Intl.DateTimeFormat([], { hour: "numeric" });
           const now = Date.now();
-          const forecastWindow = periods.map(period => {
+          const hazardWindow = periods.map(period => {
             const start = new Date(period.starts_at);
             const end = new Date(period.ends_at);
             if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
             const startLabel = start.getTime() <= now && now < end.getTime() ? "Now" : time.format(start);
             return `${startLabel}–${time.format(end)}`;
           }).filter(Boolean).join(", ") || "Within the next six hours";
+          const hazardWindowLabel = point.hazard === "ice" ? "Possible ice" : point.hazard === "snow" ? "Expected snow" : "Expected rain";
+          const validUntil = new Date(point.valid_until);
+          const checkedThrough = Number.isNaN(validUntil.getTime()) ? "" : time.format(validUntil);
           const marker = L.marker(latlng, {
             pane: "roadWeather", keyboard: true,
             title: `${point.name}: ${label}`,
@@ -126,7 +129,7 @@ ROAD_WEATHER_JS = r"""
               html: `<span>${point.hazard.toUpperCase()}</span>`, iconSize: [34,17], iconAnchor: [17,8]
             })
           });
-          marker.bindPopup(`<div class="road-weather-popup"><strong>${label}</strong><br>${escapeHtml(point.name)}<br><b>Model window: ${escapeHtml(forecastWindow)}</b><br>${elevation} ft · ${point.precipitation_probability}% chance<br>${escapeHtml(amount)}<small>Timing is hourly guidance and may shift. This is not a measured pavement condition. Check posted closures and chain controls before travel.</small></div>`, { className: "road-weather-map-popup", maxWidth: 280, offset: [0,-14], autoPanPadding: [32,32] });
+          marker.bindPopup(`<div class="road-weather-popup"><strong>${label}</strong><br>${escapeHtml(point.name)}<br><b>${hazardWindowLabel}: ${escapeHtml(hazardWindow)}</b>${checkedThrough ? `<br>Forecast checked through ${escapeHtml(checkedThrough)}` : ""}<br>${elevation} ft · ${point.precipitation_probability}% chance<br>${escapeHtml(amount)}<small>Timing is hourly guidance and may shift. This is not a measured pavement condition. Check posted closures and chain controls before travel.</small></div>`, { className: "road-weather-map-popup", maxWidth: 280, offset: [0,-14], autoPanPadding: [32,32] });
           marker.on("popupopen", () => { popupOpen = true; });
           marker.on("popupclose", () => {
             popupOpen = false;

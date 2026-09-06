@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.233 - 2026-09-06
+
+- Distinguish the predicted rain, snow, or ice period from the full forecast
+  horizon in road-weather popups.
+
 ## 0.1.232 - 2026-09-06
 
 - Add Prometheus metrics and structured logs for temperature and road-weather

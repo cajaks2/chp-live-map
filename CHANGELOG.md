@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.225 - 2026-09-06
+
+- Keep the map layer menu within the mobile map viewport and make its controls
+  scrollable when the menu is taller than the available map space.
+
 ## 0.1.224 - 2026-09-06
 
 - Remove the redundant Map, Summary, History, and About tab row in favor of the

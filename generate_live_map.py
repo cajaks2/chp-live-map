@@ -3166,6 +3166,13 @@ def build_html(
         height: 45svh;
         min-height: 280px;
       }}
+      .map-layer-popover {{
+        max-height: calc(45svh - 66px);
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        -webkit-overflow-scrolling: touch;
+      }}
       #details-cue {{
         display: flex;
         position: absolute;

@@ -1039,6 +1039,9 @@ def view_menu(base_path, current, hours, region="forest", admin_mode=False, airc
 
 def map_layer_menu(region="forest", aircraft_tracking_enabled=False):
     rows = [
+        '<button type="button" class="view-menu-row is-active" data-incident-layer-toggle aria-label="Toggle incidents" '
+        'aria-pressed="true"><span class="view-menu-label">Incidents</span>'
+        '<span class="view-menu-description">Map pins</span><span class="map-layer-switch" aria-hidden="true"></span></button>',
         '<button type="button" class="view-menu-row is-active" data-road-weather-layer-toggle aria-label="Toggle road weather" '
         'aria-pressed="true"><span class="view-menu-label">Road weather</span>'
         '<span class="view-menu-description">Rain · snow · ice by elevation</span><span class="map-layer-switch" aria-hidden="true"></span></button>',
@@ -1337,18 +1340,18 @@ def status_summary_text(status, hours):
     reported = int(status.get("reported_count", 0))
     prefix = f"{status['active_count']} active"
     if reported:
-        prefix += f" · {reported} WildWeb reported"
-    return f"{prefix} · {status['total_count']} in last {hours:g}h · {status['mapped_count']} mapped"
+        prefix += f" · {reported} WildWeb"
+    return f"{prefix} · {status['total_count']} in {hours:g}h · {status['mapped_count']} mapped"
 
 
 def scrape_meta_html(last_scrape):
     if not last_scrape or not last_scrape.get("observed_at"):
-        return '<span>Last scrape unavailable</span>'
+        return '<span>Source update unavailable</span>'
     observed_at = html.escape(str(last_scrape.get("observed_at")))
     source = html.escape(scrape_source_label(last_scrape.get("source")))
     return (
-        f'<span>Last scrape <time id="last-scrape-at" datetime="{observed_at}">{observed_at}</time>'
-        f' <span class="source-label">({source})</span></span>'
+        f'<span><span class="source-label">{source}</span> '
+        f'<time id="last-scrape-at" datetime="{observed_at}">{observed_at}</time></span>'
     )
 
 
@@ -3214,7 +3217,7 @@ def build_html(
           {view_menu(base_path, "map", hours, region, admin_mode=admin_mode, aircraft_tracking_enabled=aircraft_tracking_enabled)}
         </div>
         <div class="meta">{html.escape(status_summary_text(status, hours))}</div>
-        <div class="meta checked-meta"><span>View last updated <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span><span aria-hidden="true">·</span>{scrape_meta_html(last_scrape)}<span aria-hidden="true">·</span>
+        <div class="meta checked-meta"><span>Updated <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span><span aria-hidden="true">·</span>
           <label class="auto-refresh-control" title="Automatically reload when new incident data is available">
             <input type="checkbox" id="auto-refresh-enabled">
             Auto refresh
@@ -3222,10 +3225,7 @@ def build_html(
         </div>
         <div id="connection-status" data-state="online" role="status" aria-live="polite">Online</div>
         <nav class="range-tabs" aria-label="History range">{history_controls(hours, region)}</nav>
-        <div class="secondary-tabs">
-          <nav class="region-tabs" aria-label="Region">{region_tabs(base_path, "map", hours, region, region_statuses)}</nav>
-          <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, "map", hours, region)}</nav>
-        </div>
+        <nav class="region-tabs" aria-label="Region">{region_tabs(base_path, "map", hours, region, region_statuses)}</nav>
         <div id="stale-notice" role="status">
           <span id="stale-notice-text">Data may be stale.</span>
           <button type="button" id="refresh-page">Refresh</button>
@@ -3464,6 +3464,8 @@ def build_html(
     let userLocationRequested = false;
 
     const markers = new Map();
+    let incidentLayerVisible = window.localStorage.getItem("crestmap-incident-layer") !== "hidden";
+    let revealedIncidentKey = null;
     const cameraMarkers = new Map();
     const aircraftMarkers = new Map();
     const aircraftTrails = new Map();
@@ -3503,7 +3505,7 @@ def build_html(
       connectionStatus.dataset.state = state;
       if (state === "online") {{
         const onlineText = savedAt
-          ? `Online — incident data checked ${{readableSnapshotTime(savedAt)}}`
+          ? `Online — data checked ${{readableSnapshotTime(savedAt)}}`
           : "Online";
         connectionStatus.textContent = tileErrors >= 3
           ? `${{onlineText}} · map tiles unavailable; local road map shown`
@@ -3642,6 +3644,31 @@ def build_html(
         window.localStorage.setItem("crestmap-mile-markers", mileMarkersVisible ? "shown" : "hidden");
         updateButton();
         renderMileMarkers();
+      }});
+    }}
+
+    function setupIncidentLayer() {{
+      const button = document.querySelector("[data-incident-layer-toggle]");
+      if (!button) return;
+      const updateButton = () => {{
+        button.classList.toggle("is-active", incidentLayerVisible);
+        button.setAttribute("aria-pressed", String(incidentLayerVisible));
+        const description = button.querySelector(".view-menu-description");
+        if (description) description.textContent = incidentLayerVisible ? "Map pins" : "Hidden from map";
+      }};
+      const updateMarkers = () => {{
+        markers.forEach((marker, eventKey) => {{
+          if (incidentLayerVisible || eventKey === revealedIncidentKey) marker.addTo(map);
+          else marker.remove();
+        }});
+      }};
+      updateButton();
+      button.addEventListener("click", () => {{
+        incidentLayerVisible = !incidentLayerVisible;
+        revealedIncidentKey = null;
+        window.localStorage.setItem("crestmap-incident-layer", incidentLayerVisible ? "shown" : "hidden");
+        updateButton();
+        updateMarkers();
       }});
     }}
 
@@ -5272,6 +5299,7 @@ def build_html(
           button.scrollIntoView({{ block: "nearest" }});
         }}
       }});
+      if (markers.size && !incidentLayerVisible && options.userInitiated) revealedIncidentKey = incident.event_key;
       markers.forEach((marker, eventKey) => {{
         const selected = eventKey === incident.event_key;
         const markerIncident = incidents.find((item) => item.event_key === eventKey);
@@ -5280,6 +5308,10 @@ def build_html(
         }}
         marker.setIcon(markerIcon(markerIncident, selected, selected && options.pulse));
         marker.setZIndexOffset(selected ? 1000 : 0);
+        if (!incidentLayerVisible) {{
+          if (eventKey === revealedIncidentKey) marker.addTo(map);
+          else marker.remove();
+        }}
         if (selected && marker.bringToFront) {{
           marker.bringToFront();
         }}
@@ -5430,9 +5462,9 @@ def build_html(
       const meta = document.querySelector("header .meta");
       if (meta) {{
         const reportedText = Number(status.reported_count || 0)
-          ? ` · ${{status.reported_count}} WildWeb reported`
+          ? ` · ${{status.reported_count}} WildWeb`
           : "";
-        meta.textContent = `${{status.active_count}} active${{reportedText}} · ${{status.total_count}} in last ${{hoursLabel}}h · ${{status.mapped_count}} mapped`;
+        meta.textContent = `${{status.active_count}} active${{reportedText}} · ${{status.total_count}} in ${{hoursLabel}}h · ${{status.mapped_count}} mapped`;
       }}
       updateRegionCounts(regionStatuses || status.region_statuses);
       currentDataStatus = status;
@@ -5469,7 +5501,8 @@ def build_html(
             icon: markerIcon(incident),
             keyboard: false,
             title: `${{incident.type || "Incident"}} ${{incident.location || ""}}`.trim()
-          }}).addTo(map);
+          }});
+          if (incidentLayerVisible || incident.event_key === revealedIncidentKey) marker.addTo(map);
           bindMarkerInteraction(marker, incident);
           markers.set(incident.event_key, marker);
         }}
@@ -5595,6 +5628,7 @@ def build_html(
       }}
     }}
 
+    setupIncidentLayer();
     initializeIncidentData();
     formatGeneratedAt();
     renderOfflineBasemap();
@@ -6568,10 +6602,7 @@ def report_shell(
         </div>
         <div class="report-nav">
           <nav class="range-tabs" aria-label="History range">{history_controls(hours, region, extra_params)}</nav>
-          <div class="secondary-tabs">
-            <nav class="region-tabs" aria-label="Region">{region_tabs(base_path, current, hours, region, region_statuses)}</nav>
-            <nav class="view-tabs" aria-label="View navigation">{view_tabs(base_path, current, hours, region)}</nav>
-          </div>
+          <nav class="region-tabs" aria-label="Region">{region_tabs(base_path, current, hours, region, region_statuses)}</nav>
         </div>
       </div>
     </header>

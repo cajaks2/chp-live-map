@@ -163,7 +163,7 @@ def test_build_html_labels_wildweb_report_without_claiming_it_is_active_or_clear
 
     assert incidents[0]["status"] == "reported"
     assert incidents[0]["source"] == "wildweb"
-    assert "1 WildWeb reported" in html
+    assert "1 WildWeb" in html
     assert '<span class="region-active-count" aria-label="0 active incidents">0</span>' in html
     assert "const reportedCount = Number(regionStatuses[region].reported_count || 0);" not in html
     assert '<span class="source-pill">${escapeHtml(sourceText)}</span>' in html
@@ -301,7 +301,7 @@ def test_build_html_does_not_count_linked_incident_in_window_total():
 
     html = build_html([linked, current], "2026-05-31T08:05:00-07:00", 72, app_version="test-1")
 
-    assert "0 active · 1 in last 72h · 1 mapped" in html
+    assert "0 active · 1 in 72h · 1 mapped" in html
     assert "Linked" in html
     assert "Back to ${escapeHtml(formatRangeLabel(currentDataStatus.hours))}" in html
 
@@ -625,19 +625,21 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'window.localStorage.getItem("chp-about-panel")' not in html
     assert 'window.localStorage.setItem("chp-about-panel"' not in html
     assert '<nav class="range-tabs" aria-label="History range">' in html
-    assert '<nav class="view-tabs" aria-label="View navigation">' in html
+    assert '<nav class="view-tabs" aria-label="View navigation">' not in html
     assert '<nav class="region-tabs" aria-label="Region">' in html
     assert '<a class="region-tab is-active" href="/?hours=72&amp;region=forest" aria-current="page"><span>Forest</span><span class="region-active-count" aria-label="1 active incident">1</span></a>' in html
     assert '<a class="region-tab" href="/?hours=72&amp;region=malibu"><span>Malibu</span><span class="region-active-count" aria-label="0 active incidents">0</span></a>' in html
     assert "region-active-count" in html
-    assert '<a class="view-tab is-active" href="/?hours=72&amp;region=forest" aria-current="page">Map</a>' in html
-    assert '<a class="view-tab" href="/summary?hours=72&amp;region=forest">Summary</a>' in html
-    assert '<a class="view-tab" href="/history?hours=72&amp;region=forest">History</a>' in html
-    assert '<a class="view-tab" href="/about?hours=72&amp;region=forest">About</a>' in html
+    assert 'data-incident-layer-toggle' in html
+    assert 'localStorage.getItem("crestmap-incident-layer")' in html
+    assert "if (incidentLayerVisible || incident.event_key === revealedIncidentKey) marker.addTo(map)" in html
+    assert "markers.size && !incidentLayerVisible && options.userInitiated" in html
+    assert "eventKey === revealedIncidentKey" in html
     assert '<a class="range-tab is-active" href="?hours=72&amp;region=forest" aria-current="page">72h</a>' in html
     assert '<a class="range-tab" href="?hours=720&amp;region=forest">30d</a>' in html
-    assert "1 active · 2 in last 72h · 1 mapped" in html
-    assert 'View last updated <time id="generated-at" datetime="2026-05-31T08:05:00-07:00">' in html
+    assert "1 active · 2 in 72h · 1 mapped" in html
+    assert 'Updated <time id="generated-at" datetime="2026-05-31T08:05:00-07:00">' in html
+    assert "Online — data checked" in html
     assert "const initialDataStatus" in html
     assert '"region": "forest"' in html
     assert 'const statusEndpoint = "/status.json"' in html
@@ -919,7 +921,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '<option value="family:collision">Traffic collisions / accidents</option>' in summary_html
     assert '<nav class="range-tabs" aria-label="History range">' in summary_html
     assert '<a class="range-tab is-active" href="?hours=72&amp;region=forest" aria-current="page">72h</a>' in summary_html
-    assert 'class="view-tab is-active" href="/summary?hours=72&amp;region=forest" aria-current="page">Summary</a>' in summary_html
+    assert '<nav class="view-tabs" aria-label="View navigation">' not in summary_html
 
     collision_incidents = [
         {**incidents[0], "type": "Trfc Collision-Unkn Inj", "event_key": "LACC|2026-05-31|0810"},
@@ -951,7 +953,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert '<nav class="range-tabs" aria-label="History range">' in history_html
     assert '<input type="hidden" name="region" value="forest">' in history_html
     assert '<a class="range-tab is-active" href="?hours=72&amp;region=forest" aria-current="page">72h</a>' in history_html
-    assert 'class="view-tab is-active" href="/history?hours=72&amp;region=forest" aria-current="page">History</a>' in history_html
+    assert '<nav class="view-tabs" aria-label="View navigation">' not in history_html
 
     filtered_history_html = build_history_html(
         incidents,
@@ -978,7 +980,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "https://postmile.dot.ca.gov/" in about_html
     assert "https://dpw.gis.lacounty.gov/dpw/rest/services/road/MapServer/0" in about_html
     assert '<a class="range-tab is-active" href="?hours=72&amp;region=forest" aria-current="page">72h</a>' in about_html
-    assert 'class="view-tab is-active" href="/about?hours=72&amp;region=forest" aria-current="page">About</a>' in about_html
+    assert '<nav class="view-tabs" aria-label="View navigation">' not in about_html
     assert "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" in html
     assert "basemaps.cartocdn.com/light_all" not in html
     assert ".setView([34.32, -118.12], 10)" in html

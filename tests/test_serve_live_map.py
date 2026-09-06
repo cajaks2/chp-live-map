@@ -233,9 +233,8 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         body = response.text
         assert response.status_code == 200
         assert "Crestmap Forest Incidents" in body
-        assert "in last 72h" in body
-        assert 'Last scrape <time id="last-scrape-at" datetime="2026-05-31T08:00:00-07:00">' in body
-        assert '<span class="source-label">(CHP CAD)</span>' in body
+        assert "in 72h" in body
+        assert 'id="last-scrape-at"' not in body
         assert '<link rel="icon" href="https://crestmap.us/favicon.svg?active=0&amp;v=' in body
         assert '<link rel="manifest" href="/manifest.webmanifest">' in body
         assert 'id="ios-push-tutorial"' in body
@@ -261,7 +260,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         response = client.get("/?hours=24")
         body = response.text
         assert response.status_code == 200
-        assert "in last 24h" in body
+        assert "in 24h" in body
         assert '<a class="range-tab is-active" href="?hours=24&amp;region=forest" aria-current="page">24h</a>' in body
         assert 'href="/summary?hours=24&amp;region=forest"' in body
         assert 'href="/history?hours=24&amp;region=forest"' in body
@@ -274,7 +273,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert "Summary - Crestmap Forest Incidents" in body
         assert "Busiest Roads" in body
         assert '<a class="range-tab is-active" href="?hours=24&amp;region=forest" aria-current="page">24h</a>' in body
-        assert '<a class="view-tab is-active" href="/summary?hours=24&amp;region=forest" aria-current="page">Summary</a>' in body
+        assert '<nav class="view-tabs" aria-label="View navigation">' not in body
 
         response = client.get("/history?hours=24")
         body = response.text
@@ -283,7 +282,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert "History - Crestmap Forest Incidents" in body
         assert "Search road, type, incident number" in body
         assert '<a class="range-tab is-active" href="?hours=24&amp;region=forest" aria-current="page">24h</a>' in body
-        assert '<a class="view-tab is-active" href="/history?hours=24&amp;region=forest" aria-current="page">History</a>' in body
+        assert '<nav class="view-tabs" aria-label="View navigation">' not in body
         assert '<select class="filter" name="status" aria-label="Status filter">' in body
 
         response = client.get("/history?hours=24&status=active&mapped=mapped")
@@ -311,7 +310,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert "Edit Actions" in body
         assert "Open as Web App" in body
         assert '<a class="range-tab is-active" href="?hours=24&amp;region=forest" aria-current="page">24h</a>' in body
-        assert '<a class="view-tab is-active" href="/about?hours=24&amp;region=forest" aria-current="page">About</a>' in body
+        assert '<nav class="view-tabs" aria-label="View navigation">' not in body
 
         response = client.get("/status.json?hours=24")
         body = response.text
@@ -354,7 +353,7 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         response = client.get("/?hours=9999")
         body = response.text
         assert response.status_code == 200
-        assert "in last 720h" in body
+        assert "in 720h" in body
         assert '<a class="range-tab is-active" href="?hours=720&amp;region=forest" aria-current="page">30d</a>' in body
 
         response = client.get("/favicon.svg")

@@ -11,6 +11,19 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.224 - 2026-09-06
+
+- Remove the redundant Map, Summary, History, and About tab row in favor of the
+  navigation menu, and condense map status metadata into shorter lines.
+- Remove the scraper timestamp and source from the map header because connection
+  health and the view-updated time already communicate the useful status there.
+- Preserve the incident-data freshness time in the Online status so users can
+  see when the server last confirmed the current snapshot.
+- Add an Incidents switch to the map layer menu that hides or restores map pins
+  without removing incidents from the list or detail views.
+- When incident pins are hidden, reveal only the incident explicitly selected
+  from the list so its location remains clear without restoring every pin.
+
 ## 0.1.223 - 2026-09-06
 
 - Move map-only overlays into a compact menu on the map, and add a subtle

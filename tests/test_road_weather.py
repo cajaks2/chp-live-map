@@ -135,6 +135,7 @@ def test_endpoint_and_map_layer_menu(tmp_path, monkeypatch):
     assert ".road-weather-label.is-rain span" in rendered
     assert "point.hazard.toUpperCase()" in rendered
     assert 'className: "road-weather-map-popup"' in rendered
+    assert 'maxWidth: 280, offset: [0,-14]' in rendered
     assert "forecastWindow" in rendered
     assert 'start.getTime() <= now && now < end.getTime() ? "Now"' in rendered
     assert "bindTooltip(label" not in rendered

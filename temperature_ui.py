@@ -181,7 +181,7 @@ TEMPERATURE_JS = r"""
             : `Estimated · ${escapeHtml(point.name)}<br>Terrain elevation ${elevation} ft<br>Model valid ${escapeHtml(valid)}<br>
               <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
               <small>Elevation-adjusted air temperature. Local conditions may differ; not a station or road-surface reading.</small>`;
-          marker.bindPopup(`<div class="temperature-popup"><strong>${degrees}°F · ${measured ? "Measured" : "Estimated"} air temperature</strong><br>${detail}</div>`, {className: "temperature-map-popup", maxWidth: 270, autoPanPadding: [32, 32]});
+          marker.bindPopup(`<div class="temperature-popup"><strong>${degrees}°F · ${measured ? "Measured" : "Estimated"} air temperature</strong><br>${detail}</div>`, {className: "temperature-map-popup", maxWidth: 270, offset: [0, -14], autoPanPadding: [32, 32]});
           marker.addTo(layer);
           if (measured && ageProgress > 0) {
             marker.setOpacity(1 - (0.40 * ageProgress));

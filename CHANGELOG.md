@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.231 - 2026-09-06
+
+- Raise weather, temperature, and aircraft popup cards above their originating
+  map markers so the selected icon remains visible.
+
 ## 0.1.230 - 2026-09-06
 
 - Remove completed hourly rain, snow, and ice periods from the map and label a

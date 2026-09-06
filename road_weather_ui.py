@@ -126,7 +126,7 @@ ROAD_WEATHER_JS = r"""
               html: `<span>${point.hazard.toUpperCase()}</span>`, iconSize: [34,17], iconAnchor: [17,8]
             })
           });
-          marker.bindPopup(`<div class="road-weather-popup"><strong>${label}</strong><br>${escapeHtml(point.name)}<br><b>Model window: ${escapeHtml(forecastWindow)}</b><br>${elevation} ft · ${point.precipitation_probability}% chance<br>${escapeHtml(amount)}<small>Timing is hourly guidance and may shift. This is not a measured pavement condition. Check posted closures and chain controls before travel.</small></div>`, { className: "road-weather-map-popup", maxWidth: 280, autoPanPadding: [32,32] });
+          marker.bindPopup(`<div class="road-weather-popup"><strong>${label}</strong><br>${escapeHtml(point.name)}<br><b>Model window: ${escapeHtml(forecastWindow)}</b><br>${elevation} ft · ${point.precipitation_probability}% chance<br>${escapeHtml(amount)}<small>Timing is hourly guidance and may shift. This is not a measured pavement condition. Check posted closures and chain controls before travel.</small></div>`, { className: "road-weather-map-popup", maxWidth: 280, offset: [0,-14], autoPanPadding: [32,32] });
           marker.on("popupopen", () => { popupOpen = true; });
           marker.on("popupclose", () => {
             popupOpen = false;

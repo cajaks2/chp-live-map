@@ -5127,7 +5127,8 @@ def build_html(
         marker.bindPopup(aircraftPopup(item), {{
           className: "aircraft-map-popup",
           closeButton: true,
-          maxWidth: 230
+          maxWidth: 230,
+          offset: [0, -14]
         }});
         aircraftMarkers.set(item.icao24, marker);
       }});

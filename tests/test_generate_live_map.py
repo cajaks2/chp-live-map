@@ -696,6 +696,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'viewBox="0 0 32 24"' in aircraft_html
     assert "&#128641;" not in aircraft_html
     assert 'className: "aircraft-map-popup"' in aircraft_html
+    assert "offset: [0, -14]" in aircraft_html
     assert "const aircraftTrails = new Map()" in aircraft_html
     assert '.aircraft-marker.is-stale' in aircraft_html
     assert 'Number(aircraft.age_seconds || 0) > 300 ? " is-stale"' in aircraft_html

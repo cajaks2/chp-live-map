@@ -233,6 +233,7 @@ def test_endpoint_and_local_render(tmp_path, monkeypatch, region):
     assert "point.priority ? 6 : 8" in rendered
     assert "is-above" in rendered
     assert "is-below" in rendered
+    assert 'maxWidth: 270, offset: [0, -14]' in rendered
     assert "Measured + estimated" in rendered
     assert "Loading temperatures…" in rendered
     assert "Temperatures unavailable · Tap to retry" in rendered

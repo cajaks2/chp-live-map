@@ -66,7 +66,13 @@ def test_named_landmark_samples_are_priority_points():
 
 def test_road_samples_form_the_baseline_in_both_regions():
     assert len(weather.ROAD_POINTS["forest"]) >= 70
-    assert len(weather.ROAD_POINTS["malibu"]) >= 15
+    assert len(weather.ROAD_POINTS["malibu"]) >= 19
+    assert {
+        "Yerba Buena Road lower canyon",
+        "Yerba Buena Road upper canyon",
+        "Little Sycamore Canyon Road",
+        "Mulholland Highway west",
+    }.issubset({point[0] for point in weather.ROAD_POINTS["malibu"]})
     for region in ("forest", "malibu"):
         names = {name for name, _latitude, _longitude in weather.ROAD_POINTS[region]}
         result = weather.parse_estimates(payload(region), region, NOW)

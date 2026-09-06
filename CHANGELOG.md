@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.227 - 2026-09-06
+
+- Add road-aligned temperature and six-hour hazard forecast samples for Yerba
+  Buena Road, Little Sycamore Canyon Road, and western Mulholland Highway.
+
 ## 0.1.226 - 2026-09-06
 
 - Close the expanded map layer menu when the user taps elsewhere on the page,

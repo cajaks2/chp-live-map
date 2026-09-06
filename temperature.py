@@ -101,6 +101,10 @@ MALIBU_ROAD_POINTS = (
     ("Decker Road lower canyon", 34.0501, -118.8976),
     ("Decker Road upper canyon", 34.0835, -118.8782),
     ("Encinal Canyon Road", 34.0775, -118.8777),
+    ("Yerba Buena Road lower canyon", 34.058691, -118.965236),
+    ("Yerba Buena Road upper canyon", 34.109511, -118.940005),
+    ("Little Sycamore Canyon Road", 34.098737, -118.887079),
+    ("Mulholland Highway west", 34.082131, -118.920002),
     ("Latigo Canyon Road", 34.0633, -118.7780),
     ("Tuna Canyon Road", 34.0605, -118.6176),
 )

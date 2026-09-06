@@ -86,13 +86,16 @@ def test_offline_malibu_basemap_covers_principal_corridors_with_small_local_geom
         "Topanga Canyon Boulevard",
         "Malibu Canyon / Las Virgenes",
         "Kanan Road",
+        "Yerba Buena Road",
+        "Little Sycamore Canyon Road",
+        "Mulholland Highway",
         "Decker Road",
         "Encinal Canyon Road",
         "Latigo Canyon Road",
         "Tuna Canyon Road",
     }
     points = [point for lines in MALIBU_OFFLINE_ROADS.values() for line in lines for point in line]
-    assert 80 <= len(points) <= 160
+    assert 140 <= len(points) <= 180
     assert all(33.98 <= latitude <= 34.35 for latitude, _ in points)
     assert all(-119.10 <= longitude <= -118.44 for _, longitude in points)
 

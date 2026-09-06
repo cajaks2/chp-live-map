@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.228 - 2026-09-06
+
+- Extend the bundled offline Malibu basemap along Yerba Buena Road, Little
+  Sycamore Canyon Road, and western Mulholland Highway.
+
 ## 0.1.227 - 2026-09-06
 
 - Add road-aligned temperature and six-hour hazard forecast samples for Yerba

@@ -231,7 +231,8 @@ def test_endpoint_and_local_render(tmp_path, monkeypatch, region):
     assert "Loading temperatures…" in rendered
     assert "Temperatures unavailable · Tap to retry" in rendered
     assert 'state === "loading" && !points.length' in rendered
-    assert ".temperature-load-status { bottom: 88px; }" in rendered
+    assert "left: 50%; top: 10px" in rendered
+    assert "transform: translateX(-50%)" in rendered
     assert "const ageProgress = measured" in rendered
     assert "marker.setOpacity(1 - (0.40 * ageProgress))" in rendered
     assert "grayscale(${Math.round(ageProgress * 100)}%)" in rendered

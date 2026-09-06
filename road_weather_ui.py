@@ -40,10 +40,22 @@ ROAD_WEATHER_CSS = """
       background: #fbfcf8; border: 1px solid #c8cec3;
     }
     .road-weather-alert {
-      position: absolute; left: 50%; top: 48px; z-index: 431; max-width: calc(100% - 120px);
-      padding: 5px 9px; border: 1px solid #8796a2; border-radius: 999px; background: rgba(251,252,248,.96);
-      color: #465767; box-shadow: 0 1px 5px rgba(24,32,38,.16); transform: translateX(-50%);
+      position: absolute; left: 56px; right: 56px; top: 12px; z-index: 1000; height: 36px;
+      min-width: 0; padding: 0 10px; border: 1px solid #8796a2; border-radius: 9px; background: rgba(251,252,248,.96);
+      color: #465767; box-shadow: 0 2px 8px rgba(24,32,38,.16); cursor: pointer;
       font: 700 10px/14px -apple-system,BlinkMacSystemFont,sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .road-weather-alert-details {
+      position: absolute; left: 56px; right: 56px; top: 54px; z-index: 1002;
+      padding: 12px 14px; border: 1px solid rgba(56,74,62,.22); border-radius: 11px;
+      background: rgba(251,252,248,.98); color: #414940; box-shadow: 0 6px 20px rgba(24,32,38,.2);
+      font: 12px/1.45 -apple-system,BlinkMacSystemFont,sans-serif;
+    }
+    .road-weather-alert-details strong { display: block; padding-right: 22px; color: #263122; font-size: 14px; }
+    .road-weather-alert-details span { display: block; margin-top: 4px; }
+    .road-weather-alert-details button {
+      position: absolute; top: 5px; right: 6px; width: 28px; height: 28px; padding: 0; border: 0;
+      color: #596253; background: transparent; cursor: pointer; font: 20px/28px sans-serif;
     }
 """
 
@@ -67,10 +79,31 @@ ROAD_WEATHER_JS = r"""
       let alerts = [];
       let inFlight = false;
       let popupOpen = false;
-      const alertBadge = document.createElement("div");
+      const alertBadge = document.createElement("button");
+      alertBadge.type = "button";
       alertBadge.className = "road-weather-alert";
+      alertBadge.setAttribute("aria-expanded", "false");
       alertBadge.hidden = true;
       map.getContainer().appendChild(alertBadge);
+      const alertDetails = document.createElement("div");
+      alertDetails.className = "road-weather-alert-details";
+      alertDetails.hidden = true;
+      map.getContainer().appendChild(alertDetails);
+
+      function closeAlertDetails() {
+        alertDetails.hidden = true;
+        alertBadge.setAttribute("aria-expanded", "false");
+      }
+      alertBadge.addEventListener("click", event => {
+        event.stopPropagation();
+        alertDetails.hidden = !alertDetails.hidden;
+        alertBadge.setAttribute("aria-expanded", String(!alertDetails.hidden));
+      });
+      alertDetails.addEventListener("click", event => {
+        event.stopPropagation();
+        if (event.target.closest("button")) closeAlertDetails();
+      });
+      document.addEventListener("click", closeAlertDetails);
 
       function description() {
         if (!enabled) return "Hidden from map";
@@ -90,10 +123,16 @@ ROAD_WEATHER_JS = r"""
         if (popupOpen) return;
         layer.clearLayers();
         alertBadge.hidden = true;
+        closeAlertDetails();
         if (!enabled) return;
         if (alerts.length) {
-          alertBadge.textContent = `NWS · ${alerts[0].event}`;
-          alertBadge.title = `${alerts[0].event} — ${alerts[0].area}`;
+          const alert = alerts[0];
+          const expiry = new Date(alert.expires);
+          const expiryCopy = Number.isNaN(expiry.getTime()) ? "" : `Expires ${new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" }).format(expiry)}`;
+          alertBadge.textContent = `NWS · ${alert.event}`;
+          alertBadge.title = `${alert.event} — tap for details`;
+          alertBadge.setAttribute("aria-label", `${alert.event}. Tap for details.`);
+          alertDetails.innerHTML = `<button type="button" aria-label="Close advisory details">×</button><strong>${escapeHtml(alert.event)}</strong><span>${escapeHtml(alert.headline)}</span><span>${escapeHtml(alert.area)}${expiryCopy ? ` · ${escapeHtml(expiryCopy)}` : ""}</span>`;
           alertBadge.hidden = false;
         }
         const placed = [];

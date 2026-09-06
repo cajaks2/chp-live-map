@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.234 - 2026-09-06
+
+- Move NWS advisories into the map control row and reveal the advisory headline,
+  affected area, and expiry when tapped.
+
 ## 0.1.233 - 2026-09-06
 
 - Distinguish the predicted rain, snow, or ice period from the full forecast

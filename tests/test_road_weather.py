@@ -139,6 +139,9 @@ def test_endpoint_and_map_layer_menu(tmp_path, monkeypatch):
     assert "hazardWindow" in rendered
     assert '"Expected rain"' in rendered
     assert "Forecast checked through" in rendered
+    assert 'document.createElement("button")' in rendered
+    assert 'className = "road-weather-alert-details"' in rendered
+    assert "Tap for details" in rendered
     assert 'start.getTime() <= now && now < end.getTime() ? "Now"' in rendered
     assert "bindTooltip(label" not in rendered
     assert "Timing is hourly guidance and may shift" in rendered

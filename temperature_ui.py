@@ -53,10 +53,10 @@ TEMPERATURE_CSS = """
     .temperature-popup__meta { margin-top: 5px; color: #687168; line-height: 1.5; }
     .temperature-popup__forecast { margin-top: 11px; padding-top: 9px; border-top: 1px solid #dfe4dc; }
     .temperature-popup__forecast-title { color: #34483b; font-size: 11px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
-    .temperature-popup__forecast-values { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 5px; }
-    .temperature-popup__forecast-item { padding: 4px 2px; border-radius: 5px; background: #f0f4ee; color: #34483b; text-align: center; line-height: 1.25; }
-    .temperature-popup__forecast-time { display: block; color: #687168; font-size: 10px; }
-    .temperature-popup__forecast-temp { display: block; font-size: 13px; font-weight: 750; }
+    .temperature-popup__forecast-values { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2px; margin-top: 5px; }
+    .temperature-popup__forecast-item { min-width: 0; padding: 3px 1px; border-radius: 4px; background: #f0f4ee; color: #34483b; text-align: center; line-height: 1.2; }
+    .temperature-popup__forecast-time { display: block; overflow: hidden; color: #687168; font-size: 9px; white-space: nowrap; }
+    .temperature-popup__forecast-temp { display: block; font-size: 12px; font-weight: 750; }
     .temperature-popup__source { display: inline-block; margin-top: 9px; font-size: 12px; }
     .temperature-popup__note { display: block; margin-top: 7px; color: #687168; font-size: 11px; line-height: 1.4; }
     .temperature-load-status {
@@ -172,7 +172,7 @@ TEMPERATURE_JS = r"""
           const valid = validDate.toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
           const observationAge = measured ? Math.max(0, Date.now() - validDate.getTime()) : 0;
           const ageProgress = measured ? Math.min(1, Math.max(0, (observationAge - 1800000) / 5400000)) : 0;
-          const forecast = (Array.isArray(point.forecast) ? point.forecast : []).slice(0, 4).map(item => {
+          const forecast = (Array.isArray(point.forecast) ? point.forecast : []).slice(0, 6).map(item => {
             const when = new Date(item.valid_at);
             if (Number.isNaN(when.getTime()) || !Number.isFinite(item.temperature_f)) return null;
             const hour = when.toLocaleTimeString([], {hour: "numeric"});

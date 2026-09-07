@@ -255,6 +255,8 @@ def test_endpoint_and_local_render(tmp_path, monkeypatch, region):
     assert "National Weather Service" in rendered
     assert "Nearby modeled forecast" in rendered
     assert 'class="temperature-popup__forecast"' in rendered
+    assert "slice(0, 6)" in rendered
+    assert "repeat(6, minmax(0, 1fr))" in rendered
     assert "rgba(248,251,247,.96)" in rendered
     assert "point.priority ? 12 : 32" in rendered
     assert '" is-left"' in rendered

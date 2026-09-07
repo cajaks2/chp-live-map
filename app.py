@@ -1488,7 +1488,7 @@ def dispatch_request(request, send_body=True):
             ).encode("utf-8")
     except Exception as exc:
         web.log_exception(
-            "Failed to render CHP live map",
+            "Failed to render Crestmap",
             exc,
             **{
                 "event.action": "http_request",
@@ -2088,7 +2088,7 @@ def create_app(settings=None):
             )
         web.log_event(
             "info",
-            "Serving CHP live map",
+            "Serving Crestmap",
             **{
                 "event.action": "start",
                 "network.transport": "tcp",

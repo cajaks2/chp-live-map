@@ -435,22 +435,22 @@ def test_live_map_handler_serves_health_base_path_and_404(tmp_path, monkeypatch)
         assert response.status_code == 200
         assert response.headers["Content-Type"] == "text/plain; version=0.0.4; charset=utf-8"
         assert response.headers["Cache-Control"] == "no-store"
-        assert "chp_live_map_up 1" in body
-        assert 'chp_live_map_incidents{status="total"} 0' in body
-        assert 'chp_live_map_region_incidents{region="forest",status="total"} 0' in body
-        assert 'chp_live_map_region_incidents{region="malibu",status="total"} 0' in body
-        assert "chp_live_map_scrape_last_run_incidents" not in body
-        assert "chp_live_map_scrape_last_run_details" not in body
-        assert "chp_live_map_scrape_chp_http_requests_total" not in body
-        assert "chp_live_map_http_requests_total" in body
-        assert "chp_live_map_db_pool_connections" not in body
-        assert "chp_live_map_comments_pending 0" in body
-        assert 'chp_live_map_push_subscriptions{status="active"} 0' in body
-        assert 'chp_live_map_push_subscription_sources{source="chp"} 0' in body
-        assert 'chp_live_map_push_subscription_sources{source="wildweb"} 0' in body
-        assert 'chp_live_map_push_subscription_areas{area="crest"} 0' in body
-        assert 'chp_live_map_push_deliveries{region="forest",category="hazard",status="delivered"} 0' in body
-        assert 'chp_live_map_push_test_notifications{status="failed"} 0' in body
+        assert "crestmap_up 1" in body
+        assert 'crestmap_incidents{status="total"} 0' in body
+        assert 'crestmap_region_incidents{region="forest",status="total"} 0' in body
+        assert 'crestmap_region_incidents{region="malibu",status="total"} 0' in body
+        assert "crestmap_scrape_last_run_incidents" not in body
+        assert "crestmap_scrape_last_run_details" not in body
+        assert "crestmap_scrape_chp_http_requests_total" not in body
+        assert "crestmap_http_requests_total" in body
+        assert "crestmap_db_pool_connections" not in body
+        assert "crestmap_comments_pending 0" in body
+        assert 'crestmap_push_subscriptions{status="active"} 0' in body
+        assert 'crestmap_push_subscription_sources{source="chp"} 0' in body
+        assert 'crestmap_push_subscription_sources{source="wildweb"} 0' in body
+        assert 'crestmap_push_subscription_areas{area="crest"} 0' in body
+        assert 'crestmap_push_deliveries{region="forest",category="hazard",status="delivered"} 0' in body
+        assert 'crestmap_push_test_notifications{status="failed"} 0' in body
 
         response = client.head("/")
         assert response.status_code == 200
@@ -518,12 +518,12 @@ def test_prometheus_metrics_include_pool_stats(tmp_path):
         },
     ).decode("utf-8")
 
-    assert 'chp_live_map_db_pool_connections{state="min"} 1' in body
-    assert 'chp_live_map_db_pool_connections{state="max"} 5' in body
-    assert 'chp_live_map_db_pool_connections{state="size"} 3' in body
-    assert 'chp_live_map_db_pool_connections{state="available"} 2' in body
-    assert 'chp_live_map_db_pool_connections{state="in_use"} 1' in body
-    assert "chp_live_map_db_pool_requests_waiting 4" in body
+    assert 'crestmap_db_pool_connections{state="min"} 1' in body
+    assert 'crestmap_db_pool_connections{state="max"} 5' in body
+    assert 'crestmap_db_pool_connections{state="size"} 3' in body
+    assert 'crestmap_db_pool_connections{state="available"} 2' in body
+    assert 'crestmap_db_pool_connections{state="in_use"} 1' in body
+    assert "crestmap_db_pool_requests_waiting 4" in body
 
 
 def test_prometheus_metrics_include_weather_refresh_health(tmp_path):
@@ -536,12 +536,12 @@ def test_prometheus_metrics_include_weather_refresh_health(tmp_path):
         {"total": 61, "estimate": 59, "observation": 2},
     )
     body = prometheus_metrics(tmp_path / "missing.sqlite", None, 72.0).decode("utf-8")
-    assert 'chp_live_map_weather_refreshes_total{pipeline="temperature",region="malibu",outcome="success"} 1' in body
-    assert 'chp_live_map_weather_cache_events_total{pipeline="temperature",region="malibu",outcome="miss"} 1' in body
-    assert 'chp_live_map_weather_provider_requests_total{pipeline="temperature",region="malibu",provider="nws_stations",outcome="failure"} 2' in body
-    assert 'chp_live_map_weather_last_refresh_duration_seconds{pipeline="temperature",region="malibu"} 0.625000' in body
-    assert 'chp_live_map_weather_last_success_timestamp_seconds{pipeline="temperature",region="malibu"} 1788550000.000' in body
-    assert 'chp_live_map_weather_points{pipeline="temperature",region="malibu",kind="observation"} 2' in body
+    assert 'crestmap_weather_refreshes_total{pipeline="temperature",region="malibu",outcome="success"} 1' in body
+    assert 'crestmap_weather_cache_events_total{pipeline="temperature",region="malibu",outcome="miss"} 1' in body
+    assert 'crestmap_weather_provider_requests_total{pipeline="temperature",region="malibu",provider="nws_stations",outcome="failure"} 2' in body
+    assert 'crestmap_weather_last_refresh_duration_seconds{pipeline="temperature",region="malibu"} 0.625000' in body
+    assert 'crestmap_weather_last_success_timestamp_seconds{pipeline="temperature",region="malibu"} 1788550000.000' in body
+    assert 'crestmap_weather_points{pipeline="temperature",region="malibu",kind="observation"} 2' in body
     reset_weather_metrics()
 
 
@@ -625,20 +625,20 @@ def test_prometheus_metrics_include_push_breakdowns(tmp_path):
 
     body = prometheus_metrics(database, None, 72.0).decode("utf-8")
 
-    assert 'chp_live_map_push_subscriptions{status="active"} 1' in body
-    assert 'chp_live_map_push_subscriptions{status="inactive"} 1' in body
-    assert 'chp_live_map_push_subscription_sources{source="chp"} 1' in body
-    assert 'chp_live_map_push_subscription_sources{source="wildweb"} 0' in body
-    assert 'chp_live_map_push_subscription_areas{area="crest"} 1' in body
-    assert 'chp_live_map_push_subscription_areas{area="forest"} 0' in body
-    assert 'chp_live_map_push_subscription_categories{category="closure"} 1' in body
-    assert 'chp_live_map_push_subscription_categories{category="hazard"} 1' in body
-    assert 'chp_live_map_push_notification_events{region="forest",category="hazard",status="completed"} 1' in body
-    assert 'chp_live_map_push_deliveries{region="forest",category="hazard",status="delivered"} 1' in body
-    assert 'chp_live_map_push_delivery_attempts{region="forest",category="hazard"} 1' in body
-    assert 'chp_live_map_push_test_notifications{status="delivered"} 1' in body
-    assert "chp_live_map_push_last_delivery_timestamp_seconds 0.000" not in body
-    assert "chp_live_map_push_last_test_delivery_timestamp_seconds 0.000" not in body
+    assert 'crestmap_push_subscriptions{status="active"} 1' in body
+    assert 'crestmap_push_subscriptions{status="inactive"} 1' in body
+    assert 'crestmap_push_subscription_sources{source="chp"} 1' in body
+    assert 'crestmap_push_subscription_sources{source="wildweb"} 0' in body
+    assert 'crestmap_push_subscription_areas{area="crest"} 1' in body
+    assert 'crestmap_push_subscription_areas{area="forest"} 0' in body
+    assert 'crestmap_push_subscription_categories{category="closure"} 1' in body
+    assert 'crestmap_push_subscription_categories{category="hazard"} 1' in body
+    assert 'crestmap_push_notification_events{region="forest",category="hazard",status="completed"} 1' in body
+    assert 'crestmap_push_deliveries{region="forest",category="hazard",status="delivered"} 1' in body
+    assert 'crestmap_push_delivery_attempts{region="forest",category="hazard"} 1' in body
+    assert 'crestmap_push_test_notifications{status="delivered"} 1' in body
+    assert "crestmap_push_last_delivery_timestamp_seconds 0.000" not in body
+    assert "crestmap_push_last_test_delivery_timestamp_seconds 0.000" not in body
 
 
 def test_push_subscription_api_saves_preferences_and_unsubscribes(tmp_path):

@@ -28,7 +28,7 @@ from geo_bounds import clear_coordinates_outside_region_bounds, coordinates_in_r
 CHP_TRAFFIC_URL = "https://cad.chp.ca.gov/Traffic.aspx"
 CHP_MEDIA_XML_URL = "https://media.chp.ca.gov/sa_xml/sa.xml"
 CHP_ROBOTS_URL = "https://cad.chp.ca.gov/robots.txt"
-DEFAULT_USER_AGENT = "chp-live-map/0.1 (+https://crestmap.us/)"
+DEFAULT_USER_AGENT = "crestmap/0.1 (+https://crestmap.us/)"
 PACIFIC_TZ = ZoneInfo("America/Los_Angeles")
 DEFAULT_CENTERS = ["LACC", "VTCC", "SACC"]
 FOREST_ROAD_KEYWORDS = [
@@ -143,15 +143,15 @@ def metric_line(name, value, labels=None):
 
 
 CHP_ONLY_SCRAPER_METRICS = {
-    "chp_live_map_scraper_xml_feed_age_seconds",
-    "chp_live_map_scraper_xml_feed_timestamp_seconds",
-    "chp_live_map_scraper_source_compare_runs_total",
-    "chp_live_map_scraper_source_compare_last_run_timestamp_seconds",
-    "chp_live_map_scraper_source_compare_last_run_duration_seconds",
-    "chp_live_map_scraper_source_compare_last_run_incidents",
-    "chp_live_map_scraper_source_compare_last_run_region_incidents",
-    "chp_live_map_scraper_last_run_details",
-    "chp_live_map_scraper_chp_http_requests_total",
+    "crestmap_scraper_xml_feed_age_seconds",
+    "crestmap_scraper_xml_feed_timestamp_seconds",
+    "crestmap_scraper_source_compare_runs_total",
+    "crestmap_scraper_source_compare_last_run_timestamp_seconds",
+    "crestmap_scraper_source_compare_last_run_duration_seconds",
+    "crestmap_scraper_source_compare_last_run_incidents",
+    "crestmap_scraper_source_compare_last_run_region_incidents",
+    "crestmap_scraper_last_run_details",
+    "crestmap_scraper_chp_http_requests_total",
 }
 
 
@@ -317,47 +317,47 @@ class ScraperMetrics:
             last_source_compare = dict(self.last_source_compare)
             xml_feed = dict(self.xml_feed)
         lines = [
-            "# HELP chp_live_map_scraper_up Whether the scraper metrics service is running.",
-            "# TYPE chp_live_map_scraper_up gauge",
-            self.metric_line("chp_live_map_scraper_up", 1),
-            "# HELP chp_live_map_scraper_process_start_time_seconds Unix timestamp when the scraper process started.",
-            "# TYPE chp_live_map_scraper_process_start_time_seconds gauge",
+            "# HELP crestmap_scraper_up Whether the scraper metrics service is running.",
+            "# TYPE crestmap_scraper_up gauge",
+            self.metric_line("crestmap_scraper_up", 1),
+            "# HELP crestmap_scraper_process_start_time_seconds Unix timestamp when the scraper process started.",
+            "# TYPE crestmap_scraper_process_start_time_seconds gauge",
             self.metric_line(
-                "chp_live_map_scraper_process_start_time_seconds",
+                "crestmap_scraper_process_start_time_seconds",
                 f"{self.process_start_time:.3f}",
             ),
-            "# HELP chp_live_map_scraper_scrapes_total Scrape attempts by outcome.",
-            "# TYPE chp_live_map_scraper_scrapes_total counter",
+            "# HELP crestmap_scraper_scrapes_total Scrape attempts by outcome.",
+            "# TYPE crestmap_scraper_scrapes_total counter",
         ]
         for outcome, count in sorted(scrapes.items()):
-            lines.append(self.metric_line("chp_live_map_scraper_scrapes_total", count, {"outcome": outcome}))
+            lines.append(self.metric_line("crestmap_scraper_scrapes_total", count, {"outcome": outcome}))
         lines.extend(
             [
-                "# HELP chp_live_map_scraper_source_attempts_total Scraper source attempts by source, mode, and outcome.",
-                "# TYPE chp_live_map_scraper_source_attempts_total counter",
+                "# HELP crestmap_scraper_source_attempts_total Scraper source attempts by source, mode, and outcome.",
+                "# TYPE crestmap_scraper_source_attempts_total counter",
             ]
         )
         for (source, mode, outcome), count in sorted(source_attempts.items()):
             lines.append(
                 self.metric_line(
-                    "chp_live_map_scraper_source_attempts_total",
+                    "crestmap_scraper_source_attempts_total",
                     count,
                     {"source": source, "mode": mode, "outcome": outcome},
                 )
             )
         lines.extend(
             [
-                "# HELP chp_live_map_scraper_xml_feed_age_seconds Age of the CHP media XML feed timestamp at the last XML freshness check.",
-                "# TYPE chp_live_map_scraper_xml_feed_age_seconds gauge",
+                "# HELP crestmap_scraper_xml_feed_age_seconds Age of the CHP media XML feed timestamp at the last XML freshness check.",
+                "# TYPE crestmap_scraper_xml_feed_age_seconds gauge",
                 self.metric_line(
-                    "chp_live_map_scraper_xml_feed_age_seconds",
+                    "crestmap_scraper_xml_feed_age_seconds",
                     xml_feed.get("age_seconds", 0),
                     {"timestamp_source": xml_feed.get("timestamp_source", "none")},
                 ),
-                "# HELP chp_live_map_scraper_xml_feed_timestamp_seconds Unix timestamp of the CHP media XML feed timestamp from the last XML freshness check.",
-                "# TYPE chp_live_map_scraper_xml_feed_timestamp_seconds gauge",
+                "# HELP crestmap_scraper_xml_feed_timestamp_seconds Unix timestamp of the CHP media XML feed timestamp from the last XML freshness check.",
+                "# TYPE crestmap_scraper_xml_feed_timestamp_seconds gauge",
                 self.metric_line(
-                    "chp_live_map_scraper_xml_feed_timestamp_seconds",
+                    "crestmap_scraper_xml_feed_timestamp_seconds",
                     f"{parse_metric_timestamp(xml_feed.get('feed_timestamp')):.3f}",
                     {"timestamp_source": xml_feed.get("timestamp_source", "none")},
                 ),
@@ -365,26 +365,26 @@ class ScraperMetrics:
         )
         lines.extend(
             [
-                "# HELP chp_live_map_scraper_source_compare_runs_total Source comparison runs by outcome.",
-                "# TYPE chp_live_map_scraper_source_compare_runs_total counter",
+                "# HELP crestmap_scraper_source_compare_runs_total Source comparison runs by outcome.",
+                "# TYPE crestmap_scraper_source_compare_runs_total counter",
             ]
         )
         for outcome, count in sorted(source_compares.items()):
-            lines.append(self.metric_line("chp_live_map_scraper_source_compare_runs_total", count, {"outcome": outcome}))
+            lines.append(self.metric_line("crestmap_scraper_source_compare_runs_total", count, {"outcome": outcome}))
         lines.extend(
             [
-                "# HELP chp_live_map_scraper_last_run_timestamp_seconds Unix timestamp of the latest scraper run.",
-                "# TYPE chp_live_map_scraper_last_run_timestamp_seconds gauge",
+                "# HELP crestmap_scraper_last_run_timestamp_seconds Unix timestamp of the latest scraper run.",
+                "# TYPE crestmap_scraper_last_run_timestamp_seconds gauge",
                 self.metric_line(
-                    "chp_live_map_scraper_last_run_timestamp_seconds",
+                    "crestmap_scraper_last_run_timestamp_seconds",
                     f"{parse_metric_timestamp(last.get('observed_at')):.3f}",
                     {"outcome": last.get("outcome", "none"), "error_type": last.get("error_type", "")},
                 ),
-                "# HELP chp_live_map_scraper_last_run_duration_seconds Duration of the latest scraper run.",
-                "# TYPE chp_live_map_scraper_last_run_duration_seconds gauge",
-                self.metric_line("chp_live_map_scraper_last_run_duration_seconds", last.get("duration_seconds", 0)),
-                "# HELP chp_live_map_scraper_last_run_source_duration_seconds Duration of the latest scraper run grouped by source.",
-                "# TYPE chp_live_map_scraper_last_run_source_duration_seconds gauge",
+                "# HELP crestmap_scraper_last_run_duration_seconds Duration of the latest scraper run.",
+                "# TYPE crestmap_scraper_last_run_duration_seconds gauge",
+                self.metric_line("crestmap_scraper_last_run_duration_seconds", last.get("duration_seconds", 0)),
+                "# HELP crestmap_scraper_last_run_source_duration_seconds Duration of the latest scraper run grouped by source.",
+                "# TYPE crestmap_scraper_last_run_source_duration_seconds gauge",
             ]
         )
         source_durations = dict(last.get("source_durations") or {})
@@ -392,15 +392,15 @@ class ScraperMetrics:
         for source, duration_seconds in sorted(source_durations.items()):
             lines.append(
                 self.metric_line(
-                    "chp_live_map_scraper_last_run_source_duration_seconds",
+                    "crestmap_scraper_last_run_source_duration_seconds",
                     duration_seconds,
                     {"source": source},
                 )
             )
         lines.extend(
             [
-                "# HELP chp_live_map_scraper_last_run_source_response_bytes Bytes downloaded by the latest scraper run grouped by source.",
-                "# TYPE chp_live_map_scraper_last_run_source_response_bytes gauge",
+                "# HELP crestmap_scraper_last_run_source_response_bytes Bytes downloaded by the latest scraper run grouped by source.",
+                "# TYPE crestmap_scraper_last_run_source_response_bytes gauge",
             ]
         )
         source_bytes = dict(last.get("source_bytes") or {})
@@ -412,109 +412,109 @@ class ScraperMetrics:
         for source, byte_count in sorted(source_bytes.items()):
             lines.append(
                 self.metric_line(
-                    "chp_live_map_scraper_last_run_source_response_bytes",
+                    "crestmap_scraper_last_run_source_response_bytes",
                     byte_count,
                     {"source": source},
                 )
             )
         lines.extend(
             [
-                "# HELP chp_live_map_scraper_last_run_incidents Incidents seen by the latest scraper run.",
-                "# TYPE chp_live_map_scraper_last_run_incidents gauge",
-                self.metric_line("chp_live_map_scraper_last_run_incidents", last.get("total_seen", 0), {"kind": "total_seen"}),
-                self.metric_line("chp_live_map_scraper_last_run_incidents", last.get("active_seen", 0), {"kind": "matched"}),
-                self.metric_line("chp_live_map_scraper_last_run_incidents", last.get("active_with_coords", 0), {"kind": "mapped"}),
-                "# HELP chp_live_map_scraper_last_run_region_incidents Incidents matched by the latest scraper run, grouped by hidden region and coordinate availability.",
-                "# TYPE chp_live_map_scraper_last_run_region_incidents gauge",
+                "# HELP crestmap_scraper_last_run_incidents Incidents seen by the latest scraper run.",
+                "# TYPE crestmap_scraper_last_run_incidents gauge",
+                self.metric_line("crestmap_scraper_last_run_incidents", last.get("total_seen", 0), {"kind": "total_seen"}),
+                self.metric_line("crestmap_scraper_last_run_incidents", last.get("active_seen", 0), {"kind": "matched"}),
+                self.metric_line("crestmap_scraper_last_run_incidents", last.get("active_with_coords", 0), {"kind": "mapped"}),
+                "# HELP crestmap_scraper_last_run_region_incidents Incidents matched by the latest scraper run, grouped by hidden region and coordinate availability.",
+                "# TYPE crestmap_scraper_last_run_region_incidents gauge",
             ]
         )
         for region, counts in sorted((last.get("region_counts") or {}).items()):
             lines.append(
                 self.metric_line(
-                    "chp_live_map_scraper_last_run_region_incidents",
+                    "crestmap_scraper_last_run_region_incidents",
                     counts.get("matched", 0),
                     {"region": region, "kind": "matched"},
                 )
             )
             lines.append(
                 self.metric_line(
-                    "chp_live_map_scraper_last_run_region_incidents",
+                    "crestmap_scraper_last_run_region_incidents",
                     counts.get("mapped", 0),
                     {"region": region, "kind": "mapped"},
                 )
             )
         lines.extend(
             [
-                "# HELP chp_live_map_scraper_source_compare_last_run_timestamp_seconds Unix timestamp of the latest source comparison run.",
-                "# TYPE chp_live_map_scraper_source_compare_last_run_timestamp_seconds gauge",
+                "# HELP crestmap_scraper_source_compare_last_run_timestamp_seconds Unix timestamp of the latest source comparison run.",
+                "# TYPE crestmap_scraper_source_compare_last_run_timestamp_seconds gauge",
                 self.metric_line(
-                    "chp_live_map_scraper_source_compare_last_run_timestamp_seconds",
+                    "crestmap_scraper_source_compare_last_run_timestamp_seconds",
                     f"{parse_metric_timestamp(last_source_compare.get('observed_at')):.3f}",
                     {
                         "outcome": last_source_compare.get("outcome", "none"),
                         "error_type": last_source_compare.get("error_type", ""),
                     },
                 ),
-                "# HELP chp_live_map_scraper_source_compare_last_run_duration_seconds Duration of the latest source comparison run.",
-                "# TYPE chp_live_map_scraper_source_compare_last_run_duration_seconds gauge",
+                "# HELP crestmap_scraper_source_compare_last_run_duration_seconds Duration of the latest source comparison run.",
+                "# TYPE crestmap_scraper_source_compare_last_run_duration_seconds gauge",
                 self.metric_line(
-                    "chp_live_map_scraper_source_compare_last_run_duration_seconds",
+                    "crestmap_scraper_source_compare_last_run_duration_seconds",
                     last_source_compare.get("duration_seconds", 0),
                 ),
-                "# HELP chp_live_map_scraper_source_compare_last_run_incidents Last source comparison incident counts by source/result.",
-                "# TYPE chp_live_map_scraper_source_compare_last_run_incidents gauge",
+                "# HELP crestmap_scraper_source_compare_last_run_incidents Last source comparison incident counts by source/result.",
+                "# TYPE crestmap_scraper_source_compare_last_run_incidents gauge",
                 self.metric_line(
-                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    "crestmap_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("cad_total_seen", 0),
                     {"source": "cad", "kind": "total_seen"},
                 ),
                 self.metric_line(
-                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    "crestmap_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("cad_matched", 0),
                     {"source": "cad", "kind": "matched"},
                 ),
                 self.metric_line(
-                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    "crestmap_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("cad_mapped", 0),
                     {"source": "cad", "kind": "mapped"},
                 ),
                 self.metric_line(
-                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    "crestmap_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("xml_total_seen", 0),
                     {"source": "xml", "kind": "total_seen"},
                 ),
                 self.metric_line(
-                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    "crestmap_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("xml_matched", 0),
                     {"source": "xml", "kind": "matched"},
                 ),
                 self.metric_line(
-                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    "crestmap_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("xml_mapped", 0),
                     {"source": "xml", "kind": "mapped"},
                 ),
                 self.metric_line(
-                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    "crestmap_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("overlap_matched", 0),
                     {"source": "comparison", "kind": "overlap"},
                 ),
                 self.metric_line(
-                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    "crestmap_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("cad_only", 0),
                     {"source": "comparison", "kind": "cad_only"},
                 ),
                 self.metric_line(
-                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    "crestmap_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("xml_only", 0),
                     {"source": "comparison", "kind": "xml_only"},
                 ),
                 self.metric_line(
-                    "chp_live_map_scraper_source_compare_last_run_incidents",
+                    "crestmap_scraper_source_compare_last_run_incidents",
                     last_source_compare.get("mismatch", 0),
                     {"source": "comparison", "kind": "mismatch"},
                 ),
-                "# HELP chp_live_map_scraper_source_compare_last_run_region_incidents Last source comparison incidents grouped by source, region, and coordinate availability.",
-                "# TYPE chp_live_map_scraper_source_compare_last_run_region_incidents gauge",
+                "# HELP crestmap_scraper_source_compare_last_run_region_incidents Last source comparison incidents grouped by source, region, and coordinate availability.",
+                "# TYPE crestmap_scraper_source_compare_last_run_region_incidents gauge",
             ]
         )
         for source, region_counts in (
@@ -524,49 +524,49 @@ class ScraperMetrics:
             for region, counts in sorted(region_counts.items()):
                 lines.append(
                     self.metric_line(
-                        "chp_live_map_scraper_source_compare_last_run_region_incidents",
+                        "crestmap_scraper_source_compare_last_run_region_incidents",
                         counts.get("matched", 0),
                         {"source": source, "region": region, "kind": "matched"},
                     )
                 )
                 lines.append(
                     self.metric_line(
-                        "chp_live_map_scraper_source_compare_last_run_region_incidents",
+                        "crestmap_scraper_source_compare_last_run_region_incidents",
                         counts.get("mapped", 0),
                         {"source": source, "region": region, "kind": "mapped"},
                     )
                 )
         lines.extend(
             [
-                "# HELP chp_live_map_scraper_last_run_observations_inserted Observation rows inserted by the latest scraper run.",
-                "# TYPE chp_live_map_scraper_last_run_observations_inserted gauge",
-                self.metric_line("chp_live_map_scraper_last_run_observations_inserted", last.get("observations_inserted", 0)),
-                "# HELP chp_live_map_scraper_http_requests_total Outbound source HTTP requests made by scraper provider, grouped by method, route, and status.",
-                "# TYPE chp_live_map_scraper_http_requests_total counter",
+                "# HELP crestmap_scraper_last_run_observations_inserted Observation rows inserted by the latest scraper run.",
+                "# TYPE crestmap_scraper_last_run_observations_inserted gauge",
+                self.metric_line("crestmap_scraper_last_run_observations_inserted", last.get("observations_inserted", 0)),
+                "# HELP crestmap_scraper_http_requests_total Outbound source HTTP requests made by scraper provider, grouped by method, route, and status.",
+                "# TYPE crestmap_scraper_http_requests_total counter",
             ]
         )
         for (method, route, status), count in sorted(http_counts.items()):
             lines.append(
                 self.metric_line(
-                    "chp_live_map_scraper_http_requests_total",
+                    "crestmap_scraper_http_requests_total",
                     count,
                     {"method": method, "route": route, "status": status},
                 )
             )
         lines.extend(
             [
-                "# HELP chp_live_map_scraper_last_run_details Detail pages requested or skipped by the latest scraper run.",
-                "# TYPE chp_live_map_scraper_last_run_details gauge",
-                self.metric_line("chp_live_map_scraper_last_run_details", last.get("details_requested", 0), {"result": "requested"}),
-                self.metric_line("chp_live_map_scraper_last_run_details", last.get("details_skipped", 0), {"result": "skipped"}),
-                "# HELP chp_live_map_scraper_chp_http_requests_total Outbound CHP HTTP requests made by scraper, grouped by method, route, and status.",
-                "# TYPE chp_live_map_scraper_chp_http_requests_total counter",
+                "# HELP crestmap_scraper_last_run_details Detail pages requested or skipped by the latest scraper run.",
+                "# TYPE crestmap_scraper_last_run_details gauge",
+                self.metric_line("crestmap_scraper_last_run_details", last.get("details_requested", 0), {"result": "requested"}),
+                self.metric_line("crestmap_scraper_last_run_details", last.get("details_skipped", 0), {"result": "skipped"}),
+                "# HELP crestmap_scraper_chp_http_requests_total Outbound CHP HTTP requests made by scraper, grouped by method, route, and status.",
+                "# TYPE crestmap_scraper_chp_http_requests_total counter",
             ]
         )
         for (method, route, status), count in sorted(http_counts.items()):
             lines.append(
                 self.metric_line(
-                    "chp_live_map_scraper_chp_http_requests_total",
+                    "crestmap_scraper_chp_http_requests_total",
                     count,
                     {"method": method, "route": route, "status": status},
                 )
@@ -731,7 +731,7 @@ def get_page(opener, url, timeout, user_agent, retries, backoff, stats=None, rou
 
 def build_user_agent(contact_email=None):
     if contact_email:
-        return f"chp-live-map/0.1 (+https://crestmap.us/; contact: {contact_email})"
+        return f"crestmap/0.1 (+https://crestmap.us/; contact: {contact_email})"
     return DEFAULT_USER_AGENT
 
 

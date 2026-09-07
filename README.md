@@ -183,13 +183,13 @@ Run with statement coverage:
 Build:
 
 ```sh
-docker build -t chp-live-map:latest .
+docker build -t crestmap:latest .
 ```
 
 Run locally against SQLite:
 
 ```sh
-docker run --rm -p 8080:8080 -v "$PWD:/data" chp-live-map:latest \
+docker run --rm -p 8080:8080 -v "$PWD:/data" crestmap:latest \
   sh -c 'DATABASE=/data/chp_traffic.sqlite exec gunicorn app:app -k uvicorn.workers.UvicornWorker --workers 1 --bind 0.0.0.0:8080 --access-logfile /dev/null --error-logfile -'
 ```
 
@@ -201,7 +201,7 @@ For the pushed Kubernetes image workflow, use the Makefile:
 make deploy VERSION=0.1.90
 ```
 
-That runs tests, builds and pushes `cajaks2/chp-live-map:<version>` for `linux/amd64`, updates the Kubernetes manifest image tags and `SERVICE_VERSION`, applies the manifest, waits for the web rollout, and verifies the public `crestmap.us` page.
+That runs tests, builds and pushes `cajaks2/crestmap:<version>` for `linux/amd64`, updates the Kubernetes manifest image tags and `SERVICE_VERSION`, applies the manifest, waits for the web rollout, and verifies the public `crestmap.us` page.
 
 Useful individual targets:
 
@@ -219,14 +219,14 @@ make k8s-status
 Apply the manifest:
 
 ```sh
-kubectl apply -f k8s/chp-live-map.yaml
+kubectl apply -f k8s/crestmap.yaml
 ```
 
 The manifest creates:
 
-- namespace `chp-live-map`
-- secret `chp-live-map-db`
-- PVC `chp-live-map-postgres-data`
+- namespace `crestmap`
+- secret `crestmap-db`
+- PVC `crestmap-postgres-data`
 - Postgres StatefulSet and service
 - CHP scraper Deployment that runs continuously, polls every minute, and exposes metrics
 - WildWeb collector Deployment that runs continuously, polls every two minutes, and exposes metrics
@@ -240,7 +240,7 @@ Edit `POSTGRES_PASSWORD` and `DATABASE_URL` in the manifest before using it outs
 The public `crestmap.us` deployment can run directly on a single VM behind nginx:
 
 ```sh
-cd /opt/chp-live-map
+cd /opt/crestmap
 cp .env.example .env
 docker compose up -d
 ```
@@ -267,7 +267,7 @@ AIRCRAFT_RETENTION_HOURS=24
 
 The browser reads delayed positions from `/api/v1/aircraft`; OpenSky credentials are never sent to clients. The tracker deletes database positions older than `AIRCRAFT_RETENTION_HOURS` after each successful poll.
 
-Backups are written as compressed custom-format `pg_dump` files under `/opt/chp-live-map/backups/postgres` every six hours by default. Tune `BACKUP_INTERVAL_SECONDS` and `BACKUP_RETENTION_DAYS` in `.env`.
+Backups are written as compressed custom-format `pg_dump` files under `/opt/crestmap/backups/postgres` every six hours by default. Tune `BACKUP_INTERVAL_SECONDS` and `BACKUP_RETENTION_DAYS` in `.env`.
 
 Optional GA4 analytics can be enabled by setting `GOOGLE_ANALYTICS_ID` in `.env` to the installation tag ID supplied by Google, such as `G-XXXXXXXXXX`. Leave it blank to omit the Google Analytics script entirely. See [Analytics operations](docs/analytics.md) for interaction events, pageview settings, the reporting property, and internal/developer test modes.
 
@@ -292,7 +292,7 @@ Files for that deployment live in `deploy/digitalocean/`.
 For app-only updates after changing `VERSION` in `.env`, avoid restarting dependencies:
 
 ```sh
-cd /opt/chp-live-map
+cd /opt/crestmap
 make deploy VERSION=0.1.90
 ```
 
@@ -314,7 +314,7 @@ The web service also exposes:
 - `?region=malibu`: public Malibu coast/canyon dataset selector supported by the map, summary, history, about, `/status.json`, and `/incidents.json`.
 - Web `/metrics`: Prometheus text-format metrics for web process uptime, incident counts, data freshness, HTTP request counters, and DB-backed latest scrape data.
 - CHP scraper `:8081/metrics`: provider-labeled Prometheus metrics emitted by the long-lived CHP collector, including scrape attempt counters and outbound CHP response-code counters.
-- WildWeb scraper `:8082/metrics`: the same generic `chp_live_map_scraper_*` families with `provider="wildweb"` and `source="api"`.
+- WildWeb scraper `:8082/metrics`: the same generic `crestmap_scraper_*` families with `provider="wildweb"` and `source="api"`.
 
 Merge `deploy/digitalocean/prometheus-scrape.yml` into the host Prometheus `scrape_configs` so both collector targets are ingested. The checked-in Grafana dashboard includes a `provider` filter and keeps XML/CAD-only panels scoped to CHP.
 
@@ -371,7 +371,7 @@ GET  /admin/comments
 GET  /api/v1/incidents/{event_key}/hidden-details
 ```
 
-On the DigitalOcean compose host, store the credentials in `/opt/chp-live-map/.env`
+On the DigitalOcean compose host, store the credentials in `/opt/crestmap/.env`
 instead of committing them:
 
 ```bash
@@ -420,49 +420,49 @@ Prometheus metrics:
 
 | Metric | Type | Meaning |
 | --- | --- | --- |
-| `chp_live_map_up` | gauge | `1` when the web process can render metrics. |
-| `chp_live_map_process_start_time_seconds` | gauge | Unix timestamp for the current web process start time. |
-| `chp_live_map_incidents{status="total"}` | gauge | Incident count in the default map history window. |
-| `chp_live_map_incidents{status="active"}` | gauge | Active incident count in the default map history window. |
-| `chp_live_map_incidents{status="reported"}` | gauge | Current WildWeb report count in the default map history window. |
-| `chp_live_map_incidents{status="cleared"}` | gauge | Cleared incident count in the default map history window. |
-| `chp_live_map_incidents{status="mapped"}` | gauge | Incidents with coordinates in the default map history window. |
-| `chp_live_map_region_incidents{region,status}` | gauge | Incident counts in the default map history window, grouped by hidden collection region such as `forest` or `malibu`. |
-| `chp_live_map_history_window_hours` | gauge | The history-window size used for `/metrics` incident gauges. In production this is `72`, matching the default map view; user-selected `?hours=` values only affect that page/status request, not this process-level metric. |
-| `chp_live_map_data_updated_timestamp_seconds` | gauge | Unix timestamp of the newest observed incident data included in the metrics window. |
-| `chp_live_map_http_requests_total{method,route,status}` | counter | HTTP requests handled by the web process, grouped by method, coarse route, and status code. |
-| `chp_live_map_db_pool_connections{state}` | gauge | Web Postgres pool connections by `min`, `max`, `size`, `available`, and derived `in_use` states. |
-| `chp_live_map_db_pool_requests_waiting` | gauge | Web requests currently waiting for a Postgres pool connection. |
-| `chp_live_map_comments_submitted_total{outcome}` | counter | Comment submissions grouped by outcome such as `pending`, `rate_limited`, `honeypot`, or validation errors. |
-| `chp_live_map_comments_pending` | gauge | Comments currently waiting for moderation. |
-| `chp_live_map_push_subscriptions{status}` | gauge | Stored Web Push subscriptions, split into active and inactive records. |
-| `chp_live_map_push_subscription_sources{source}` | gauge | Active subscriptions selecting CHP or WildWeb alerts. |
-| `chp_live_map_push_subscription_areas{area}` | gauge | Active subscriptions selecting Forest, Crest/west, or Malibu. |
-| `chp_live_map_push_subscription_categories{category}` | gauge | Active subscriptions selecting each incident category. |
-| `chp_live_map_push_notification_events{region,category,status}` | gauge | Incident notification events split into pending and completed queue states. |
-| `chp_live_map_push_deliveries{region,category,status}` | gauge | Incident push deliveries split into pending, delivered, and failed outcomes. |
-| `chp_live_map_push_delivery_attempts{region,category}` | gauge | Total stored incident push attempts by region and category. |
-| `chp_live_map_push_test_notifications{status}` | gauge | Test notifications split into pending, delivered, and failed outcomes. |
-| `chp_live_map_push_last_delivery_timestamp_seconds` | gauge | Unix timestamp of the latest successful incident push delivery. |
-| `chp_live_map_push_last_test_delivery_timestamp_seconds` | gauge | Unix timestamp of the latest successful test push delivery. |
-| `chp_live_map_scrape_last_run_timestamp_seconds` | gauge | Unix timestamp for the latest completed CHP scrape. |
-| `chp_live_map_scrape_last_run_duration_seconds` | gauge | Duration of the latest completed CHP scrape. |
-| `chp_live_map_scrape_last_run_incidents{kind}` | gauge | Latest scrape incident counts: total CHP incidents seen, matched incidents acquired, and mapped matched incidents. |
-| `chp_live_map_scrape_last_run_observations_inserted` | gauge | Observation rows inserted by the latest scrape. |
-| `chp_live_map_scrape_last_run_details{result}` | gauge | Detail pages requested or skipped by the latest scrape. |
-| `chp_live_map_scrape_chp_http_requests_total{method,route,status}` | counter | Outbound requests made by the scraper to CHP, grouped by method, list/detail route, and response status. |
-| `chp_live_map_scraper_up{provider}` | gauge | `1` when a scraper metrics endpoint is running. `provider` is `chp` or `wildweb`. |
-| `chp_live_map_scraper_scrapes_total{provider,outcome}` | counter | Scrape attempts by provider and success/failure. |
-| `chp_live_map_scraper_source_attempts_total{provider,source,mode,outcome}` | counter | Source attempts from each collector. CHP uses `xml` or `cad`; WildWeb uses `api`. |
-| `chp_live_map_scraper_xml_feed_age_seconds{provider,timestamp_source}` | gauge | CHP-only age in seconds of the media XML feed timestamp from the latest XML freshness check. `timestamp_source` is usually `http_last_modified`; it falls back to `incident_timestamp` if the header is absent. XML is treated as stale after `CHP_XML_MAX_AGE_MINUTES`, default `5`, and CAD is used as fallback. |
-| `chp_live_map_scraper_xml_feed_timestamp_seconds{provider,timestamp_source}` | gauge | CHP-only Unix timestamp for the media XML feed timestamp used by the latest XML freshness check. |
-| `chp_live_map_scraper_last_run_timestamp_seconds{provider,outcome,error_type}` | gauge | Timestamp of the latest run for each scraper provider. |
-| `chp_live_map_scraper_last_run_duration_seconds{provider}` | gauge | Total duration of each provider's latest scraper run. |
-| `chp_live_map_scraper_last_run_source_duration_seconds{provider,source}` | gauge | Latest fetch/runtime duration by provider and source. |
-| `chp_live_map_scraper_last_run_source_response_bytes{provider,source}` | gauge | Bytes downloaded by each provider's latest run. |
-| `chp_live_map_scraper_last_run_incidents{provider,kind}` | gauge | Latest incident counts for each scraper provider. |
-| `chp_live_map_scraper_http_requests_total{provider,method,route,status}` | counter | Outbound source requests for CHP and WildWeb, grouped by provider, route, and HTTP status or transport outcome. |
-| `chp_live_map_scraper_chp_http_requests_total{provider,method,route,status}` | counter | Compatibility alias for CHP outbound HTTP requests; new dashboards should use `chp_live_map_scraper_http_requests_total`. |
+| `crestmap_up` | gauge | `1` when the web process can render metrics. |
+| `crestmap_process_start_time_seconds` | gauge | Unix timestamp for the current web process start time. |
+| `crestmap_incidents{status="total"}` | gauge | Incident count in the default map history window. |
+| `crestmap_incidents{status="active"}` | gauge | Active incident count in the default map history window. |
+| `crestmap_incidents{status="reported"}` | gauge | Current WildWeb report count in the default map history window. |
+| `crestmap_incidents{status="cleared"}` | gauge | Cleared incident count in the default map history window. |
+| `crestmap_incidents{status="mapped"}` | gauge | Incidents with coordinates in the default map history window. |
+| `crestmap_region_incidents{region,status}` | gauge | Incident counts in the default map history window, grouped by hidden collection region such as `forest` or `malibu`. |
+| `crestmap_history_window_hours` | gauge | The history-window size used for `/metrics` incident gauges. In production this is `72`, matching the default map view; user-selected `?hours=` values only affect that page/status request, not this process-level metric. |
+| `crestmap_data_updated_timestamp_seconds` | gauge | Unix timestamp of the newest observed incident data included in the metrics window. |
+| `crestmap_http_requests_total{method,route,status}` | counter | HTTP requests handled by the web process, grouped by method, coarse route, and status code. |
+| `crestmap_db_pool_connections{state}` | gauge | Web Postgres pool connections by `min`, `max`, `size`, `available`, and derived `in_use` states. |
+| `crestmap_db_pool_requests_waiting` | gauge | Web requests currently waiting for a Postgres pool connection. |
+| `crestmap_comments_submitted_total{outcome}` | counter | Comment submissions grouped by outcome such as `pending`, `rate_limited`, `honeypot`, or validation errors. |
+| `crestmap_comments_pending` | gauge | Comments currently waiting for moderation. |
+| `crestmap_push_subscriptions{status}` | gauge | Stored Web Push subscriptions, split into active and inactive records. |
+| `crestmap_push_subscription_sources{source}` | gauge | Active subscriptions selecting CHP or WildWeb alerts. |
+| `crestmap_push_subscription_areas{area}` | gauge | Active subscriptions selecting Forest, Crest/west, or Malibu. |
+| `crestmap_push_subscription_categories{category}` | gauge | Active subscriptions selecting each incident category. |
+| `crestmap_push_notification_events{region,category,status}` | gauge | Incident notification events split into pending and completed queue states. |
+| `crestmap_push_deliveries{region,category,status}` | gauge | Incident push deliveries split into pending, delivered, and failed outcomes. |
+| `crestmap_push_delivery_attempts{region,category}` | gauge | Total stored incident push attempts by region and category. |
+| `crestmap_push_test_notifications{status}` | gauge | Test notifications split into pending, delivered, and failed outcomes. |
+| `crestmap_push_last_delivery_timestamp_seconds` | gauge | Unix timestamp of the latest successful incident push delivery. |
+| `crestmap_push_last_test_delivery_timestamp_seconds` | gauge | Unix timestamp of the latest successful test push delivery. |
+| `crestmap_scrape_last_run_timestamp_seconds` | gauge | Unix timestamp for the latest completed CHP scrape. |
+| `crestmap_scrape_last_run_duration_seconds` | gauge | Duration of the latest completed CHP scrape. |
+| `crestmap_scrape_last_run_incidents{kind}` | gauge | Latest scrape incident counts: total CHP incidents seen, matched incidents acquired, and mapped matched incidents. |
+| `crestmap_scrape_last_run_observations_inserted` | gauge | Observation rows inserted by the latest scrape. |
+| `crestmap_scrape_last_run_details{result}` | gauge | Detail pages requested or skipped by the latest scrape. |
+| `crestmap_scrape_chp_http_requests_total{method,route,status}` | counter | Outbound requests made by the scraper to CHP, grouped by method, list/detail route, and response status. |
+| `crestmap_scraper_up{provider}` | gauge | `1` when a scraper metrics endpoint is running. `provider` is `chp` or `wildweb`. |
+| `crestmap_scraper_scrapes_total{provider,outcome}` | counter | Scrape attempts by provider and success/failure. |
+| `crestmap_scraper_source_attempts_total{provider,source,mode,outcome}` | counter | Source attempts from each collector. CHP uses `xml` or `cad`; WildWeb uses `api`. |
+| `crestmap_scraper_xml_feed_age_seconds{provider,timestamp_source}` | gauge | CHP-only age in seconds of the media XML feed timestamp from the latest XML freshness check. `timestamp_source` is usually `http_last_modified`; it falls back to `incident_timestamp` if the header is absent. XML is treated as stale after `CHP_XML_MAX_AGE_MINUTES`, default `5`, and CAD is used as fallback. |
+| `crestmap_scraper_xml_feed_timestamp_seconds{provider,timestamp_source}` | gauge | CHP-only Unix timestamp for the media XML feed timestamp used by the latest XML freshness check. |
+| `crestmap_scraper_last_run_timestamp_seconds{provider,outcome,error_type}` | gauge | Timestamp of the latest run for each scraper provider. |
+| `crestmap_scraper_last_run_duration_seconds{provider}` | gauge | Total duration of each provider's latest scraper run. |
+| `crestmap_scraper_last_run_source_duration_seconds{provider,source}` | gauge | Latest fetch/runtime duration by provider and source. |
+| `crestmap_scraper_last_run_source_response_bytes{provider,source}` | gauge | Bytes downloaded by each provider's latest run. |
+| `crestmap_scraper_last_run_incidents{provider,kind}` | gauge | Latest incident counts for each scraper provider. |
+| `crestmap_scraper_http_requests_total{provider,method,route,status}` | counter | Outbound source requests for CHP and WildWeb, grouped by provider, route, and HTTP status or transport outcome. |
+| `crestmap_scraper_chp_http_requests_total{provider,method,route,status}` | counter | Compatibility alias for CHP outbound HTTP requests; new dashboards should use `crestmap_scraper_http_requests_total`. |
 
 ## SQL Tables
 

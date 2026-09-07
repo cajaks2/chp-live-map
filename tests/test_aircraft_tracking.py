@@ -92,9 +92,9 @@ def test_run_once_persists_delayed_position_and_tracker_status(tmp_path):
     assert tracker["requests_total"] == 1
     assert tracker["errors_total"] == 0
     metrics = prometheus_metrics(database, None, 72.0).decode("utf-8")
-    assert "chp_live_map_aircraft_tracker_up 1" in metrics
-    assert "chp_live_map_aircraft_tracker_rate_limit_remaining 3988" in metrics
-    assert 'chp_live_map_aircraft_tracker_aircraft{kind="matched"} 1' in metrics
+    assert "crestmap_aircraft_tracker_up 1" in metrics
+    assert "crestmap_aircraft_tracker_rate_limit_remaining 3988" in metrics
+    assert 'crestmap_aircraft_tracker_aircraft{kind="matched"} 1' in metrics
 
 
 def test_visible_aircraft_respects_delay_and_stale_cutoff(tmp_path):

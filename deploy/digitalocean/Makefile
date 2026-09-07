@@ -101,8 +101,8 @@ health:
 	@printf '\n'
 
 verify: health
-	curl -fsS "$(PUBLIC_URL)" -o /tmp/chp-live-map-do-verify.html
-	grep -E 'Crestmap Forest Incidents|View last updated|rel="icon"' /tmp/chp-live-map-do-verify.html
+	curl -fsS "$(PUBLIC_URL)" -o /tmp/crestmap-do-verify.html
+	grep -E 'Crestmap Forest Incidents|View last updated|rel="icon"' /tmp/crestmap-do-verify.html
 
 metrics:
 	curl -fsS http://127.0.0.1:8080/metrics | head -40

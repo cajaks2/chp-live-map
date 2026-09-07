@@ -79,14 +79,14 @@ def test_fetch_center_records_wildweb_http_response_codes(monkeypatch):
     assert payload["data"] == []
     body = metrics.render().decode("utf-8")
     assert (
-        'chp_live_map_scraper_http_requests_total{provider="wildweb",method="GET",route="incidents",status="200"} 1'
+        'crestmap_scraper_http_requests_total{provider="wildweb",method="GET",route="incidents",status="200"} 1'
         in body
     )
     assert (
-        'chp_live_map_scraper_http_requests_total{provider="wildweb",method="GET",route="incidents",status="503"} 1'
+        'crestmap_scraper_http_requests_total{provider="wildweb",method="GET",route="incidents",status="503"} 1'
         in body
     )
-    assert "chp_live_map_scraper_chp_http_requests_total" not in body
+    assert "crestmap_scraper_chp_http_requests_total" not in body
 
 
 def test_normalize_wildweb_incident_uses_shared_boundary_and_source_identity():
@@ -254,22 +254,22 @@ def test_wildweb_main_publishes_shared_provider_labeled_scraper_metrics(monkeypa
     scrape_wildweb_incidents.main()
 
     body = metrics.render().decode("utf-8")
-    assert 'chp_live_map_scraper_up{provider="wildweb"} 1' in body
+    assert 'crestmap_scraper_up{provider="wildweb"} 1' in body
     assert (
-        'chp_live_map_scraper_source_attempts_total{provider="wildweb",source="api",mode="primary",outcome="success"} 1'
+        'crestmap_scraper_source_attempts_total{provider="wildweb",source="api",mode="primary",outcome="success"} 1'
         in body
     )
     assert (
-        'chp_live_map_scraper_last_run_incidents{provider="wildweb",kind="matched"} 8'
+        'crestmap_scraper_last_run_incidents{provider="wildweb",kind="matched"} 8'
         in body
     )
     assert (
-        'chp_live_map_scraper_last_run_region_incidents{provider="wildweb",region="forest",kind="mapped"} 5'
+        'crestmap_scraper_last_run_region_incidents{provider="wildweb",region="forest",kind="mapped"} 5'
         in body
     )
     assert (
-        'chp_live_map_scraper_last_run_source_response_bytes{provider="wildweb",source="api"} 4096'
+        'crestmap_scraper_last_run_source_response_bytes{provider="wildweb",source="api"} 4096'
         in body
     )
-    assert "chp_live_map_scraper_xml_feed_age_seconds" not in body
-    assert "chp_live_map_scraper_chp_http_requests_total" not in body
+    assert "crestmap_scraper_xml_feed_age_seconds" not in body
+    assert "crestmap_scraper_chp_http_requests_total" not in body

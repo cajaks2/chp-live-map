@@ -86,7 +86,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_up{site=~\"$site\"}",
+            "expr": "crestmap_up{site=~\"$site\"}",
             "range": true,
             "refId": "A"
           }
@@ -149,7 +149,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_up{site=~\"$site\",provider=~\"$provider\"}",
+            "expr": "crestmap_scraper_up{site=~\"$site\",provider=~\"$provider\"}",
             "legendFormat": "{{provider}}",
             "range": true,
             "refId": "C"
@@ -217,7 +217,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "time() - chp_live_map_scraper_last_run_timestamp_seconds{site=~\"$site\",provider=~\"$provider\"}",
+            "expr": "time() - crestmap_scraper_last_run_timestamp_seconds{site=~\"$site\",provider=~\"$provider\"}",
             "legendFormat": "{{provider}} {{outcome}}",
             "range": true,
             "refId": "K"
@@ -285,7 +285,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "max(chp_live_map_scraper_xml_feed_age_seconds{site=~\"$site\",provider=\"chp\"})",
+            "expr": "max(crestmap_scraper_xml_feed_age_seconds{site=~\"$site\",provider=\"chp\"})",
             "range": true,
             "refId": "A"
           }
@@ -352,7 +352,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "time() - chp_live_map_data_updated_timestamp_seconds{site=~\"$site\"}",
+            "expr": "time() - crestmap_data_updated_timestamp_seconds{site=~\"$site\"}",
             "range": true,
             "refId": "I"
           }
@@ -419,7 +419,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum(chp_live_map_region_incidents{site=~\"$site\",region=~\"$region\",status=\"active\"})",
+            "expr": "sum(crestmap_region_incidents{site=~\"$site\",region=~\"$region\",status=\"active\"})",
             "range": true,
             "refId": "E"
           }
@@ -485,7 +485,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_xml_feed_age_seconds{site=~\"$site\",provider=\"chp\"}",
+            "expr": "crestmap_scraper_xml_feed_age_seconds{site=~\"$site\",provider=\"chp\"}",
             "legendFormat": "{{timestamp_source}}",
             "range": true,
             "refId": "A"
@@ -544,7 +544,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (provider,source,mode,outcome) (rate(chp_live_map_scraper_source_attempts_total{site=~\"$site\",provider=~\"$provider\",source=~\"$source\"}[$__rate_interval]))",
+            "expr": "sum by (provider,source,mode,outcome) (rate(crestmap_scraper_source_attempts_total{site=~\"$site\",provider=~\"$provider\",source=~\"$source\"}[$__rate_interval]))",
             "legendFormat": "{{provider}} {{source}} {{mode}} {{outcome}}",
             "range": true,
             "refId": "A"
@@ -616,7 +616,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_last_run_source_duration_seconds{site=~\"$site\",provider=~\"$provider\",source=~\"$source\"}",
+            "expr": "crestmap_scraper_last_run_source_duration_seconds{site=~\"$site\",provider=~\"$provider\",source=~\"$source\"}",
             "legendFormat": "{{provider}} {{source}}",
             "range": true,
             "refId": "V"
@@ -675,7 +675,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_last_run_source_response_bytes{site=~\"$site\",provider=~\"$provider\",source=~\"$source\"}",
+            "expr": "crestmap_scraper_last_run_source_response_bytes{site=~\"$site\",provider=~\"$provider\",source=~\"$source\"}",
             "legendFormat": "{{provider}} {{source}}",
             "range": true,
             "refId": "X"
@@ -734,7 +734,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (provider,method,route,status) (rate(chp_live_map_scraper_http_requests_total{site=~\"$site\",provider=~\"$provider\"}[$__rate_interval]))",
+            "expr": "sum by (provider,method,route,status) (rate(crestmap_scraper_http_requests_total{site=~\"$site\",provider=~\"$provider\"}[$__rate_interval]))",
             "legendFormat": "{{provider}} {{method}} {{route}} {{status}}",
             "range": true,
             "refId": "`"
@@ -793,7 +793,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (provider,outcome) (rate(chp_live_map_scraper_scrapes_total{site=~\"$site\",provider=~\"$provider\"}[$__rate_interval]))",
+            "expr": "sum by (provider,outcome) (rate(crestmap_scraper_scrapes_total{site=~\"$site\",provider=~\"$provider\"}[$__rate_interval]))",
             "legendFormat": "{{provider}} {{outcome}}",
             "range": true,
             "refId": "Z"
@@ -853,7 +853,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_last_run_observations_inserted{site=~\"$site\",provider=~\"$provider\"}",
+            "expr": "crestmap_scraper_last_run_observations_inserted{site=~\"$site\",provider=~\"$provider\"}",
             "legendFormat": "{{provider}}",
             "range": true,
             "refId": "n"
@@ -912,7 +912,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_last_run_details{site=~\"$site\",provider=\"chp\"}",
+            "expr": "crestmap_scraper_last_run_details{site=~\"$site\",provider=\"chp\"}",
             "legendFormat": "{{result}}",
             "range": true,
             "refId": "p"
@@ -984,7 +984,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (route,status) (rate(chp_live_map_http_requests_total{site=~\"$site\",route=~\"$route\"}[$__rate_interval]))",
+            "expr": "sum by (route,status) (rate(crestmap_http_requests_total{site=~\"$site\",route=~\"$route\"}[$__rate_interval]))",
             "legendFormat": "{{route}} {{status}}",
             "range": true,
             "refId": "O"
@@ -1043,7 +1043,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (route,status) (rate(chp_live_map_http_requests_total{site=~\"$site\",status!~\"2..|3..\"}[$__rate_interval]))",
+            "expr": "sum by (route,status) (rate(crestmap_http_requests_total{site=~\"$site\",status!~\"2..|3..\"}[$__rate_interval]))",
             "legendFormat": "{{route}} {{status}}",
             "range": true,
             "refId": "Q"
@@ -1447,7 +1447,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_db_pool_connections{site=~\"$site\"}",
+            "expr": "crestmap_db_pool_connections{site=~\"$site\"}",
             "legendFormat": "{{state}}",
             "range": true,
             "refId": "S"
@@ -1458,7 +1458,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_db_pool_requests_waiting{site=~\"$site\"}",
+            "expr": "crestmap_db_pool_requests_waiting{site=~\"$site\"}",
             "legendFormat": "requests waiting",
             "range": true,
             "refId": "T"
@@ -1518,7 +1518,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "time() - chp_live_map_process_start_time_seconds{site=~\"$site\"}",
+            "expr": "time() - crestmap_process_start_time_seconds{site=~\"$site\"}",
             "range": true,
             "refId": "h"
           }
@@ -1577,7 +1577,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "time() - chp_live_map_scraper_process_start_time_seconds{site=~\"$site\",provider=~\"$provider\"}",
+            "expr": "time() - crestmap_scraper_process_start_time_seconds{site=~\"$site\",provider=~\"$provider\"}",
             "legendFormat": "{{provider}}",
             "range": true,
             "refId": "j"
@@ -1637,7 +1637,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_history_window_hours{site=~\"$site\"}",
+            "expr": "crestmap_history_window_hours{site=~\"$site\"}",
             "range": true,
             "refId": "l"
           }
@@ -1709,7 +1709,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum(chp_live_map_region_incidents{site=~\"$site\",region=~\"$region\",status=\"total\"})",
+            "expr": "sum(crestmap_region_incidents{site=~\"$site\",region=~\"$region\",status=\"total\"})",
             "range": true,
             "refId": "G"
           }
@@ -1765,7 +1765,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_last_run_incidents{site=~\"$site\",provider=~\"$provider\"}",
+            "expr": "crestmap_scraper_last_run_incidents{site=~\"$site\",provider=~\"$provider\"}",
             "legendFormat": "{{provider}} {{kind}}",
             "range": true,
             "refId": "\\"
@@ -1822,7 +1822,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_last_run_region_incidents{site=~\"$site\",provider=~\"$provider\",region=~\"$region\"}",
+            "expr": "crestmap_scraper_last_run_region_incidents{site=~\"$site\",provider=~\"$provider\",region=~\"$region\"}",
             "legendFormat": "{{provider}} {{region}} {{kind}}",
             "range": true,
             "refId": "^"
@@ -1881,7 +1881,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_region_incidents{site=~\"$site\",region=~\"$region\"}",
+            "expr": "crestmap_region_incidents{site=~\"$site\",region=~\"$region\"}",
             "legendFormat": "{{region}} {{status}}",
             "range": true,
             "refId": "M"
@@ -1940,7 +1940,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_last_run_incidents{site=~\"$site\",provider=~\"$provider\"}",
+            "expr": "crestmap_scraper_last_run_incidents{site=~\"$site\",provider=~\"$provider\"}",
             "legendFormat": "{{provider}} {{kind}}",
             "range": true,
             "refId": "r"
@@ -2012,7 +2012,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (outcome) (rate(chp_live_map_scraper_source_compare_runs_total{site=~\"$site\",provider=\"chp\"}[$__rate_interval]))",
+            "expr": "sum by (outcome) (rate(crestmap_scraper_source_compare_runs_total{site=~\"$site\",provider=\"chp\"}[$__rate_interval]))",
             "legendFormat": "{{outcome}}",
             "range": true,
             "refId": "b"
@@ -2069,7 +2069,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_source_compare_last_run_incidents{site=~\"$site\",provider=\"chp\"}",
+            "expr": "crestmap_scraper_source_compare_last_run_incidents{site=~\"$site\",provider=\"chp\"}",
             "legendFormat": "{{source}} {{kind}}",
             "range": true,
             "refId": "d"
@@ -2126,7 +2126,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_scraper_source_compare_last_run_region_incidents{site=~\"$site\",provider=\"chp\",region=~\"$region\"}",
+            "expr": "crestmap_scraper_source_compare_last_run_region_incidents{site=~\"$site\",provider=\"chp\",region=~\"$region\"}",
             "legendFormat": "{{source}} {{region}} {{kind}}",
             "range": true,
             "refId": "f"
@@ -2187,7 +2187,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_push_subscriptions{site=~\"$site\",status=\"active\"}",
+            "expr": "crestmap_push_subscriptions{site=~\"$site\",status=\"active\"}",
             "legendFormat": "Active",
             "range": true,
             "refId": "A"
@@ -2235,7 +2235,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum(chp_live_map_push_deliveries{site=~\"$site\",status=\"delivered\"})",
+            "expr": "sum(crestmap_push_deliveries{site=~\"$site\",status=\"delivered\"})",
             "legendFormat": "Delivered",
             "range": true,
             "refId": "A"
@@ -2283,7 +2283,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum(chp_live_map_push_deliveries{site=~\"$site\",status=\"failed\"})",
+            "expr": "sum(crestmap_push_deliveries{site=~\"$site\",status=\"failed\"})",
             "legendFormat": "Failed",
             "range": true,
             "refId": "A"
@@ -2328,7 +2328,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_push_subscription_areas{site=~\"$site\"}",
+            "expr": "crestmap_push_subscription_areas{site=~\"$site\"}",
             "legendFormat": "{{area}}",
             "range": true,
             "refId": "A"
@@ -2373,7 +2373,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_push_subscription_categories{site=~\"$site\"}",
+            "expr": "crestmap_push_subscription_categories{site=~\"$site\"}",
             "legendFormat": "{{category}}",
             "range": true,
             "refId": "A"
@@ -2420,7 +2420,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_push_deliveries{site=~\"$site\"}",
+            "expr": "crestmap_push_deliveries{site=~\"$site\"}",
             "legendFormat": "{{region}} {{category}} {{status}}",
             "range": true,
             "refId": "A"
@@ -2467,7 +2467,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (status) (chp_live_map_push_notification_events{site=~\"$site\"})",
+            "expr": "sum by (status) (crestmap_push_notification_events{site=~\"$site\"})",
             "legendFormat": "events {{status}}",
             "range": true,
             "refId": "A"
@@ -2478,7 +2478,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "chp_live_map_push_test_notifications{site=~\"$site\"}",
+            "expr": "crestmap_push_test_notifications{site=~\"$site\"}",
             "legendFormat": "tests {{status}}",
             "range": true,
             "refId": "B"
@@ -2521,7 +2521,7 @@
           },
           "includeAll": false,
           "name": "site",
-          "query": "label_values(chp_live_map_up, site)",
+          "query": "label_values(crestmap_up, site)",
           "refresh": 1,
           "sort": 1,
           "type": "query"
@@ -2539,7 +2539,7 @@
           },
           "includeAll": true,
           "name": "region",
-          "query": "label_values(chp_live_map_region_incidents, region)",
+          "query": "label_values(crestmap_region_incidents, region)",
           "refresh": 1,
           "sort": 1,
           "type": "query"
@@ -2557,7 +2557,7 @@
           },
           "includeAll": true,
           "name": "route",
-          "query": "label_values(chp_live_map_http_requests_total, route)",
+          "query": "label_values(crestmap_http_requests_total, route)",
           "refresh": 1,
           "sort": 1,
           "type": "query"
@@ -2575,7 +2575,7 @@
           },
           "includeAll": true,
           "name": "provider",
-          "query": "label_values(chp_live_map_scraper_up{site=~\"$site\"}, provider)",
+          "query": "label_values(crestmap_scraper_up{site=~\"$site\"}, provider)",
           "refresh": 1,
           "sort": 1,
           "type": "query"
@@ -2593,7 +2593,7 @@
           },
           "includeAll": true,
           "name": "source",
-          "query": "label_values(chp_live_map_scraper_last_run_source_duration_seconds{site=~\"$site\",provider=~\"$provider\"}, source)",
+          "query": "label_values(crestmap_scraper_last_run_source_duration_seconds{site=~\"$site\",provider=~\"$provider\"}, source)",
           "refresh": 1,
           "sort": 1,
           "type": "query"
@@ -2605,8 +2605,8 @@
       "to": "now"
     },
     "timezone": "browser",
-    "title": "Crestmap CHP Live Map",
-    "uid": "crestmap-chp-live-map",
+    "title": "Crestmap Crestmap",
+    "uid": "crestmap-crestmap",
     "version": 10,
     "description": "Operational dashboard for crestmap.us: CHP and WildWeb scraper freshness, XML/CAD source behavior, Loki access traffic, Postgres pool health, incident data quality, and Web Push delivery."
   },

@@ -19,7 +19,7 @@
 - `python3 scrape_chp_traffic.py --interval 60` runs the scraper loop locally against SQLite by default.
 - `.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8080` serves the dynamic app locally.
 - `python3 manage_comments.py list --status pending` lists comments awaiting moderation; use `approve`, `reject`, or `delete` with a comment ID to moderate from the CLI.
-- `docker buildx build --platform linux/amd64 -t cajaks2/chp-live-map:<version> --push .` builds the production image.
+- `docker buildx build --platform linux/amd64 -t cajaks2/crestmap:<version> --push .` builds the production image.
 
 ## Coding Style & Naming Conventions
 - Python follows PEP 8 with 4-space indentation and snake_case names.
@@ -36,8 +36,8 @@
 - Run `make test` before committing code or deployment changes.
 
 ## Deployment Notes
-- Current Docker image repository is `cajaks2/chp-live-map`.
-- Keep `deploy/digitalocean/docker-compose.yml` and `k8s/chp-live-map.yaml` image tags and `SERVICE_VERSION` values in sync when bumping versions.
+- Current Docker image repository is `cajaks2/crestmap`.
+- Keep `deploy/digitalocean/docker-compose.yml` and `k8s/crestmap.yaml` image tags and `SERVICE_VERSION` values in sync when bumping versions.
 - The DigitalOcean Compose deployment serves only `crestmap.us` behind nginx.
 - Compose runs Postgres, the web service, the long-lived scraper service, and a backup sidecar.
 - Production web uses gunicorn with `uvicorn.workers.UvicornWorker`; keep `WEB_WORKERS=1` unless you also account for per-worker Prometheus counters and multiplied Postgres pool connections.

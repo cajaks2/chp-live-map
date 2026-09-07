@@ -1,19 +1,19 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: chp-live-map
+  name: crestmap
 ---
 apiVersion: v1
 kind: Secret
 metadata:
-  name: chp-live-map-db
-  namespace: chp-live-map
+  name: crestmap-db
+  namespace: crestmap
 type: Opaque
 stringData:
   POSTGRES_DB: chp_map
   POSTGRES_USER: chp_map
   POSTGRES_PASSWORD: change-me
-  DATABASE_URL: postgresql://chp_map:change-me@chp-live-map-postgres:5432/chp_map
+  DATABASE_URL: postgresql://chp_map:change-me@crestmap-postgres:5432/chp_map
   ADMIN_USERNAME: admin
   ADMIN_PASSWORD: change-me
   ADMIN_SESSION_SECRET: change-me-too
@@ -23,8 +23,8 @@ stringData:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: chp-live-map-postgres-data
-  namespace: chp-live-map
+  name: crestmap-postgres-data
+  namespace: crestmap
 spec:
   accessModes:
     - ReadWriteOnce
@@ -35,18 +35,18 @@ spec:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: chp-live-map-postgres
-  namespace: chp-live-map
+  name: crestmap-postgres
+  namespace: crestmap
 spec:
-  serviceName: chp-live-map-postgres
+  serviceName: crestmap-postgres
   replicas: 1
   selector:
     matchLabels:
-      app: chp-live-map-postgres
+      app: crestmap-postgres
   template:
     metadata:
       labels:
-        app: chp-live-map-postgres
+        app: crestmap-postgres
     spec:
       containers:
         - name: postgres
@@ -58,17 +58,17 @@ spec:
             - name: POSTGRES_DB
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: POSTGRES_DB
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: POSTGRES_PASSWORD
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
@@ -105,17 +105,17 @@ spec:
       volumes:
         - name: postgres-data
           persistentVolumeClaim:
-            claimName: chp-live-map-postgres-data
+            claimName: crestmap-postgres-data
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: chp-live-map-postgres
-  namespace: chp-live-map
+  name: crestmap-postgres
+  namespace: crestmap
 spec:
   type: ClusterIP
   selector:
-    app: chp-live-map-postgres
+    app: crestmap-postgres
   ports:
     - name: postgres
       port: 5432
@@ -124,23 +124,23 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: chp-live-map-scrape
-  namespace: chp-live-map
+  name: crestmap-scrape
+  namespace: crestmap
 spec:
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app: chp-live-map-scrape
+      app: crestmap-scrape
   template:
     metadata:
       labels:
-        app: chp-live-map-scrape
+        app: crestmap-scrape
     spec:
       containers:
         - name: scrape
-          image: cajaks2/chp-live-map:0.1.236
+          image: cajaks2/crestmap:0.1.237
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -156,12 +156,12 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: DATABASE_URL
             - name: SERVICE_VERSION
-              value: "0.1.236"
+              value: "0.1.237"
             - name: CHP_USER_AGENT
-              value: "chp-live-map/0.1 (+https://crestmap.us/)"
+              value: "crestmap/0.1 (+https://crestmap.us/)"
             - name: CHP_SOURCE_MODE
               value: xml
             - name: CHP_XML_MAX_AGE_MINUTES
@@ -177,7 +177,7 @@ spec:
             - name: VAPID_PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: VAPID_PRIVATE_KEY
                   optional: true
             - name: VAPID_SUBJECT
@@ -205,12 +205,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: chp-live-map-scrape
-  namespace: chp-live-map
+  name: crestmap-scrape
+  namespace: crestmap
 spec:
   type: ClusterIP
   selector:
-    app: chp-live-map-scrape
+    app: crestmap-scrape
   ports:
     - name: metrics
       port: 8081
@@ -219,23 +219,23 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: chp-live-map-wildweb
-  namespace: chp-live-map
+  name: crestmap-wildweb
+  namespace: crestmap
 spec:
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app: chp-live-map-wildweb
+      app: crestmap-wildweb
   template:
     metadata:
       labels:
-        app: chp-live-map-wildweb
+        app: crestmap-wildweb
     spec:
       containers:
         - name: wildweb
-          image: cajaks2/chp-live-map:0.1.236
+          image: cajaks2/crestmap:0.1.237
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -247,10 +247,10 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: DATABASE_URL
             - name: SERVICE_VERSION
-              value: "0.1.236"
+              value: "0.1.237"
             - name: WILDWEB_INTERVAL_SECONDS
               value: "120"
             - name: WILDWEB_MAX_AGE_HOURS
@@ -268,7 +268,7 @@ spec:
             - name: VAPID_PRIVATE_KEY
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: VAPID_PRIVATE_KEY
                   optional: true
             - name: VAPID_SUBJECT
@@ -296,12 +296,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: chp-live-map-wildweb
-  namespace: chp-live-map
+  name: crestmap-wildweb
+  namespace: crestmap
 spec:
   type: ClusterIP
   selector:
-    app: chp-live-map-wildweb
+    app: crestmap-wildweb
   ports:
     - name: metrics
       port: 8082
@@ -310,23 +310,23 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: chp-live-map-aircraft
-  namespace: chp-live-map
+  name: crestmap-aircraft
+  namespace: crestmap
 spec:
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app: chp-live-map-aircraft
+      app: crestmap-aircraft
   template:
     metadata:
       labels:
-        app: chp-live-map-aircraft
+        app: crestmap-aircraft
     spec:
       containers:
         - name: aircraft
-          image: cajaks2/chp-live-map:0.1.236
+          image: cajaks2/crestmap:0.1.237
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -335,19 +335,19 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: DATABASE_URL
             - name: SERVICE_VERSION
-              value: "0.1.236"
+              value: "0.1.237"
             - name: OPENSKY_CLIENT_ID
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: OPENSKY_CLIENT_ID
             - name: OPENSKY_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: OPENSKY_CLIENT_SECRET
             - name: AIRCRAFT_POLL_SECONDS
               value: "30"
@@ -364,21 +364,21 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: chp-live-map-web
-  namespace: chp-live-map
+  name: crestmap-web
+  namespace: crestmap
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: chp-live-map-web
+      app: crestmap-web
   template:
     metadata:
       labels:
-        app: chp-live-map-web
+        app: crestmap-web
     spec:
       containers:
         - name: web
-          image: cajaks2/chp-live-map:0.1.236
+          image: cajaks2/crestmap:0.1.237
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -391,14 +391,14 @@ spec:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: DATABASE_URL
             - name: MAP_HOURS
               value: "72"
             - name: HTTP_PORT
               value: "8080"
             - name: SERVICE_VERSION
-              value: "0.1.236"
+              value: "0.1.237"
             - name: BASE_PATH
               value: /
             - name: PUBLIC_URL
@@ -408,7 +408,7 @@ spec:
             - name: VAPID_PUBLIC_KEY
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: VAPID_PUBLIC_KEY
                   optional: true
             - name: AIRCRAFT_TRACKING_ENABLED
@@ -426,37 +426,37 @@ spec:
             - name: ADMIN_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: ADMIN_USERNAME
                   optional: true
             - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: ADMIN_PASSWORD
                   optional: true
             - name: R2_ACCOUNT_ID
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: R2_ACCOUNT_ID
                   optional: true
             - name: R2_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: R2_ACCESS_KEY_ID
                   optional: true
             - name: R2_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: R2_SECRET_ACCESS_KEY
                   optional: true
             - name: R2_UPLOAD_TOKEN_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: R2_UPLOAD_TOKEN_SECRET
                   optional: true
             - name: R2_BUCKET
@@ -464,7 +464,7 @@ spec:
             - name: ADMIN_SESSION_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: chp-live-map-db
+                  name: crestmap-db
                   key: ADMIN_SESSION_SECRET
                   optional: true
             - name: ADMIN_SESSION_HOURS
@@ -496,12 +496,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: chp-live-map
-  namespace: chp-live-map
+  name: crestmap
+  namespace: crestmap
 spec:
   type: ClusterIP
   selector:
-    app: chp-live-map-web
+    app: crestmap-web
   ports:
     - name: http
       port: 80
@@ -510,8 +510,8 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: chp-live-map
-  namespace: chp-live-map
+  name: crestmap
+  namespace: crestmap
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     kubernetes.io/ingress.class: traefik
@@ -526,7 +526,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: chp-live-map
+                name: crestmap
                 port:
                   number: 80
   tls:

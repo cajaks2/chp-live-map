@@ -474,21 +474,21 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
     reported_count = status["reported_count"]
     cleared_count = status["total_count"] - active_count - reported_count
     lines = [
-        "# HELP chp_live_map_up Whether the CHP live map web process is running.",
-        "# TYPE chp_live_map_up gauge",
-        "chp_live_map_up 1",
-        "# HELP chp_live_map_process_start_time_seconds Unix timestamp when the web process started.",
-        "# TYPE chp_live_map_process_start_time_seconds gauge",
-        metric_line("chp_live_map_process_start_time_seconds", f"{START_TIME:.3f}"),
-        "# HELP chp_live_map_incidents Incidents in the selected history window.",
-        "# TYPE chp_live_map_incidents gauge",
-        metric_line("chp_live_map_incidents", status["total_count"], {"status": "total"}),
-        metric_line("chp_live_map_incidents", active_count, {"status": "active"}),
-        metric_line("chp_live_map_incidents", reported_count, {"status": "reported"}),
-        metric_line("chp_live_map_incidents", cleared_count, {"status": "cleared"}),
-        metric_line("chp_live_map_incidents", status["mapped_count"], {"status": "mapped"}),
-        "# HELP chp_live_map_region_incidents Incidents in the selected history window, grouped by hidden collection region.",
-        "# TYPE chp_live_map_region_incidents gauge",
+        "# HELP crestmap_up Whether the Crestmap web process is running.",
+        "# TYPE crestmap_up gauge",
+        "crestmap_up 1",
+        "# HELP crestmap_process_start_time_seconds Unix timestamp when the web process started.",
+        "# TYPE crestmap_process_start_time_seconds gauge",
+        metric_line("crestmap_process_start_time_seconds", f"{START_TIME:.3f}"),
+        "# HELP crestmap_incidents Incidents in the selected history window.",
+        "# TYPE crestmap_incidents gauge",
+        metric_line("crestmap_incidents", status["total_count"], {"status": "total"}),
+        metric_line("crestmap_incidents", active_count, {"status": "active"}),
+        metric_line("crestmap_incidents", reported_count, {"status": "reported"}),
+        metric_line("crestmap_incidents", cleared_count, {"status": "cleared"}),
+        metric_line("crestmap_incidents", status["mapped_count"], {"status": "mapped"}),
+        "# HELP crestmap_region_incidents Incidents in the selected history window, grouped by hidden collection region.",
+        "# TYPE crestmap_region_incidents gauge",
     ]
     for region in METRIC_REGIONS:
         region_status = region_statuses[region]
@@ -498,27 +498,27 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
         lines.extend(
             [
                 metric_line(
-                    "chp_live_map_region_incidents",
+                    "crestmap_region_incidents",
                     region_status["total_count"],
                     {"region": region, "status": "total"},
                 ),
                 metric_line(
-                    "chp_live_map_region_incidents",
+                    "crestmap_region_incidents",
                     region_active_count,
                     {"region": region, "status": "active"},
                 ),
                 metric_line(
-                    "chp_live_map_region_incidents",
+                    "crestmap_region_incidents",
                     region_reported_count,
                     {"region": region, "status": "reported"},
                 ),
                 metric_line(
-                    "chp_live_map_region_incidents",
+                    "crestmap_region_incidents",
                     region_cleared_count,
                     {"region": region, "status": "cleared"},
                 ),
                 metric_line(
-                    "chp_live_map_region_incidents",
+                    "crestmap_region_incidents",
                     region_status["mapped_count"],
                     {"region": region, "status": "mapped"},
                 ),
@@ -526,55 +526,55 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
         )
     lines.extend(
         [
-        "# HELP chp_live_map_history_window_hours History window used for map metrics.",
-        "# TYPE chp_live_map_history_window_hours gauge",
-        metric_line("chp_live_map_history_window_hours", status["hours"]),
-        "# HELP chp_live_map_data_updated_timestamp_seconds Latest observed incident data timestamp.",
-        "# TYPE chp_live_map_data_updated_timestamp_seconds gauge",
+        "# HELP crestmap_history_window_hours History window used for map metrics.",
+        "# TYPE crestmap_history_window_hours gauge",
+        metric_line("crestmap_history_window_hours", status["hours"]),
+        "# HELP crestmap_data_updated_timestamp_seconds Latest observed incident data timestamp.",
+        "# TYPE crestmap_data_updated_timestamp_seconds gauge",
         metric_line(
-            "chp_live_map_data_updated_timestamp_seconds",
+            "crestmap_data_updated_timestamp_seconds",
             f"{parse_timestamp(status['data_updated_at']):.3f}",
         ),
-        "# HELP chp_live_map_http_requests_total HTTP requests served by method, route, and status.",
-        "# TYPE chp_live_map_http_requests_total counter",
+        "# HELP crestmap_http_requests_total HTTP requests served by method, route, and status.",
+        "# TYPE crestmap_http_requests_total counter",
         ]
     )
     for (method, route, status_code), count in sorted(list(HTTP_REQUESTS_TOTAL.items())):
         lines.append(
             metric_line(
-                "chp_live_map_http_requests_total",
+                "crestmap_http_requests_total",
                 count,
                 {"method": method, "route": route, "status": status_code},
             )
         )
     weather_metrics = weather_metrics_snapshot()
     lines.extend([
-        "# HELP chp_live_map_weather_refreshes_total Weather data refresh attempts by pipeline and outcome.",
-        "# TYPE chp_live_map_weather_refreshes_total counter",
+        "# HELP crestmap_weather_refreshes_total Weather data refresh attempts by pipeline and outcome.",
+        "# TYPE crestmap_weather_refreshes_total counter",
     ])
     for pipeline in ("temperature", "road_weather"):
         for region in METRIC_REGIONS:
             for outcome in ("success", "failure"):
                 lines.append(metric_line(
-                    "chp_live_map_weather_refreshes_total",
+                    "crestmap_weather_refreshes_total",
                     weather_metrics["refresh_total"].get((pipeline, region, outcome), 0),
                     {"pipeline": pipeline, "region": region, "outcome": outcome},
                 ))
     lines.extend([
-        "# HELP chp_live_map_weather_cache_events_total Weather cache hits, misses, and retry-suppressed requests.",
-        "# TYPE chp_live_map_weather_cache_events_total counter",
+        "# HELP crestmap_weather_cache_events_total Weather cache hits, misses, and retry-suppressed requests.",
+        "# TYPE crestmap_weather_cache_events_total counter",
     ])
     for pipeline in ("temperature", "road_weather"):
         for region in METRIC_REGIONS:
             for outcome in ("hit", "miss", "retry_suppressed"):
                 lines.append(metric_line(
-                    "chp_live_map_weather_cache_events_total",
+                    "crestmap_weather_cache_events_total",
                     weather_metrics["cache_total"].get((pipeline, region, outcome), 0),
                     {"pipeline": pipeline, "region": region, "outcome": outcome},
                 ))
     lines.extend([
-        "# HELP chp_live_map_weather_provider_requests_total Weather upstream provider request outcomes.",
-        "# TYPE chp_live_map_weather_provider_requests_total counter",
+        "# HELP crestmap_weather_provider_requests_total Weather upstream provider request outcomes.",
+        "# TYPE crestmap_weather_provider_requests_total counter",
     ])
     providers = {
         "temperature": {"open_meteo": ("success", "failure"), "nws_stations": ("success", "invalid", "failure")},
@@ -585,30 +585,30 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
             for provider, outcomes in pipeline_providers.items():
                 for outcome in outcomes:
                     lines.append(metric_line(
-                        "chp_live_map_weather_provider_requests_total",
+                        "crestmap_weather_provider_requests_total",
                         weather_metrics["provider_total"].get((pipeline, region, provider, outcome), 0),
                         {"pipeline": pipeline, "region": region, "provider": provider, "outcome": outcome},
                     ))
     lines.extend([
-        "# HELP chp_live_map_weather_last_refresh_duration_seconds Duration of the latest upstream refresh attempt.",
-        "# TYPE chp_live_map_weather_last_refresh_duration_seconds gauge",
-        "# HELP chp_live_map_weather_last_success_timestamp_seconds Unix timestamp of the latest successful refresh.",
-        "# TYPE chp_live_map_weather_last_success_timestamp_seconds gauge",
+        "# HELP crestmap_weather_last_refresh_duration_seconds Duration of the latest upstream refresh attempt.",
+        "# TYPE crestmap_weather_last_refresh_duration_seconds gauge",
+        "# HELP crestmap_weather_last_success_timestamp_seconds Unix timestamp of the latest successful refresh.",
+        "# TYPE crestmap_weather_last_success_timestamp_seconds gauge",
     ])
     for pipeline in ("temperature", "road_weather"):
         for region in METRIC_REGIONS:
             labels = {"pipeline": pipeline, "region": region}
             lines.append(metric_line(
-                "chp_live_map_weather_last_refresh_duration_seconds",
+                "crestmap_weather_last_refresh_duration_seconds",
                 f'{weather_metrics["last_duration"].get((pipeline, region), 0):.6f}', labels,
             ))
             lines.append(metric_line(
-                "chp_live_map_weather_last_success_timestamp_seconds",
+                "crestmap_weather_last_success_timestamp_seconds",
                 f'{weather_metrics["last_success"].get((pipeline, region), 0):.3f}', labels,
             ))
     lines.extend([
-        "# HELP chp_live_map_weather_points Latest successful weather result counts by kind.",
-        "# TYPE chp_live_map_weather_points gauge",
+        "# HELP crestmap_weather_points Latest successful weather result counts by kind.",
+        "# TYPE crestmap_weather_points gauge",
     ])
     point_kinds = {
         "temperature": ("total", "estimate", "observation"),
@@ -618,7 +618,7 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
         for region in METRIC_REGIONS:
             for kind in kinds:
                 lines.append(metric_line(
-                    "chp_live_map_weather_points",
+                    "crestmap_weather_points",
                     weather_metrics["point_counts"].get((pipeline, region, kind), 0),
                     {"pipeline": pipeline, "region": region, "kind": kind},
                 ))
@@ -628,129 +628,129 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
         pool_in_use = max(0, pool_size - pool_available)
         lines.extend(
             [
-                "# HELP chp_live_map_db_pool_connections Postgres connection pool gauges.",
-                "# TYPE chp_live_map_db_pool_connections gauge",
+                "# HELP crestmap_db_pool_connections Postgres connection pool gauges.",
+                "# TYPE crestmap_db_pool_connections gauge",
                 metric_line(
-                    "chp_live_map_db_pool_connections",
+                    "crestmap_db_pool_connections",
                     int(pool_stats.get("pool_min", 0)),
                     {"state": "min"},
                 ),
                 metric_line(
-                    "chp_live_map_db_pool_connections",
+                    "crestmap_db_pool_connections",
                     int(pool_stats.get("pool_max", 0)),
                     {"state": "max"},
                 ),
                 metric_line(
-                    "chp_live_map_db_pool_connections",
+                    "crestmap_db_pool_connections",
                     pool_size,
                     {"state": "size"},
                 ),
                 metric_line(
-                    "chp_live_map_db_pool_connections",
+                    "crestmap_db_pool_connections",
                     pool_available,
                     {"state": "available"},
                 ),
                 metric_line(
-                    "chp_live_map_db_pool_connections",
+                    "crestmap_db_pool_connections",
                     pool_in_use,
                     {"state": "in_use"},
                 ),
-                "# HELP chp_live_map_db_pool_requests_waiting Requests currently waiting for a Postgres pool connection.",
-                "# TYPE chp_live_map_db_pool_requests_waiting gauge",
+                "# HELP crestmap_db_pool_requests_waiting Requests currently waiting for a Postgres pool connection.",
+                "# TYPE crestmap_db_pool_requests_waiting gauge",
                 metric_line(
-                    "chp_live_map_db_pool_requests_waiting",
+                    "crestmap_db_pool_requests_waiting",
                     int(pool_stats.get("requests_waiting", 0)),
                 ),
             ]
         )
     lines.extend(
         [
-            "# HELP chp_live_map_aircraft_tracker_up Whether the latest aircraft tracker poll succeeded.",
-            "# TYPE chp_live_map_aircraft_tracker_up gauge",
+            "# HELP crestmap_aircraft_tracker_up Whether the latest aircraft tracker poll succeeded.",
+            "# TYPE crestmap_aircraft_tracker_up gauge",
             metric_line(
-                "chp_live_map_aircraft_tracker_up",
+                "crestmap_aircraft_tracker_up",
                 1 if aircraft_status and aircraft_status.get("last_run_success") else 0,
             ),
-            "# HELP chp_live_map_aircraft_tracker_requests_total OpenSky tracker requests attempted.",
-            "# TYPE chp_live_map_aircraft_tracker_requests_total counter",
+            "# HELP crestmap_aircraft_tracker_requests_total OpenSky tracker requests attempted.",
+            "# TYPE crestmap_aircraft_tracker_requests_total counter",
             metric_line(
-                "chp_live_map_aircraft_tracker_requests_total",
+                "crestmap_aircraft_tracker_requests_total",
                 aircraft_status.get("requests_total", 0) if aircraft_status else 0,
             ),
-            "# HELP chp_live_map_aircraft_tracker_errors_total OpenSky tracker request failures.",
-            "# TYPE chp_live_map_aircraft_tracker_errors_total counter",
+            "# HELP crestmap_aircraft_tracker_errors_total OpenSky tracker request failures.",
+            "# TYPE crestmap_aircraft_tracker_errors_total counter",
             metric_line(
-                "chp_live_map_aircraft_tracker_errors_total",
+                "crestmap_aircraft_tracker_errors_total",
                 aircraft_status.get("errors_total", 0) if aircraft_status else 0,
             ),
-            "# HELP chp_live_map_aircraft_tracker_rate_limit_remaining OpenSky credits remaining.",
-            "# TYPE chp_live_map_aircraft_tracker_rate_limit_remaining gauge",
+            "# HELP crestmap_aircraft_tracker_rate_limit_remaining OpenSky credits remaining.",
+            "# TYPE crestmap_aircraft_tracker_rate_limit_remaining gauge",
             metric_line(
-                "chp_live_map_aircraft_tracker_rate_limit_remaining",
+                "crestmap_aircraft_tracker_rate_limit_remaining",
                 aircraft_status.get("rate_limit_remaining", 0) if aircraft_status else 0,
             ),
-            "# HELP chp_live_map_aircraft_tracker_aircraft Aircraft counts from the latest poll and public delayed view.",
-            "# TYPE chp_live_map_aircraft_tracker_aircraft gauge",
+            "# HELP crestmap_aircraft_tracker_aircraft Aircraft counts from the latest poll and public delayed view.",
+            "# TYPE crestmap_aircraft_tracker_aircraft gauge",
             metric_line(
-                "chp_live_map_aircraft_tracker_aircraft",
+                "crestmap_aircraft_tracker_aircraft",
                 aircraft_status.get("aircraft_in_box", 0) if aircraft_status else 0,
                 {"kind": "in_box"},
             ),
             metric_line(
-                "chp_live_map_aircraft_tracker_aircraft",
+                "crestmap_aircraft_tracker_aircraft",
                 aircraft_status.get("matched_aircraft", 0) if aircraft_status else 0,
                 {"kind": "matched"},
             ),
             metric_line(
-                "chp_live_map_aircraft_tracker_aircraft",
+                "crestmap_aircraft_tracker_aircraft",
                 aircraft_status.get("candidate_callsigns", 0) if aircraft_status else 0,
                 {"kind": "candidate_callsigns"},
             ),
-            metric_line("chp_live_map_aircraft_tracker_aircraft", visible_aircraft, {"kind": "visible"}),
-            "# HELP chp_live_map_aircraft_tracker_last_success_timestamp_seconds Latest successful OpenSky poll.",
-            "# TYPE chp_live_map_aircraft_tracker_last_success_timestamp_seconds gauge",
+            metric_line("crestmap_aircraft_tracker_aircraft", visible_aircraft, {"kind": "visible"}),
+            "# HELP crestmap_aircraft_tracker_last_success_timestamp_seconds Latest successful OpenSky poll.",
+            "# TYPE crestmap_aircraft_tracker_last_success_timestamp_seconds gauge",
             metric_line(
-                "chp_live_map_aircraft_tracker_last_success_timestamp_seconds",
+                "crestmap_aircraft_tracker_last_success_timestamp_seconds",
                 f"{parse_timestamp(aircraft_status.get('last_success_at') if aircraft_status else None):.3f}",
             ),
         ]
     )
     lines.extend(
         [
-            "# HELP chp_live_map_push_subscriptions Stored Web Push subscriptions by status.",
-            "# TYPE chp_live_map_push_subscriptions gauge",
+            "# HELP crestmap_push_subscriptions Stored Web Push subscriptions by status.",
+            "# TYPE crestmap_push_subscriptions gauge",
             *[
-                metric_line("chp_live_map_push_subscriptions", push_status["subscriptions"][state], {"status": state})
+                metric_line("crestmap_push_subscriptions", push_status["subscriptions"][state], {"status": state})
                 for state in ("active", "inactive")
             ],
-            "# HELP chp_live_map_push_subscription_sources Active subscriptions selecting each incident source.",
-            "# TYPE chp_live_map_push_subscription_sources gauge",
+            "# HELP crestmap_push_subscription_sources Active subscriptions selecting each incident source.",
+            "# TYPE crestmap_push_subscription_sources gauge",
             *[
                 metric_line(
-                    "chp_live_map_push_subscription_sources",
+                    "crestmap_push_subscription_sources",
                     push_status["sources"][source],
                     {"source": source},
                 )
                 for source in sorted(PUSH_SOURCES)
             ],
-            "# HELP chp_live_map_push_subscription_areas Active subscriptions selecting each notification area.",
-            "# TYPE chp_live_map_push_subscription_areas gauge",
+            "# HELP crestmap_push_subscription_areas Active subscriptions selecting each notification area.",
+            "# TYPE crestmap_push_subscription_areas gauge",
             *[
-                metric_line("chp_live_map_push_subscription_areas", push_status["areas"][area], {"area": area})
+                metric_line("crestmap_push_subscription_areas", push_status["areas"][area], {"area": area})
                 for area in sorted(PUSH_AREAS)
             ],
-            "# HELP chp_live_map_push_subscription_categories Active subscriptions selecting each incident category.",
-            "# TYPE chp_live_map_push_subscription_categories gauge",
+            "# HELP crestmap_push_subscription_categories Active subscriptions selecting each incident category.",
+            "# TYPE crestmap_push_subscription_categories gauge",
             *[
                 metric_line(
-                    "chp_live_map_push_subscription_categories",
+                    "crestmap_push_subscription_categories",
                     push_status["categories"][category],
                     {"category": category},
                 )
                 for category in sorted(PUSH_CATEGORIES)
             ],
-            "# HELP chp_live_map_push_notification_events Stored incident notification events by queue status.",
-            "# TYPE chp_live_map_push_notification_events gauge",
+            "# HELP crestmap_push_notification_events Stored incident notification events by queue status.",
+            "# TYPE crestmap_push_notification_events gauge",
         ]
     )
     for region in METRIC_REGIONS:
@@ -758,15 +758,15 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
             for event_status in ("pending", "completed"):
                 lines.append(
                     metric_line(
-                        "chp_live_map_push_notification_events",
+                        "crestmap_push_notification_events",
                         push_status["events"].get((region, category, event_status), 0),
                         {"region": region, "category": category, "status": event_status},
                     )
                 )
     lines.extend(
         [
-            "# HELP chp_live_map_push_deliveries Stored incident push deliveries by outcome.",
-            "# TYPE chp_live_map_push_deliveries gauge",
+            "# HELP crestmap_push_deliveries Stored incident push deliveries by outcome.",
+            "# TYPE crestmap_push_deliveries gauge",
         ]
     )
     for region in METRIC_REGIONS:
@@ -774,57 +774,57 @@ def prometheus_metrics(database, database_url, hours, conn=None, pool_stats=None
             for delivery_status in ("pending", "delivered", "failed"):
                 lines.append(
                     metric_line(
-                        "chp_live_map_push_deliveries",
+                        "crestmap_push_deliveries",
                         push_status["deliveries"].get((region, category, delivery_status), 0),
                         {"region": region, "category": category, "status": delivery_status},
                     )
                 )
     lines.extend(
         [
-            "# HELP chp_live_map_push_delivery_attempts Stored incident push delivery attempts.",
-            "# TYPE chp_live_map_push_delivery_attempts gauge",
+            "# HELP crestmap_push_delivery_attempts Stored incident push delivery attempts.",
+            "# TYPE crestmap_push_delivery_attempts gauge",
         ]
     )
     for region in METRIC_REGIONS:
         for category in sorted(PUSH_CATEGORIES):
             lines.append(
                 metric_line(
-                    "chp_live_map_push_delivery_attempts",
+                    "crestmap_push_delivery_attempts",
                     push_status["attempts"].get((region, category), 0),
                     {"region": region, "category": category},
                 )
             )
     lines.extend(
         [
-            "# HELP chp_live_map_push_test_notifications Stored test notifications by outcome.",
-            "# TYPE chp_live_map_push_test_notifications gauge",
+            "# HELP crestmap_push_test_notifications Stored test notifications by outcome.",
+            "# TYPE crestmap_push_test_notifications gauge",
             *[
-                metric_line("chp_live_map_push_test_notifications", push_status["tests"][state], {"status": state})
+                metric_line("crestmap_push_test_notifications", push_status["tests"][state], {"status": state})
                 for state in ("pending", "delivered", "failed")
             ],
-            "# HELP chp_live_map_push_last_delivery_timestamp_seconds Latest successful incident push delivery timestamp.",
-            "# TYPE chp_live_map_push_last_delivery_timestamp_seconds gauge",
+            "# HELP crestmap_push_last_delivery_timestamp_seconds Latest successful incident push delivery timestamp.",
+            "# TYPE crestmap_push_last_delivery_timestamp_seconds gauge",
             metric_line(
-                "chp_live_map_push_last_delivery_timestamp_seconds",
+                "crestmap_push_last_delivery_timestamp_seconds",
                 f"{parse_timestamp(push_status['last_delivery_at']):.3f}",
             ),
-            "# HELP chp_live_map_push_last_test_delivery_timestamp_seconds Latest successful test push delivery timestamp.",
-            "# TYPE chp_live_map_push_last_test_delivery_timestamp_seconds gauge",
+            "# HELP crestmap_push_last_test_delivery_timestamp_seconds Latest successful test push delivery timestamp.",
+            "# TYPE crestmap_push_last_test_delivery_timestamp_seconds gauge",
             metric_line(
-                "chp_live_map_push_last_test_delivery_timestamp_seconds",
+                "crestmap_push_last_test_delivery_timestamp_seconds",
                 f"{parse_timestamp(push_status['last_test_delivery_at']):.3f}",
             ),
-            "# HELP chp_live_map_comments_submitted_total Comment submissions by outcome.",
-            "# TYPE chp_live_map_comments_submitted_total counter",
+            "# HELP crestmap_comments_submitted_total Comment submissions by outcome.",
+            "# TYPE crestmap_comments_submitted_total counter",
         ]
     )
     for outcome, count in sorted(COMMENT_SUBMISSIONS_TOTAL.items()):
-        lines.append(metric_line("chp_live_map_comments_submitted_total", count, {"outcome": outcome}))
+        lines.append(metric_line("crestmap_comments_submitted_total", count, {"outcome": outcome}))
     lines.extend(
         [
-            "# HELP chp_live_map_comments_pending Comments waiting for moderation.",
-            "# TYPE chp_live_map_comments_pending gauge",
-            metric_line("chp_live_map_comments_pending", comments_pending),
+            "# HELP crestmap_comments_pending Comments waiting for moderation.",
+            "# TYPE crestmap_comments_pending gauge",
+            metric_line("crestmap_comments_pending", comments_pending),
         ]
     )
     lines.append("")
@@ -1373,7 +1373,7 @@ class LiveMapHandler(BaseHTTPRequestHandler):
                 ).encode("utf-8")
         except Exception as exc:
             log_exception(
-                "Failed to render CHP live map",
+                "Failed to render Crestmap",
                 exc,
                 **{
                     "event.action": "http_request",
@@ -1459,7 +1459,7 @@ class EcsHTTPServer(ThreadingHTTPServer):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Serve the CHP live map from SQL.")
+    parser = argparse.ArgumentParser(description="Serve the Crestmap from SQL.")
     parser.add_argument("--host", default=os.environ.get("HTTP_HOST", "0.0.0.0"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("HTTP_PORT", "8080")))
     parser.add_argument("--database", type=Path, default=Path(os.environ.get("DATABASE", "chp_traffic.sqlite")))
@@ -1512,7 +1512,7 @@ def main():
         )
     log_event(
         "info",
-        "Serving CHP live map",
+        "Serving Crestmap",
         **{
             "event.action": "start",
             "network.transport": "tcp",

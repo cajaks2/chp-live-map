@@ -38,10 +38,10 @@ from geo_bounds import (
 
 
 def test_build_user_agent_optionally_includes_contact_email():
-    assert build_user_agent() == "chp-live-map/0.1 (+https://crestmap.us/)"
+    assert build_user_agent() == "crestmap/0.1 (+https://crestmap.us/)"
     assert (
         build_user_agent("ops@example.com")
-        == "chp-live-map/0.1 (+https://crestmap.us/; contact: ops@example.com)"
+        == "crestmap/0.1 (+https://crestmap.us/; contact: ops@example.com)"
     )
 
 
@@ -61,7 +61,7 @@ def test_scraper_metrics_handler_serves_health_without_ecs_access_logs(monkeypat
         with urlopen(f"{base_url}/metrics", timeout=5) as response:
             body = response.read().decode("utf-8")
             assert response.status == 200
-            assert 'chp_live_map_scraper_up{provider="chp"} 1' in body
+            assert 'crestmap_scraper_up{provider="chp"} 1' in body
     finally:
         server.shutdown()
         thread.join(timeout=5)
@@ -77,11 +77,11 @@ def test_scraper_metrics_publish_shared_and_legacy_chp_http_counters():
     body = metrics.render().decode("utf-8")
 
     assert (
-        'chp_live_map_scraper_http_requests_total{provider="chp",method="GET",route="media_xml",status="200"} 1'
+        'crestmap_scraper_http_requests_total{provider="chp",method="GET",route="media_xml",status="200"} 1'
         in body
     )
     assert (
-        'chp_live_map_scraper_chp_http_requests_total{provider="chp",method="GET",route="media_xml",status="200"} 1'
+        'crestmap_scraper_chp_http_requests_total{provider="chp",method="GET",route="media_xml",status="200"} 1'
         in body
     )
 
@@ -116,29 +116,29 @@ def test_scraper_metrics_include_region_labels():
     body = metrics.render().decode("utf-8")
 
     assert (
-        'chp_live_map_scraper_source_attempts_total{provider="chp",source="cad",mode="fallback",outcome="success"} 1'
+        'crestmap_scraper_source_attempts_total{provider="chp",source="cad",mode="fallback",outcome="success"} 1'
         in body
     )
     assert (
-        'chp_live_map_scraper_source_attempts_total{provider="chp",source="xml",mode="primary",outcome="failure"} 1'
+        'crestmap_scraper_source_attempts_total{provider="chp",source="xml",mode="primary",outcome="failure"} 1'
         in body
     )
-    assert 'chp_live_map_scraper_xml_feed_age_seconds{provider="chp",timestamp_source="http_last_modified"} 30' in body
+    assert 'crestmap_scraper_xml_feed_age_seconds{provider="chp",timestamp_source="http_last_modified"} 30' in body
     assert (
-        'chp_live_map_scraper_xml_feed_timestamp_seconds{provider="chp",timestamp_source="http_last_modified"}'
+        'crestmap_scraper_xml_feed_timestamp_seconds{provider="chp",timestamp_source="http_last_modified"}'
         in body
     )
-    assert 'chp_live_map_scraper_last_run_source_duration_seconds{provider="chp",source="cad"} 1.1' in body
-    assert 'chp_live_map_scraper_last_run_source_duration_seconds{provider="chp",source="xml"} 0.4' in body
-    assert 'chp_live_map_scraper_last_run_source_duration_seconds{provider="chp",source="total"} 1.5' in body
-    assert 'chp_live_map_scraper_last_run_source_response_bytes{provider="chp",source="cad"} 12345' in body
-    assert 'chp_live_map_scraper_last_run_source_response_bytes{provider="chp",source="xml"} 6789' in body
-    assert 'chp_live_map_scraper_last_run_source_response_bytes{provider="chp",source="total"} 19134' in body
-    assert 'chp_live_map_scraper_last_run_incidents{provider="chp",kind="matched"} 3' in body
-    assert 'chp_live_map_scraper_last_run_region_incidents{provider="chp",region="forest",kind="matched"} 2' in body
-    assert 'chp_live_map_scraper_last_run_region_incidents{provider="chp",region="forest",kind="mapped"} 1' in body
-    assert 'chp_live_map_scraper_last_run_region_incidents{provider="chp",region="malibu",kind="matched"} 1' in body
-    assert 'chp_live_map_scraper_last_run_region_incidents{provider="chp",region="malibu",kind="mapped"} 1' in body
+    assert 'crestmap_scraper_last_run_source_duration_seconds{provider="chp",source="cad"} 1.1' in body
+    assert 'crestmap_scraper_last_run_source_duration_seconds{provider="chp",source="xml"} 0.4' in body
+    assert 'crestmap_scraper_last_run_source_duration_seconds{provider="chp",source="total"} 1.5' in body
+    assert 'crestmap_scraper_last_run_source_response_bytes{provider="chp",source="cad"} 12345' in body
+    assert 'crestmap_scraper_last_run_source_response_bytes{provider="chp",source="xml"} 6789' in body
+    assert 'crestmap_scraper_last_run_source_response_bytes{provider="chp",source="total"} 19134' in body
+    assert 'crestmap_scraper_last_run_incidents{provider="chp",kind="matched"} 3' in body
+    assert 'crestmap_scraper_last_run_region_incidents{provider="chp",region="forest",kind="matched"} 2' in body
+    assert 'crestmap_scraper_last_run_region_incidents{provider="chp",region="forest",kind="mapped"} 1' in body
+    assert 'crestmap_scraper_last_run_region_incidents{provider="chp",region="malibu",kind="matched"} 1' in body
+    assert 'crestmap_scraper_last_run_region_incidents{provider="chp",region="malibu",kind="mapped"} 1' in body
 
 
 def test_scraper_metrics_include_source_compare_labels():
@@ -167,42 +167,42 @@ def test_scraper_metrics_include_source_compare_labels():
 
     body = metrics.render().decode("utf-8")
 
-    assert 'chp_live_map_scraper_source_compare_runs_total{provider="chp",outcome="success"} 1' in body
-    assert 'chp_live_map_scraper_source_compare_runs_total{provider="chp",outcome="mismatch"} 1' in body
+    assert 'crestmap_scraper_source_compare_runs_total{provider="chp",outcome="success"} 1' in body
+    assert 'crestmap_scraper_source_compare_runs_total{provider="chp",outcome="mismatch"} 1' in body
     assert (
-        'chp_live_map_scraper_source_compare_last_run_duration_seconds{provider="chp"} 0.42'
+        'crestmap_scraper_source_compare_last_run_duration_seconds{provider="chp"} 0.42'
         in body
     )
     assert (
-        'chp_live_map_scraper_source_compare_last_run_incidents{provider="chp",source="cad",kind="total_seen"} 25'
+        'crestmap_scraper_source_compare_last_run_incidents{provider="chp",source="cad",kind="total_seen"} 25'
         in body
     )
-    assert 'chp_live_map_scraper_source_compare_last_run_incidents{provider="chp",source="cad",kind="matched"} 3' in body
-    assert 'chp_live_map_scraper_source_compare_last_run_incidents{provider="chp",source="cad",kind="mapped"} 2' in body
+    assert 'crestmap_scraper_source_compare_last_run_incidents{provider="chp",source="cad",kind="matched"} 3' in body
+    assert 'crestmap_scraper_source_compare_last_run_incidents{provider="chp",source="cad",kind="mapped"} 2' in body
     assert (
-        'chp_live_map_scraper_source_compare_last_run_incidents{provider="chp",source="xml",kind="total_seen"} 40'
+        'crestmap_scraper_source_compare_last_run_incidents{provider="chp",source="xml",kind="total_seen"} 40'
         in body
     )
-    assert 'chp_live_map_scraper_source_compare_last_run_incidents{provider="chp",source="xml",kind="matched"} 4' in body
-    assert 'chp_live_map_scraper_source_compare_last_run_incidents{provider="chp",source="xml",kind="mapped"} 3' in body
+    assert 'crestmap_scraper_source_compare_last_run_incidents{provider="chp",source="xml",kind="matched"} 4' in body
+    assert 'crestmap_scraper_source_compare_last_run_incidents{provider="chp",source="xml",kind="mapped"} 3' in body
     assert (
-        'chp_live_map_scraper_source_compare_last_run_incidents{provider="chp",source="comparison",kind="cad_only"} 1'
-        in body
-    )
-    assert (
-        'chp_live_map_scraper_source_compare_last_run_incidents{provider="chp",source="comparison",kind="xml_only"} 2'
+        'crestmap_scraper_source_compare_last_run_incidents{provider="chp",source="comparison",kind="cad_only"} 1'
         in body
     )
     assert (
-        'chp_live_map_scraper_source_compare_last_run_incidents{provider="chp",source="comparison",kind="mismatch"} 1'
+        'crestmap_scraper_source_compare_last_run_incidents{provider="chp",source="comparison",kind="xml_only"} 2'
         in body
     )
     assert (
-        'chp_live_map_scraper_source_compare_last_run_region_incidents{provider="chp",source="cad",region="forest",kind="matched"} 2'
+        'crestmap_scraper_source_compare_last_run_incidents{provider="chp",source="comparison",kind="mismatch"} 1'
         in body
     )
     assert (
-        'chp_live_map_scraper_source_compare_last_run_region_incidents{provider="chp",source="xml",region="malibu",kind="mapped"} 1'
+        'crestmap_scraper_source_compare_last_run_region_incidents{provider="chp",source="cad",region="forest",kind="matched"} 2'
+        in body
+    )
+    assert (
+        'crestmap_scraper_source_compare_last_run_region_incidents{provider="chp",source="xml",region="malibu",kind="mapped"} 1'
         in body
     )
 
@@ -213,13 +213,13 @@ def test_scraper_metrics_include_source_compare_failures():
 
     body = metrics.render().decode("utf-8")
 
-    assert 'chp_live_map_scraper_source_compare_runs_total{provider="chp",outcome="failure"} 1' in body
+    assert 'crestmap_scraper_source_compare_runs_total{provider="chp",outcome="failure"} 1' in body
     assert (
-        'chp_live_map_scraper_source_compare_last_run_duration_seconds{provider="chp"} 1.25'
+        'crestmap_scraper_source_compare_last_run_duration_seconds{provider="chp"} 1.25'
         in body
     )
     assert (
-        'chp_live_map_scraper_source_compare_last_run_timestamp_seconds{provider="chp",outcome="failure",error_type="TimeoutError"}'
+        'crestmap_scraper_source_compare_last_run_timestamp_seconds{provider="chp",outcome="failure",error_type="TimeoutError"}'
         in body
     )
 

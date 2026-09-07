@@ -1,11 +1,11 @@
 SHELL := /bin/bash
 
-IMAGE_REPO ?= cajaks2/chp-live-map
-VERSION ?= 0.1.236
+IMAGE_REPO ?= cajaks2/crestmap
+VERSION ?= 0.1.237
 PLATFORM ?= linux/amd64
-MANIFEST ?= k8s/chp-live-map.yaml
-NAMESPACE ?= chp-live-map
-DEPLOYMENT ?= chp-live-map-web
+MANIFEST ?= k8s/crestmap.yaml
+NAMESPACE ?= crestmap
+DEPLOYMENT ?= crestmap-web
 PUBLIC_URL ?= https://crestmap.us/
 PYTHON ?= python3
 VENV ?= .venv
@@ -58,9 +58,9 @@ rollout:
 deploy: test build update-manifest apply rollout verify
 
 verify:
-	curl -k -fsS $(PUBLIC_URL) -o /tmp/chp-live-map-verify.html
-	rg -n 'Crestmap Forest Incidents|last 72h|setView' /tmp/chp-live-map-verify.html
-	rg -n 'View last updated <time id="generated-at"' /tmp/chp-live-map-verify.html
+	curl -k -fsS $(PUBLIC_URL) -o /tmp/crestmap-verify.html
+	rg -n 'Crestmap Forest Incidents|last 72h|setView' /tmp/crestmap-verify.html
+	rg -n 'View last updated <time id="generated-at"' /tmp/crestmap-verify.html
 	kubectl -n $(NAMESPACE) logs -l app=$(DEPLOYMENT) --tail=10 --since=5m
 
 k8s-status:

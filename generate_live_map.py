@@ -7002,7 +7002,7 @@ def build_about_html(
         <div class="result"><strong>Air-temperature sources</strong><span><a href="https://api.weather.gov/" rel="noopener">National Weather Service</a> station observations and <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> elevation-adjusted model estimates.</span></div>
         <div class="result"><strong>Road-weather sources</strong><span><a href="https://api.weather.gov/alerts" rel="noopener">National Weather Service</a> active alerts and <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> six-hour elevation-aware precipitation forecasts. Road-weather markers are forecasts, not measured pavement conditions.</span></div>
         <div class="result"><strong>Mile-marker sources</strong><span><a href="https://postmile.dot.ca.gov/" rel="noopener">Caltrans postmiles</a> and <a href="https://dpw.gis.lacounty.gov/dpw/rest/services/road/MapServer/0" rel="noopener">LA County Public Works surveyed markers</a>.</span></div>
-        <div class="result"><strong>Project README</strong><span><a href="https://github.com/cajaks2/chp-live-map#readme" rel="noopener">github.com/cajaks2/chp-live-map</a></span></div>
+        <div class="result"><strong>Project README</strong><span><a href="https://github.com/cajaks2/crestmap#readme" rel="noopener">github.com/cajaks2/crestmap</a></span></div>
       </section>
     """
     subtitle = f"{label} source, update cadence, and project context · updated {generated_at}"
@@ -7041,7 +7041,7 @@ def main():
     active_count = len([i for i in incidents if i.get("status") == "active"])
     log_event(
         "info",
-        "Generated CHP live map",
+        "Generated Crestmap",
         **{
             "event.action": "generate_map",
             "event.outcome": "success",

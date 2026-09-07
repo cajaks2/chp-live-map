@@ -11,8 +11,14 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## Releases
+
+### 0.1.239 - 2026-09-06
+
 - Rework temperature details into a clearer mobile-friendly hierarchy with compact hourly forecast cells, grouped location and validity metadata, and shorter source notes.
 - Replace misleading request bar gauges with ranked count tables, label Cloudflare request-origin codes accurately, and exclude health and metrics endpoints from the top-path view.
+
+### 0.1.238 - 2026-09-06
 
 - Clarify the changelog structure by separating pending changes from published releases.
 - Make the Grafana weather refresh-age panel ignore uninitialized timestamps and
@@ -20,8 +26,6 @@ development eras and do not imply that every intermediate version number shipped
 - Remove retained pre-rename series from Grafana graphs, simplify dense weather
   charts, and clarify that request country codes include automated traffic.
 - Add a four-hour elevation-aware modeled forecast to temperature popups.
-
-## Releases
 
 ### 0.1.237 - 2026-09-06
 

@@ -13,7 +13,7 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Releases
 
-### 0.1.241 - 2026-09-07
+### 0.1.245 - 2026-09-07
 
 - Show low-confidence modeled precipitation as `RAIN?` and retain modeled rain as a subtle `WET` road marker for three hours after it ends.
 

@@ -48,6 +48,7 @@ TEMPERATURE_CSS = """
     }
     .temperature-popup { color: #414940; font: 13px/1.65 -apple-system, BlinkMacSystemFont, sans-serif; }
     .temperature-popup strong { font-size: 17px; color: #263122; }
+    .temperature-popup .temperature-forecast { display: block; margin-top: 5px; color: #34483b; font-weight: 700; }
     .temperature-popup small { display: block; margin-top: 6px; max-width: 220px; }
     .temperature-load-status {
       position: absolute; left: 50%; top: 54px; z-index: 1000; display: none;
@@ -162,6 +163,13 @@ TEMPERATURE_JS = r"""
           const valid = validDate.toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
           const observationAge = measured ? Math.max(0, Date.now() - validDate.getTime()) : 0;
           const ageProgress = measured ? Math.min(1, Math.max(0, (observationAge - 1800000) / 5400000)) : 0;
+          const forecast = (Array.isArray(point.forecast) ? point.forecast : []).slice(0, 4).map(item => {
+            const when = new Date(item.valid_at);
+            if (Number.isNaN(when.getTime()) || !Number.isFinite(item.temperature_f)) return null;
+            const hour = when.toLocaleTimeString([], {hour: "numeric"});
+            return `${hour} ${Math.round(item.temperature_f)}°`;
+          }).filter(Boolean).join(" · ");
+          const forecastCopy = forecast ? `<span class="temperature-forecast">${measured ? "Nearby modeled forecast" : "Forecast"}: ${escapeHtml(forecast)}</span>` : "";
           let labelDirection = pixel.x > size.x - 54 ? " is-left" : "";
           if (!labelDirection && nearbyIncident && (point.road || measured)) {
             const dx = nearbyIncident.x - pixel.x;
@@ -177,10 +185,10 @@ TEMPERATURE_JS = r"""
           const detail = measured
             ? `Measured · ${escapeHtml(point.name)}<br>Station elevation ${elevation} ft<br>Observed ${escapeHtml(valid)}<br>
               <a href="https://api.weather.gov/stations/${encodeURIComponent(point.station_id)}/observations/latest" target="_blank" rel="noopener">National Weather Service</a>
-              <small>Quality-controlled station observation. Conditions elsewhere along the road may differ.</small>`
+              ${forecastCopy}<small>Quality-controlled station observation. Forecast values are modeled; conditions elsewhere along the road may differ.</small>`
             : `Estimated · ${escapeHtml(point.name)}<br>Terrain elevation ${elevation} ft<br>Model valid ${escapeHtml(valid)}<br>
               <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
-              <small>Elevation-adjusted air temperature. Local conditions may differ; not a station or road-surface reading.</small>`;
+              ${forecastCopy}<small>Elevation-adjusted air temperature. Local conditions may differ; not a station or road-surface reading.</small>`;
           marker.bindPopup(`<div class="temperature-popup"><strong>${degrees}°F · ${measured ? "Measured" : "Estimated"} air temperature</strong><br>${detail}</div>`, {className: "temperature-map-popup", maxWidth: 270, offset: [0, -14], autoPanPadding: [32, 32]});
           marker.addTo(layer);
           if (measured && ageProgress > 0) {

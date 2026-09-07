@@ -16,7 +16,10 @@ NOW = 1788550000
 
 def payload(region="forest"):
     return [{"elevation": 1650, "current_units": {"temperature_2m": "°F"},
-             "current": {"temperature_2m": 54.2, "time": NOW - 300}}
+             "current": {"temperature_2m": 54.2, "time": NOW - 300},
+             "hourly_units": {"temperature_2m": "°F"},
+             "hourly": {"time": [NOW + 3600, NOW + 7200],
+                        "temperature_2m": [53.0, 51.5]}}
             for _ in weather.SAMPLE_POINTS[region]]
 
 
@@ -90,6 +93,10 @@ def test_coordinates_are_requested_points_and_elevation_is_provider_terrain(regi
     assert result["points"][0]["latitude"] == weather.SAMPLE_POINTS[region][0][1]
     assert result["points"][0]["elevation_m"] == 1650
     assert all(p["kind"] == "estimate" for p in result["points"])
+    assert result["points"][0]["forecast"] == [
+        {"valid_at": dt.datetime.fromtimestamp(NOW + 3600, dt.timezone.utc).isoformat(), "temperature_f": 53.0},
+        {"valid_at": dt.datetime.fromtimestamp(NOW + 7200, dt.timezone.utc).isoformat(), "temperature_f": 51.5},
+    ]
 
 
 @pytest.mark.parametrize("field,value", [("temperature_2m", None), ("temperature_2m", float("nan")),
@@ -188,6 +195,8 @@ def test_cache_batches_and_key_stays_in_server_request(monkeypatch):
     assert url.hostname == "customer-api.open-meteo.com"
     assert "elevation" not in params
     assert params["cell_selection"] == ["land"]
+    assert params["hourly"] == ["temperature_2m"]
+    assert params["forecast_hours"] == [str(weather.FORECAST_HOURS)]
     assert len(params["latitude"][0].split(",")) == len(weather.SAMPLE_POINTS["forest"])
     assert "synthetic-test-key" not in json.dumps(first)
     monkeypatch.setattr(weather.time, "time", lambda: NOW + 901)
@@ -244,6 +253,8 @@ def test_endpoint_and_local_render(tmp_path, monkeypatch, region):
     assert "marker.setOpacity(1 - (0.40 * ageProgress))" in rendered
     assert "grayscale(${Math.round(ageProgress * 100)}%)" in rendered
     assert "National Weather Service" in rendered
+    assert "Nearby modeled forecast" in rendered
+    assert 'class="temperature-forecast"' in rendered
     assert "rgba(248,251,247,.96)" in rendered
     assert "point.priority ? 12 : 32" in rendered
     assert '" is-left"' in rendered

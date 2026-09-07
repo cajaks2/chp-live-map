@@ -86,7 +86,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_up{site=~\"$site\"}",
+            "expr": "crestmap_up{job=\"crestmap\",site=~\"$site\"}",
             "range": true,
             "refId": "A"
           }
@@ -149,7 +149,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_scraper_up{site=~\"$site\",provider=~\"$provider\"}",
+            "expr": "crestmap_scraper_up{job=\"crestmap_scraper\",site=~\"$site\",provider=~\"$provider\"}",
             "legendFormat": "{{provider}}",
             "range": true,
             "refId": "C"
@@ -217,7 +217,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "time() - crestmap_scraper_last_run_timestamp_seconds{site=~\"$site\",provider=~\"$provider\"}",
+            "expr": "time() - crestmap_scraper_last_run_timestamp_seconds{job=\"crestmap_scraper\",site=~\"$site\",provider=~\"$provider\"}",
             "legendFormat": "{{provider}} {{outcome}}",
             "range": true,
             "refId": "K"
@@ -285,7 +285,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "max(crestmap_scraper_xml_feed_age_seconds{site=~\"$site\",provider=\"chp\"})",
+            "expr": "max(crestmap_scraper_xml_feed_age_seconds{job=\"crestmap_scraper\",site=~\"$site\",provider=\"chp\"})",
             "range": true,
             "refId": "A"
           }
@@ -352,7 +352,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "time() - crestmap_data_updated_timestamp_seconds{site=~\"$site\"}",
+            "expr": "time() - crestmap_data_updated_timestamp_seconds{job=\"crestmap\",site=~\"$site\"}",
             "range": true,
             "refId": "I"
           }
@@ -419,7 +419,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum(crestmap_region_incidents{site=~\"$site\",region=~\"$region\",status=\"active\"})",
+            "expr": "sum(crestmap_region_incidents{job=\"crestmap\",site=~\"$site\",region=~\"$region\",status=\"active\"})",
             "range": true,
             "refId": "E"
           }
@@ -435,7 +435,15 @@
         "description": "Shows when the XML feed timestamp is fresh or stale. timestamp_source=http_last_modified means the HTTP Last-Modified header was used.",
         "fieldConfig": {
           "defaults": {
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "thresholds": {
               "mode": "absolute",
               "steps": [
@@ -469,8 +477,7 @@
             "displayMode": "table",
             "placement": "bottom",
             "calcs": [
-              "lastNotNull",
-              "max"
+              "lastNotNull"
             ]
           },
           "tooltip": {
@@ -485,7 +492,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_scraper_xml_feed_age_seconds{site=~\"$site\",provider=\"chp\"}",
+            "expr": "crestmap_scraper_xml_feed_age_seconds{job=\"crestmap_scraper\",site=~\"$site\",provider=\"chp\"}",
             "legendFormat": "{{timestamp_source}}",
             "range": true,
             "refId": "A"
@@ -502,7 +509,15 @@
         "description": "Primary XML failures paired with CAD fallback successes mean the stale/malformed XML protection is working.",
         "fieldConfig": {
           "defaults": {
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "thresholds": {
               "mode": "absolute",
               "steps": [
@@ -528,8 +543,7 @@
             "displayMode": "table",
             "placement": "bottom",
             "calcs": [
-              "lastNotNull",
-              "max"
+              "lastNotNull"
             ]
           },
           "tooltip": {
@@ -544,7 +558,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (provider,source,mode,outcome) (rate(crestmap_scraper_source_attempts_total{site=~\"$site\",provider=~\"$provider\",source=~\"$source\"}[$__rate_interval]))",
+            "expr": "sum by (provider,source,mode,outcome) (rate(crestmap_scraper_source_attempts_total{job=\"crestmap_scraper\",site=~\"$site\",provider=~\"$provider\",source=~\"$source\"}[$__rate_interval]))",
             "legendFormat": "{{provider}} {{source}} {{mode}} {{outcome}}",
             "range": true,
             "refId": "A"
@@ -574,7 +588,15 @@
         "description": "Latest scraper runtime split by XML, CAD, and total. CAD should dominate when XML is stale.",
         "fieldConfig": {
           "defaults": {
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "thresholds": {
               "mode": "absolute",
               "steps": [
@@ -600,8 +622,7 @@
             "displayMode": "table",
             "placement": "bottom",
             "calcs": [
-              "lastNotNull",
-              "max"
+              "lastNotNull"
             ]
           },
           "tooltip": {
@@ -616,7 +637,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_scraper_last_run_source_duration_seconds{site=~\"$site\",provider=~\"$provider\",source=~\"$source\"}",
+            "expr": "crestmap_scraper_last_run_source_duration_seconds{job=\"crestmap_scraper\",site=~\"$site\",provider=~\"$provider\",source=~\"$source\"}",
             "legendFormat": "{{provider}} {{source}}",
             "range": true,
             "refId": "V"
@@ -633,7 +654,15 @@
         "description": "Bytes downloaded in the latest run by source. XML/cad byte size helps explain runtime and source behavior.",
         "fieldConfig": {
           "defaults": {
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "thresholds": {
               "mode": "absolute",
               "steps": [
@@ -659,8 +688,7 @@
             "displayMode": "table",
             "placement": "bottom",
             "calcs": [
-              "lastNotNull",
-              "max"
+              "lastNotNull"
             ]
           },
           "tooltip": {
@@ -675,7 +703,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_scraper_last_run_source_response_bytes{site=~\"$site\",provider=~\"$provider\",source=~\"$source\"}",
+            "expr": "crestmap_scraper_last_run_source_response_bytes{job=\"crestmap_scraper\",site=~\"$site\",provider=~\"$provider\",source=~\"$source\"}",
             "legendFormat": "{{provider}} {{source}}",
             "range": true,
             "refId": "X"
@@ -692,7 +720,15 @@
         "description": "Rate of HTTP requests the scraper sends to CHP, grouped by list/detail route and status.",
         "fieldConfig": {
           "defaults": {
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "thresholds": {
               "mode": "absolute",
               "steps": [
@@ -718,8 +754,7 @@
             "displayMode": "table",
             "placement": "bottom",
             "calcs": [
-              "lastNotNull",
-              "max"
+              "lastNotNull"
             ]
           },
           "tooltip": {
@@ -734,7 +769,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (provider,method,route,status) (rate(crestmap_scraper_http_requests_total{site=~\"$site\",provider=~\"$provider\"}[$__rate_interval]))",
+            "expr": "sum by (provider,method,route,status) (rate(crestmap_scraper_http_requests_total{job=\"crestmap_scraper\",site=~\"$site\",provider=~\"$provider\"}[$__rate_interval]))",
             "legendFormat": "{{provider}} {{method}} {{route}} {{status}}",
             "range": true,
             "refId": "`"
@@ -751,7 +786,15 @@
         "description": "Overall scrape attempt outcomes from the scraper service.",
         "fieldConfig": {
           "defaults": {
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "thresholds": {
               "mode": "absolute",
               "steps": [
@@ -777,8 +820,7 @@
             "displayMode": "table",
             "placement": "bottom",
             "calcs": [
-              "lastNotNull",
-              "max"
+              "lastNotNull"
             ]
           },
           "tooltip": {
@@ -793,7 +835,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (provider,outcome) (rate(crestmap_scraper_scrapes_total{site=~\"$site\",provider=~\"$provider\"}[$__rate_interval]))",
+            "expr": "sum by (provider,outcome) (rate(crestmap_scraper_scrapes_total{job=\"crestmap_scraper\",site=~\"$site\",provider=~\"$provider\"}[$__rate_interval]))",
             "legendFormat": "{{provider}} {{outcome}}",
             "range": true,
             "refId": "Z"
@@ -853,7 +895,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_scraper_last_run_observations_inserted{site=~\"$site\",provider=~\"$provider\"}",
+            "expr": "crestmap_scraper_last_run_observations_inserted{job=\"crestmap_scraper\",site=~\"$site\",provider=~\"$provider\"}",
             "legendFormat": "{{provider}}",
             "range": true,
             "refId": "n"
@@ -870,7 +912,15 @@
         "description": "Latest run detail refresh counts. Requested means incident detail pages were fetched; skipped means cached detail data was reused.",
         "fieldConfig": {
           "defaults": {
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "thresholds": {
               "mode": "absolute",
               "steps": [
@@ -896,8 +946,7 @@
             "displayMode": "table",
             "placement": "bottom",
             "calcs": [
-              "lastNotNull",
-              "max"
+              "lastNotNull"
             ]
           },
           "tooltip": {
@@ -912,7 +961,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_scraper_last_run_details{site=~\"$site\",provider=\"chp\"}",
+            "expr": "crestmap_scraper_last_run_details{job=\"crestmap_scraper\",site=~\"$site\",provider=\"chp\"}",
             "legendFormat": "{{result}}",
             "range": true,
             "refId": "p"
@@ -942,7 +991,15 @@
         "description": "Public web traffic rate grouped by coarse route and HTTP status.",
         "fieldConfig": {
           "defaults": {
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "thresholds": {
               "mode": "absolute",
               "steps": [
@@ -968,8 +1025,7 @@
             "displayMode": "table",
             "placement": "bottom",
             "calcs": [
-              "lastNotNull",
-              "max"
+              "lastNotNull"
             ]
           },
           "tooltip": {
@@ -984,7 +1040,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (route,status) (rate(crestmap_http_requests_total{site=~\"$site\",route=~\"$route\"}[$__rate_interval]))",
+            "expr": "sum by (route,status) (rate(crestmap_http_requests_total{job=\"crestmap\",site=~\"$site\",route=~\"$route\"}[$__rate_interval]))",
             "legendFormat": "{{route}} {{status}}",
             "range": true,
             "refId": "O"
@@ -1001,7 +1057,15 @@
         "description": "Non-2xx/3xx public web responses. This should normally stay near zero.",
         "fieldConfig": {
           "defaults": {
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "thresholds": {
               "mode": "absolute",
               "steps": [
@@ -1027,8 +1091,7 @@
             "displayMode": "table",
             "placement": "bottom",
             "calcs": [
-              "lastNotNull",
-              "max"
+              "lastNotNull"
             ]
           },
           "tooltip": {
@@ -1043,7 +1106,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (route,status) (rate(crestmap_http_requests_total{site=~\"$site\",status!~\"2..|3..\"}[$__rate_interval]))",
+            "expr": "sum by (route,status) (rate(crestmap_http_requests_total{job=\"crestmap\",site=~\"$site\",status!~\"2..|3..\"}[$__rate_interval]))",
             "legendFormat": "{{route}} {{status}}",
             "range": true,
             "refId": "Q"
@@ -1075,12 +1138,16 @@
           "defaults": {
             "custom": {
               "drawStyle": "line",
-              "fillOpacity": 15,
-              "lineWidth": 1,
+              "fillOpacity": 8,
+              "lineWidth": 2,
               "stacking": {
                 "group": "A",
                 "mode": "normal"
-              }
+              },
+              "lineInterpolation": "linear",
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
             },
             "unit": "reqps"
           },
@@ -1096,7 +1163,7 @@
         "options": {
           "legend": {
             "calcs": [
-              "sum"
+              "lastNotNull"
             ],
             "displayMode": "table",
             "placement": "bottom"
@@ -1132,12 +1199,16 @@
           "defaults": {
             "custom": {
               "drawStyle": "line",
-              "fillOpacity": 15,
-              "lineWidth": 1,
+              "fillOpacity": 8,
+              "lineWidth": 2,
               "stacking": {
                 "group": "A",
                 "mode": "normal"
-              }
+              },
+              "lineInterpolation": "linear",
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
             },
             "unit": "reqps"
           },
@@ -1153,7 +1224,7 @@
         "options": {
           "legend": {
             "calcs": [
-              "sum"
+              "lastNotNull"
             ],
             "displayMode": "table",
             "placement": "bottom"
@@ -1200,8 +1271,12 @@
           "defaults": {
             "custom": {
               "drawStyle": "line",
-              "fillOpacity": 10,
-              "lineWidth": 1
+              "fillOpacity": 8,
+              "lineWidth": 2,
+              "lineInterpolation": "linear",
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
             },
             "unit": "reqps"
           },
@@ -1217,7 +1292,7 @@
         "options": {
           "legend": {
             "calcs": [
-              "sum"
+              "lastNotNull"
             ],
             "displayMode": "table",
             "placement": "bottom"
@@ -1281,7 +1356,7 @@
           "type": "loki",
           "uid": "${loki}"
         },
-        "description": "Top Cloudflare country codes over the selected dashboard time range.",
+        "description": "Cloudflare CF-IPCountry codes for all requests, including people, bots, crawlers, monitors, and VPN or proxy exits.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -1321,13 +1396,13 @@
               "uid": "${loki}"
             },
             "editorMode": "code",
-            "expr": "topk(10, sum by (client_geo_country_iso_code) (count_over_time({cluster=\"external\"} | json | event_action=\"http_request\" [$__range])))",
-            "legendFormat": "{{client_geo_country_iso_code}}",
+            "expr": "topk(10, sum by (http_request_header_cf_ipcountry) (count_over_time({cluster=\"external\"} | json | event_action=\"http_request\", http_request_header_cf_ipcountry!=\"\" [$__range])))",
+            "legendFormat": "{{http_request_header_cf_ipcountry}}",
             "queryType": "instant",
             "refId": "A"
           }
         ],
-        "title": "Top countries",
+        "title": "Request country codes",
         "type": "bargauge"
       },
       {
@@ -1405,7 +1480,15 @@
         "description": "Web process connection pool size, available connections, in-use connections, and waiting requests.",
         "fieldConfig": {
           "defaults": {
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "thresholds": {
               "mode": "absolute",
               "steps": [
@@ -1431,8 +1514,7 @@
             "displayMode": "table",
             "placement": "bottom",
             "calcs": [
-              "lastNotNull",
-              "max"
+              "lastNotNull"
             ]
           },
           "tooltip": {
@@ -1447,7 +1529,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_db_pool_connections{site=~\"$site\"}",
+            "expr": "crestmap_db_pool_connections{job=\"crestmap\",site=~\"$site\"}",
             "legendFormat": "{{state}}",
             "range": true,
             "refId": "S"
@@ -1458,7 +1540,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_db_pool_requests_waiting{site=~\"$site\"}",
+            "expr": "crestmap_db_pool_requests_waiting{job=\"crestmap\",site=~\"$site\"}",
             "legendFormat": "requests waiting",
             "range": true,
             "refId": "T"
@@ -1518,7 +1600,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "time() - crestmap_process_start_time_seconds{site=~\"$site\"}",
+            "expr": "time() - crestmap_process_start_time_seconds{job=\"crestmap\",site=~\"$site\"}",
             "range": true,
             "refId": "h"
           }
@@ -1577,7 +1659,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "time() - crestmap_scraper_process_start_time_seconds{site=~\"$site\",provider=~\"$provider\"}",
+            "expr": "time() - crestmap_scraper_process_start_time_seconds{job=\"crestmap_scraper\",site=~\"$site\",provider=~\"$provider\"}",
             "legendFormat": "{{provider}}",
             "range": true,
             "refId": "j"
@@ -1637,7 +1719,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_history_window_hours{site=~\"$site\"}",
+            "expr": "crestmap_history_window_hours{job=\"crestmap\",site=~\"$site\"}",
             "range": true,
             "refId": "l"
           }
@@ -1709,7 +1791,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum(crestmap_region_incidents{site=~\"$site\",region=~\"$region\",status=\"total\"})",
+            "expr": "sum(crestmap_region_incidents{job=\"crestmap\",site=~\"$site\",region=~\"$region\",status=\"total\"})",
             "range": true,
             "refId": "G"
           }
@@ -1765,7 +1847,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_scraper_last_run_incidents{site=~\"$site\",provider=~\"$provider\"}",
+            "expr": "crestmap_scraper_last_run_incidents{job=\"crestmap_scraper\",site=~\"$site\",provider=~\"$provider\"}",
             "legendFormat": "{{provider}} {{kind}}",
             "range": true,
             "refId": "\\"
@@ -1822,7 +1904,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_scraper_last_run_region_incidents{site=~\"$site\",provider=~\"$provider\",region=~\"$region\"}",
+            "expr": "crestmap_scraper_last_run_region_incidents{job=\"crestmap_scraper\",site=~\"$site\",provider=~\"$provider\",region=~\"$region\"}",
             "legendFormat": "{{provider}} {{region}} {{kind}}",
             "range": true,
             "refId": "^"
@@ -1839,7 +1921,15 @@
         "description": "Current database incident counts in the metrics window by region and active/cleared/mapped status.",
         "fieldConfig": {
           "defaults": {
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "thresholds": {
               "mode": "absolute",
               "steps": [
@@ -1865,8 +1955,7 @@
             "displayMode": "table",
             "placement": "bottom",
             "calcs": [
-              "lastNotNull",
-              "max"
+              "lastNotNull"
             ]
           },
           "tooltip": {
@@ -1881,7 +1970,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_region_incidents{site=~\"$site\",region=~\"$region\"}",
+            "expr": "crestmap_region_incidents{job=\"crestmap\",site=~\"$site\",region=~\"$region\"}",
             "legendFormat": "{{region}} {{status}}",
             "range": true,
             "refId": "M"
@@ -1898,7 +1987,15 @@
         "description": "Latest scrape counts over time. Useful for spotting sudden drops or source regressions.",
         "fieldConfig": {
           "defaults": {
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "thresholds": {
               "mode": "absolute",
               "steps": [
@@ -1924,8 +2021,7 @@
             "displayMode": "table",
             "placement": "bottom",
             "calcs": [
-              "lastNotNull",
-              "max"
+              "lastNotNull"
             ]
           },
           "tooltip": {
@@ -1940,7 +2036,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_scraper_last_run_incidents{site=~\"$site\",provider=~\"$provider\"}",
+            "expr": "crestmap_scraper_last_run_incidents{job=\"crestmap_scraper\",site=~\"$site\",provider=~\"$provider\"}",
             "legendFormat": "{{provider}} {{kind}}",
             "range": true,
             "refId": "r"
@@ -1970,7 +2066,15 @@
         "description": "Shadow comparison run outcomes when CAD and XML are compared side by side.",
         "fieldConfig": {
           "defaults": {
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "thresholds": {
               "mode": "absolute",
               "steps": [
@@ -1996,8 +2100,7 @@
             "displayMode": "table",
             "placement": "bottom",
             "calcs": [
-              "lastNotNull",
-              "max"
+              "lastNotNull"
             ]
           },
           "tooltip": {
@@ -2012,7 +2115,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (outcome) (rate(crestmap_scraper_source_compare_runs_total{site=~\"$site\",provider=\"chp\"}[$__rate_interval]))",
+            "expr": "sum by (outcome) (rate(crestmap_scraper_source_compare_runs_total{job=\"crestmap_scraper\",site=~\"$site\",provider=\"chp\"}[$__rate_interval]))",
             "legendFormat": "{{outcome}}",
             "range": true,
             "refId": "b"
@@ -2069,7 +2172,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_scraper_source_compare_last_run_incidents{site=~\"$site\",provider=\"chp\"}",
+            "expr": "crestmap_scraper_source_compare_last_run_incidents{job=\"crestmap_scraper\",site=~\"$site\",provider=\"chp\"}",
             "legendFormat": "{{source}} {{kind}}",
             "range": true,
             "refId": "d"
@@ -2126,7 +2229,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_scraper_source_compare_last_run_region_incidents{site=~\"$site\",provider=\"chp\",region=~\"$region\"}",
+            "expr": "crestmap_scraper_source_compare_last_run_region_incidents{job=\"crestmap_scraper\",site=~\"$site\",provider=\"chp\",region=~\"$region\"}",
             "legendFormat": "{{source}} {{region}} {{kind}}",
             "range": true,
             "refId": "f"
@@ -2189,7 +2292,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_push_subscriptions{site=~\"$site\",status=\"active\"}",
+            "expr": "crestmap_push_subscriptions{job=\"crestmap\",site=~\"$site\",status=\"active\"}",
             "legendFormat": "Active",
             "range": true,
             "refId": "A"
@@ -2239,7 +2342,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum(crestmap_push_deliveries{site=~\"$site\",status=\"delivered\"})",
+            "expr": "sum(crestmap_push_deliveries{job=\"crestmap\",site=~\"$site\",status=\"delivered\"})",
             "legendFormat": "Delivered",
             "range": true,
             "refId": "A"
@@ -2289,7 +2392,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum(crestmap_push_deliveries{site=~\"$site\",status=\"failed\"})",
+            "expr": "sum(crestmap_push_deliveries{job=\"crestmap\",site=~\"$site\",status=\"failed\"})",
             "legendFormat": "Failed",
             "range": true,
             "refId": "A"
@@ -2336,7 +2439,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_push_subscription_areas{site=~\"$site\"}",
+            "expr": "crestmap_push_subscription_areas{job=\"crestmap\",site=~\"$site\"}",
             "legendFormat": "{{area}}",
             "range": true,
             "refId": "A"
@@ -2383,7 +2486,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_push_subscription_categories{site=~\"$site\"}",
+            "expr": "crestmap_push_subscription_categories{job=\"crestmap\",site=~\"$site\"}",
             "legendFormat": "{{category}}",
             "range": true,
             "refId": "A"
@@ -2400,7 +2503,16 @@
         "description": "Stored incident push delivery outcomes by region and category.",
         "fieldConfig": {
           "defaults": {
-            "unit": "short"
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            }
           },
           "overrides": []
         },
@@ -2413,14 +2525,16 @@
         "id": 69,
         "options": {
           "legend": {
-            "calcs": [],
-            "displayMode": "list",
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
             "placement": "bottom",
             "showLegend": true
           },
           "tooltip": {
             "mode": "multi",
-            "sort": "none"
+            "sort": "desc"
           }
         },
         "targets": [
@@ -2430,7 +2544,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_push_deliveries{site=~\"$site\"}",
+            "expr": "crestmap_push_deliveries{job=\"crestmap\",site=~\"$site\"}",
             "legendFormat": "{{region}} {{category}} {{status}}",
             "range": true,
             "refId": "A"
@@ -2447,7 +2561,16 @@
         "description": "Incident notification queue and test notification outcomes.",
         "fieldConfig": {
           "defaults": {
-            "unit": "short"
+            "unit": "short",
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            }
           },
           "overrides": []
         },
@@ -2460,14 +2583,16 @@
         "id": 71,
         "options": {
           "legend": {
-            "calcs": [],
-            "displayMode": "list",
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
             "placement": "bottom",
             "showLegend": true
           },
           "tooltip": {
             "mode": "multi",
-            "sort": "none"
+            "sort": "desc"
           }
         },
         "targets": [
@@ -2477,7 +2602,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (status) (crestmap_push_notification_events{site=~\"$site\"})",
+            "expr": "sum by (status) (crestmap_push_notification_events{job=\"crestmap\",site=~\"$site\"})",
             "legendFormat": "events {{status}}",
             "range": true,
             "refId": "A"
@@ -2488,7 +2613,7 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "crestmap_push_test_notifications{site=~\"$site\"}",
+            "expr": "crestmap_push_test_notifications{job=\"crestmap\",site=~\"$site\"}",
             "legendFormat": "tests {{status}}",
             "range": true,
             "refId": "B"
@@ -2702,7 +2827,7 @@
       },
       {
         "id": 79,
-        "type": "timeseries",
+        "type": "bargauge",
         "title": "Refresh outcomes",
         "gridPos": {
           "x": 0,
@@ -2721,10 +2846,11 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (pipeline,region,outcome) (rate(crestmap_weather_refreshes_total{site=~\"$site\",job=\"crestmap\"}[$__rate_interval]))",
+            "expr": "sum by (pipeline,region,outcome) (increase(crestmap_weather_refreshes_total{site=~\"$site\",job=\"crestmap\"}[$__range]))",
             "legendFormat": "{{pipeline}} \u00b7 {{region}} \u00b7 {{outcome}}",
-            "range": true,
-            "refId": "A"
+            "range": false,
+            "refId": "A",
+            "instant": true
           }
         ],
         "fieldConfig": {
@@ -2732,7 +2858,15 @@
             "color": {
               "mode": "palette-classic"
             },
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "mappings": [],
             "thresholds": {
               "mode": "absolute",
@@ -2743,26 +2877,26 @@
                 }
               ]
             },
-            "unit": "reqps"
+            "unit": "short"
           },
           "overrides": []
         },
         "options": {
-          "legend": {
-            "calcs": [],
-            "displayMode": "list",
-            "placement": "bottom",
-            "showLegend": true
+          "displayMode": "gradient",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
           },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "none"
-          }
+          "showUnfilled": true
         }
       },
       {
         "id": 81,
-        "type": "timeseries",
+        "type": "bargauge",
         "title": "Provider request outcomes",
         "gridPos": {
           "x": 12,
@@ -2781,10 +2915,11 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (pipeline,region,provider,outcome) (rate(crestmap_weather_provider_requests_total{site=~\"$site\",job=\"crestmap\"}[$__rate_interval]))",
+            "expr": "sum by (pipeline,region,provider,outcome) (increase(crestmap_weather_provider_requests_total{site=~\"$site\",job=\"crestmap\"}[$__range]))",
             "legendFormat": "{{pipeline}} \u00b7 {{region}} \u00b7 {{provider}} \u00b7 {{outcome}}",
-            "range": true,
-            "refId": "A"
+            "range": false,
+            "refId": "A",
+            "instant": true
           }
         ],
         "fieldConfig": {
@@ -2792,7 +2927,15 @@
             "color": {
               "mode": "palette-classic"
             },
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "mappings": [],
             "thresholds": {
               "mode": "absolute",
@@ -2803,21 +2946,21 @@
                 }
               ]
             },
-            "unit": "reqps"
+            "unit": "short"
           },
           "overrides": []
         },
         "options": {
-          "legend": {
-            "calcs": [],
-            "displayMode": "list",
-            "placement": "bottom",
-            "showLegend": true
+          "displayMode": "gradient",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
           },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "none"
-          }
+          "showUnfilled": true
         }
       },
       {
@@ -2852,7 +2995,15 @@
             "color": {
               "mode": "palette-classic"
             },
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "mappings": [],
             "thresholds": {
               "mode": "absolute",
@@ -2869,20 +3020,22 @@
         },
         "options": {
           "legend": {
-            "calcs": [],
-            "displayMode": "list",
+            "calcs": [
+              "lastNotNull"
+            ],
+            "displayMode": "table",
             "placement": "bottom",
             "showLegend": true
           },
           "tooltip": {
             "mode": "multi",
-            "sort": "none"
+            "sort": "desc"
           }
         }
       },
       {
         "id": 85,
-        "type": "timeseries",
+        "type": "bargauge",
         "title": "Weather cache activity",
         "gridPos": {
           "x": 12,
@@ -2901,10 +3054,11 @@
               "uid": "mkJbCvK4z"
             },
             "editorMode": "code",
-            "expr": "sum by (pipeline,region,outcome) (rate(crestmap_weather_cache_events_total{site=~\"$site\",job=\"crestmap\"}[$__rate_interval]))",
+            "expr": "sum by (pipeline,region,outcome) (increase(crestmap_weather_cache_events_total{site=~\"$site\",job=\"crestmap\"}[$__range]))",
             "legendFormat": "{{pipeline}} \u00b7 {{region}} \u00b7 {{outcome}}",
-            "range": true,
-            "refId": "A"
+            "range": false,
+            "refId": "A",
+            "instant": true
           }
         ],
         "fieldConfig": {
@@ -2912,7 +3066,15 @@
             "color": {
               "mode": "palette-classic"
             },
-            "custom": {},
+            "custom": {
+              "drawStyle": "line",
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "fillOpacity": 8,
+              "gradientMode": "none",
+              "showPoints": "never",
+              "spanNulls": false
+            },
             "mappings": [],
             "thresholds": {
               "mode": "absolute",
@@ -2923,21 +3085,21 @@
                 }
               ]
             },
-            "unit": "reqps"
+            "unit": "short"
           },
           "overrides": []
         },
         "options": {
-          "legend": {
-            "calcs": [],
-            "displayMode": "list",
-            "placement": "bottom",
-            "showLegend": true
+          "displayMode": "gradient",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
           },
-          "tooltip": {
-            "mode": "multi",
-            "sort": "none"
-          }
+          "showUnfilled": true
         }
       }
     ],
@@ -3028,7 +3190,7 @@
           },
           "includeAll": true,
           "name": "provider",
-          "query": "label_values(crestmap_scraper_up{site=~\"$site\"}, provider)",
+          "query": "label_values(crestmap_scraper_up{job=\"crestmap_scraper\",site=~\"$site\"}, provider)",
           "refresh": 1,
           "sort": 1,
           "type": "query"
@@ -3046,7 +3208,7 @@
           },
           "includeAll": true,
           "name": "source",
-          "query": "label_values(crestmap_scraper_last_run_source_duration_seconds{site=~\"$site\",provider=~\"$provider\"}, source)",
+          "query": "label_values(crestmap_scraper_last_run_source_duration_seconds{job=\"crestmap_scraper\",site=~\"$site\",provider=~\"$provider\"}, source)",
           "refresh": 1,
           "sort": 1,
           "type": "query"
@@ -3060,10 +3222,10 @@
     "timezone": "browser",
     "title": "Crestmap Operations",
     "uid": "crestmap-operations",
-    "version": 13,
+    "version": 15,
     "description": "Operational dashboard for crestmap.us: incident collectors, weather and temperature refreshes, site traffic, Postgres health, and Web Push delivery."
   },
   "folderUid": "bfo1wv4abcd1cd",
   "overwrite": true,
-  "message": "Filter weather panels to initialized current-job series"
+  "message": "Improve dashboard readability and clarify request country codes"
 }

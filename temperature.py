@@ -157,6 +157,8 @@ SAMPLE_POINTS = {
 }
 CACHE_SECONDS = 900
 MAX_AGE_SECONDS = 3600
+FORECAST_HOURS = 7
+POPUP_FORECAST_POINTS = 4
 _cache = {}
 _retry_after = {}
 _lock = threading.Lock()
@@ -257,12 +259,31 @@ def parse_estimates(payload, region, now):
         if not (-900 <= now - timestamp <= MAX_AGE_SECONDS):
             continue
         name, latitude, longitude = sample
+        hourly = row.get("hourly") or {}
+        hourly_units = row.get("hourly_units") or {}
+        forecast = []
+        if isinstance(hourly, dict) and hourly_units.get("temperature_2m") == "°F":
+            for forecast_time, forecast_value in zip(
+                hourly.get("time") or [], hourly.get("temperature_2m") or []
+            ):
+                if (not _number(forecast_time) or not _number(forecast_value)
+                        or forecast_time <= now or not -100 <= forecast_value <= 150):
+                    continue
+                forecast.append({
+                    "valid_at": dt.datetime.fromtimestamp(
+                        forecast_time, dt.timezone.utc
+                    ).isoformat(),
+                    "temperature_f": round(forecast_value, 1),
+                })
+                if len(forecast) >= POPUP_FORECAST_POINTS:
+                    break
         points.append({
             "name": name, "latitude": latitude, "longitude": longitude,
             "temperature_f": round(value, 1), "elevation_m": elevation,
             "valid_at": dt.datetime.fromtimestamp(timestamp, dt.timezone.utc).isoformat(),
             "kind": "estimate", "priority": name in PRIORITY_POINT_NAMES,
             "road": name in ROAD_POINT_NAMES or name in PRIORITY_POINT_NAMES,
+            "forecast": forecast,
         })
     if not points:
         raise TemperatureUnavailable()
@@ -296,7 +317,8 @@ def load_temperatures(region):
         params = {
             "latitude": ",".join(str(p[1]) for p in samples),
             "longitude": ",".join(str(p[2]) for p in samples),
-            "current": "temperature_2m", "temperature_unit": "fahrenheit",
+            "current": "temperature_2m", "hourly": "temperature_2m",
+            "forecast_hours": FORECAST_HOURS, "temperature_unit": "fahrenheit",
             "timeformat": "unixtime", "cell_selection": "land",
             # Leaving elevation unset enables the provider's 90 m DEM downscaling.
         }
@@ -330,6 +352,14 @@ def load_temperatures(region):
             if count:
                 record_provider("temperature", region, "nws_stations", outcome, count)
         if observations:
+            estimates = result["points"]
+            for observation in observations:
+                nearest = min(
+                    estimates,
+                    key=lambda point: ((point["latitude"] - observation["latitude"]) ** 2
+                                       + (point["longitude"] - observation["longitude"]) ** 2),
+                )
+                observation["forecast"] = nearest.get("forecast", [])
             result = {
                 **result,
                 "source": "NWS and Open-Meteo",

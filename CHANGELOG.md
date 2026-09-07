@@ -14,6 +14,9 @@ development eras and do not imply that every intermediate version number shipped
 - Clarify the changelog structure by separating pending changes from published releases.
 - Make the Grafana weather refresh-age panel ignore uninitialized timestamps and
   filter weather panels to the current Prometheus scrape job.
+- Remove retained pre-rename series from Grafana graphs, simplify dense weather
+  charts, and clarify that request country codes include automated traffic.
+- Add a four-hour elevation-aware modeled forecast to temperature popups.
 
 ## Releases
 

@@ -3281,11 +3281,11 @@
     },
     "timezone": "browser",
     "title": "Crestmap Operations",
-    "uid": "crestmap-operations",
+    "uid": "crestmap-chp-live-map",
     "version": 15,
     "description": "Operational dashboard for crestmap.us: incident collectors, weather and temperature refreshes, site traffic, Postgres health, and Web Push delivery."
   },
   "folderUid": "bfo1wv4abcd1cd",
   "overwrite": true,
-  "message": "Improve dashboard readability and clarify request country codes"
+  "message": "Replace misleading request gauges with ranked count tables"
 }

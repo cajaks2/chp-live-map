@@ -2081,11 +2081,11 @@ def build_html(
         inset 0 24px 18px -24px rgba(39, 62, 48, 0.42),
         inset 0 -30px 24px -24px rgba(39, 62, 48, 0.48);
     }}
-    #scroll-incidents {{
+    #scroll-incidents,
+    #scroll-incidents-top {{
       display: none;
       position: absolute;
       left: 50%;
-      bottom: 7px;
       z-index: 3;
       align-items: center;
       justify-content: center;
@@ -2099,19 +2099,32 @@ def build_html(
       transform: translateX(-50%);
       cursor: pointer;
     }}
+    #scroll-incidents {{ bottom: 7px; }}
+    #scroll-incidents-top {{ top: 7px; }}
     #incident-list-shell.has-more-below #scroll-incidents {{
       display: flex;
     }}
-    #scroll-incidents::before {{
+    #incident-list-shell.show-scroll-to-top #scroll-incidents-top {{
+      display: flex;
+    }}
+    #scroll-incidents::before,
+    #scroll-incidents-top::before {{
       content: "";
       width: 9px;
       height: 9px;
-      margin-top: -4px;
       border-right: 2px solid currentColor;
       border-bottom: 2px solid currentColor;
+    }}
+    #scroll-incidents::before {{
+      margin-top: -4px;
       transform: rotate(45deg);
     }}
-    #scroll-incidents:focus {{
+    #scroll-incidents-top::before {{
+      margin-top: 4px;
+      transform: rotate(225deg);
+    }}
+    #scroll-incidents:focus,
+    #scroll-incidents-top:focus {{
       outline: 2px solid rgba(39, 116, 71, 0.45);
       outline-offset: 2px;
     }}
@@ -3269,6 +3282,7 @@ def build_html(
       </header>
       <div id="incident-list-shell">
         <div id="incident-list"></div>
+        <button type="button" id="scroll-incidents-top" aria-label="Scroll to the first incident"></button>
         <button type="button" id="scroll-incidents" aria-label="Scroll incident list down"></button>
       </div>
     </aside>
@@ -3530,6 +3544,7 @@ def build_html(
     const listShell = document.getElementById("incident-list-shell");
     const list = document.getElementById("incident-list");
     const scrollIncidentsButton = document.getElementById("scroll-incidents");
+    const scrollIncidentsTopButton = document.getElementById("scroll-incidents-top");
     const detailsPanel = document.getElementById("details");
     const detailsCue = document.getElementById("details-cue");
     const appShell = document.getElementById("app");
@@ -4581,11 +4596,20 @@ def build_html(
       }}
       const hasMoreAbove = list.scrollTop > 3;
       const hasMoreBelow = list.scrollTop + list.clientHeight < list.scrollHeight - 3;
+      const thirdIncident = list.querySelectorAll(".incident")[2];
+      const showScrollToTop = Boolean(thirdIncident && list.scrollTop >= thirdIncident.offsetTop - 3);
       listShell.classList.toggle("has-more-above", hasMoreAbove);
       listShell.classList.toggle("has-more-below", hasMoreBelow);
+      listShell.classList.toggle("show-scroll-to-top", showScrollToTop);
       if (scrollIncidentsButton) {{
         scrollIncidentsButton.disabled = !hasMoreBelow;
       }}
+    }}
+
+    function scrollIncidentListToTop() {{
+      if (!list) return;
+      list.scrollTo({{ top: 0, behavior: "smooth" }});
+      window.setTimeout(updateListScrollCue, 250);
     }}
 
     function scrollIncidentListDown() {{
@@ -5746,6 +5770,7 @@ def build_html(
     {road_weather_script(app_path(base_path, "/api/v1/road-weather"))}
     list.addEventListener("scroll", updateListScrollCue, {{ passive: true }});
     scrollIncidentsButton?.addEventListener("click", scrollIncidentListDown);
+    scrollIncidentsTopButton?.addEventListener("click", scrollIncidentListToTop);
     window.addEventListener("resize", updateListScrollCue);
   </script>
 {push_ui_script(base_path)}

@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.236 - 2026-09-06
+
+- Show an up control after scrolling beyond the first two incidents and return
+  the incident list smoothly to its first item when tapped.
+
 ## 0.1.235 - 2026-09-06
 
 - Restore the compact pill shape for NWS advisories and place temperature loading

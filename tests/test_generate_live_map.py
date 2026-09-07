@@ -594,9 +594,13 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "flex-basis: clamp(150px, 23svh, 200px)" in html
     assert "min-height: 150px" in html
     assert 'id="scroll-incidents"' in html
+    assert 'id="scroll-incidents-top"' in html
     assert "has-more-below #scroll-incidents" in html
+    assert "show-scroll-to-top #scroll-incidents-top" in html
     assert "function updateListScrollCue" in html
     assert "function scrollIncidentListDown" in html
+    assert "function scrollIncidentListToTop" in html
+    assert 'list.querySelectorAll(".incident")[2]' in html
     assert 'id="details-cue"' in html
     assert "Incident details below" in html
     assert "data-default-view" in html

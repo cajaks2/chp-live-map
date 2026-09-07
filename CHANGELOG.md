@@ -11,9 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
-- Expand temperature popup forecasts from four to six hours and arrange them as a compact single row on mobile.
-
 ## Releases
+
+### 0.1.240 - 2026-09-06
+
+- Expand temperature popup forecasts from four to six hours and arrange them as a compact single row on mobile.
 
 ### 0.1.239 - 2026-09-06
 

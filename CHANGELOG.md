@@ -11,7 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
-## 0.1.237 - 2026-09-06
+- Clarify the changelog structure by separating pending changes from published releases.
+
+## Releases
+
+### 0.1.237 - 2026-09-06
 
 - Rename the GitHub repository, container image, service identity, Kubernetes resources,
   Prometheus series, Grafana dashboard, and project references from the legacy
@@ -19,68 +23,68 @@ development eras and do not imply that every intermediate version number shipped
 - Expand the Grafana operations dashboard with temperature and road-weather
   refresh age, failure, provider, cache, duration, and result-count panels.
 
-## 0.1.236 - 2026-09-06
+### 0.1.236 - 2026-09-06
 
 - Show an up control after scrolling beyond the first two incidents and return
   the incident list smoothly to its first item when tapped.
 
-## 0.1.235 - 2026-09-06
+### 0.1.235 - 2026-09-06
 
 - Restore the compact pill shape for NWS advisories and place temperature loading
   or retry status below the map control row so the two states remain readable.
 
-## 0.1.234 - 2026-09-06
+### 0.1.234 - 2026-09-06
 
 - Move NWS advisories into the map control row and reveal the advisory headline,
   affected area, and expiry when tapped.
 
-## 0.1.233 - 2026-09-06
+### 0.1.233 - 2026-09-06
 
 - Distinguish the predicted rain, snow, or ice period from the full forecast
   horizon in road-weather popups.
 
-## 0.1.232 - 2026-09-06
+### 0.1.232 - 2026-09-06
 
 - Add Prometheus metrics and structured logs for temperature and road-weather
   refresh outcomes, upstream providers, cache behavior, latency, freshness,
   station availability, alerts, and rain, snow, and ice result counts.
 
-## 0.1.231 - 2026-09-06
+### 0.1.231 - 2026-09-06
 
 - Raise weather, temperature, and aircraft popup cards above their originating
   map markers so the selected icon remains visible.
 
-## 0.1.230 - 2026-09-06
+### 0.1.230 - 2026-09-06
 
 - Remove completed hourly rain, snow, and ice periods from the map and label a
   forecast window as Now only while that interval is actually underway.
 
-## 0.1.229 - 2026-09-06
+### 0.1.229 - 2026-09-06
 
 - Automatically hand off between Forest and Malibu after a manual map pan
   clearly enters the other region, preserving the map center and zoom.
 
-## 0.1.228 - 2026-09-06
+### 0.1.228 - 2026-09-06
 
 - Extend the bundled offline Malibu basemap along Yerba Buena Road, Little
   Sycamore Canyon Road, and western Mulholland Highway.
 
-## 0.1.227 - 2026-09-06
+### 0.1.227 - 2026-09-06
 
 - Add road-aligned temperature and six-hour hazard forecast samples for Yerba
   Buena Road, Little Sycamore Canyon Road, and western Mulholland Highway.
 
-## 0.1.226 - 2026-09-06
+### 0.1.226 - 2026-09-06
 
 - Close the expanded map layer menu when the user taps elsewhere on the page,
   and support closing it with Escape for keyboard users.
 
-## 0.1.225 - 2026-09-06
+### 0.1.225 - 2026-09-06
 
 - Keep the map layer menu within the mobile map viewport and make its controls
   scrollable when the menu is taller than the available map space.
 
-## 0.1.224 - 2026-09-06
+### 0.1.224 - 2026-09-06
 
 - Remove the redundant Map, Summary, History, and About tab row in favor of the
   navigation menu, and condense map status metadata into shorter lines.
@@ -93,7 +97,7 @@ development eras and do not imply that every intermediate version number shipped
 - When incident pins are hidden, reveal only the incident explicitly selected
   from the list so its location remains clear without restoring every pin.
 
-## 0.1.223 - 2026-09-06
+### 0.1.223 - 2026-09-06
 
 - Move map-only overlays into a compact menu on the map, and add a subtle
   elevation-aware six-hour rain, snow, and possible-ice forecast layer using
@@ -107,96 +111,96 @@ development eras and do not imply that every intermediate version number shipped
 - Keep an opened road-weather popup visible while Leaflet pans the map to fit it,
   then resume viewport-based marker placement after the popup closes.
 
-## 0.1.222 - 2026-09-06
+### 0.1.222 - 2026-09-06
 
 - Center the temporary temperature-loading status along the top of the map,
   clear of the incident-details control.
 
-## 0.1.221 - 2026-09-06
+### 0.1.221 - 2026-09-06
 
 - Move the temporary temperature-loading pill above the mobile incident-details
   control so the two statuses do not overlap.
 
-## 0.1.220 - 2026-09-06
+### 0.1.220 - 2026-09-06
 
 - Show a compact map status while the initial temperature request loads, with a
   tap-to-retry error state, while leaving cached readings unobstructed on refresh.
 
-## 0.1.219 - 2026-09-04
+### 0.1.219 - 2026-09-04
 
 - Make station-reading age much clearer: begin fading and greying after 30
   minutes, reach full grey by two hours, and retain the reading through three.
 
-## 0.1.218 - 2026-09-04
+### 0.1.218 - 2026-09-04
 
 - Keep aging weather-station labels fully opaque while continuously shifting
   them from green to grey as their observations approach the cutoff.
 
-## 0.1.217 - 2026-09-04
+### 0.1.217 - 2026-09-04
 
 - Gradually grey and fade measured station temperatures after one hour so their
   visual prominence communicates observation age through the three-hour cutoff.
 
-## 0.1.216 - 2026-09-04
+### 0.1.216 - 2026-09-04
 
 - Keep quality-controlled weather-station readings visible for up to three hours
   between remote-station reports, and retain station labels near incidents.
 
-## 0.1.215 - 2026-09-04
+### 0.1.215 - 2026-09-04
 
 - Add San Bernardino CHP dispatch coverage and recognize the mountain segment of
   Route 2, including `SR2` and Big Pines Highway incident labels.
 
-## 0.1.214 - 2026-09-04
+### 0.1.214 - 2026-09-04
 
 - Make measured weather-station temperatures easier to distinguish with compact,
   opaque green badges and stronger station dots while estimates remain plain text.
 
-## 0.1.213 - 2026-09-04
+### 0.1.213 - 2026-09-04
 
 - Augment modeled air temperatures with fresh, quality-controlled NWS/MADIS
   observations from three Forest and three Malibu stations. Distinguish measured
   readings in map labels and details, and omit missing observations or station
   reports older than 90 minutes.
 
-## 0.1.212 - 2026-09-04
+### 0.1.212 - 2026-09-04
 
 - Keep road-temperature labels visible near incident clusters by using tighter
   road-specific clearance, positioning text away from nearby incident markers,
   and sampling surveyed Forest roads every 2.5 miles.
 
-## 0.1.211 - 2026-09-04
+### 0.1.211 - 2026-09-04
 
 - Keep the regional overview focused on road and named-location air temperatures;
   reveal surrounding terrain samples only after zooming in.
 
-## 0.1.210 - 2026-09-04
+### 0.1.210 - 2026-09-04
 
 - Add elevation-aware air-temperature baselines along Forest and Malibu roads,
   using surveyed Forest mile markers and the map's principal Malibu corridors.
   Prefer road samples over the surrounding terrain grid when labels need thinning.
 
-## 0.1.209 - 2026-09-04
+### 0.1.209 - 2026-09-04
 
 - Retain additional eastern Forest air-temperature samples along Highway 39,
   Glendora Mountain and Ridge Roads, and upper Mount Baldy Road.
 
-## 0.1.208 - 2026-09-04
+### 0.1.208 - 2026-09-04
 
 - Keep priority air-temperature samples at Newcomb's Ranch and between the Rock
   Store and Old Place when normal label spacing thins the surrounding terrain grid.
 
-## 0.1.207 - 2026-09-04
+### 0.1.207 - 2026-09-04
 
 - Distribute air-temperature samples across each region on a staggered terrain
   grid, eliminating broad gaps and avoiding the impression of road temperatures.
 
-## 0.1.206 - 2026-09-04
+### 0.1.206 - 2026-09-04
 
 - Move Open-Meteo attribution from the map footer to the About page while keeping
   source details available in each air-temperature popup.
 
-## 0.1.205 - 2026-09-04
+### 0.1.205 - 2026-09-04
 
 - Add optional, subtle elevation-adjusted temperature estimates to Forest and
   Malibu maps, with model timestamps, source attribution, and incident-first label
@@ -210,12 +214,12 @@ development eras and do not imply that every intermediate version number shipped
 - Keep only the primary Analytics destination on the installed Google tag; move
   the duplicate secondary property and empty Analytics account to Trash.
 
-## 0.1.204 - 2026-09-04
+### 0.1.204 - 2026-09-04
 
 - Pass Analytics dimensions and internal/developer flags directly to the tag
   configuration so initial pageviews receive the same context as interactions.
 
-## 0.1.203 - 2026-09-04
+### 0.1.203 - 2026-09-04
 
 - Measure deliberate incident/camera selections, region changes, copied links and
   successful new alert subscriptions with restricted event parameters.
@@ -227,19 +231,19 @@ development eras and do not imply that every intermediate version number shipped
 - Label the two Analytics properties Primary and Secondary and register usage
   dimensions in the primary property; document configuration and rollback.
 
-## 0.1.202 - 2026-09-04
+### 0.1.202 - 2026-09-04
 
 - Include the configured Google Analytics tag on Summary, History, and About
   pages as well as the map, restoring consistent pageview coverage.
 - Use the Google-provided installation tag in production to restore loading
   and route events to the connected Crestmap Analytics destination.
 
-## 0.1.201 - 2026-09-03
+### 0.1.201 - 2026-09-03
 
 - Fix comment form fields overlapping or extending past the panel edge, and
   keep name and contact inputs aligned when their labels wrap.
 
-## 0.1.200 - 2026-09-02
+### 0.1.200 - 2026-09-02
 
 - Refresh ALERTCalifornia camera metadata while the map is active and when a
   backgrounded tab becomes visible again, preventing live cameras from being
@@ -248,7 +252,7 @@ development eras and do not imply that every intermediate version number shipped
   stays synchronized with automatic image refreshes, with the direct image link
   retained as a fallback.
 
-## 0.1.199 - 2026-09-02
+### 0.1.199 - 2026-09-02
 
 - Added an optional ALERTCalifornia camera layer to the live map. Camera markers
   show their current viewing direction, selection reveals a bounded field-of-view
@@ -258,14 +262,14 @@ development eras and do not imply that every intermediate version number shipped
   aligned field-of-view fans with their visible marker dots, and credited
   ALERTCalifornia and UC San Diego on the About page.
 
-## 0.1.198 - 2026-09-02
+### 0.1.198 - 2026-09-02
 
 - Fixed the service worker's Content Security Policy so it can cache the pinned
   unpkg Leaflet assets and successfully activate for cold offline launches.
 - Clean up incomplete application-shell caches when installation fails and test
   that the worker policy permits its required external downloads.
 
-## 0.1.197 - 2026-09-01
+### 0.1.197 - 2026-09-01
 
 - Added versioned application-shell caching so the installed app can launch
   after being force-closed while the device is offline.
@@ -274,7 +278,7 @@ development eras and do not imply that every intermediate version number shipped
 - Registered offline support independently of push-notification availability
   and added a simulated unreachable-origin cold-navigation test.
 
-## 0.1.196 - 2026-09-01
+### 0.1.196 - 2026-09-01
 
 - Added durable last-known incident snapshots for each map region and history
   window, with automatic refresh and recovery when connectivity returns.
@@ -285,16 +289,16 @@ development eras and do not imply that every intermediate version number shipped
   OpenStreetMap raster tiles are unavailable.
 - Added offline snapshot, connection-state recovery, and bundled-basemap tests.
 
-## 0.1.195 - 2026-08-31
+### 0.1.195 - 2026-08-31
 
 - Fixed navigation menus being clipped on iPhone; menus now stay within the
   visible viewport and scroll independently when space is limited.
 
-## 0.1.194 - 2026-08-30
+### 0.1.194 - 2026-08-30
 
 - Added a Corners link to the navigation menu for the corner crash-count map.
 
-## 0.1.193 - 2026-08-30
+### 0.1.193 - 2026-08-30
 
 - Added this repository changelog and backfilled its release history.
 - Required future agents/contributors to maintain Unreleased entries and move them
@@ -309,14 +313,14 @@ development eras and do not imply that every intermediate version number shipped
   fresh sign-in after this database migration; logout now revokes server-side
   access as well as clearing the cookie.
 
-## 0.1.192 - 2026-08-30
+### 0.1.192 - 2026-08-30
 
 - Made location following opt-in on every page load. When geolocation permission
   is already granted, the blue dot updates quietly without moving the map; the
   location button enables centering and follow mode
   ([ce716fa](https://github.com/cajaks2/crestmap/commit/ce716fa5c2291beeab9a9aa8d481229fc4a04864)).
 
-## 0.1.191 - 2026-08-29
+### 0.1.191 - 2026-08-29
 
 - Expanded official mile-marker coverage for GMR, GRR, Highway 39/San Gabriel
   Canyon, and Mount Baldy Road, and displayed every trusted marker at zoom 16+.
@@ -324,31 +328,31 @@ development eras and do not imply that every intermediate version number shipped
   environment switch available to restore pre-publication moderation
   ([426259c](https://github.com/cajaks2/crestmap/commit/426259c6016d8bf5dc8b064a8a58f99542e5549c)).
 
-## 0.1.190 - 2026-08-29
+### 0.1.190 - 2026-08-29
 
 - Added continuously updating browser geolocation, a blue location marker,
   accuracy circle, follow mode, and map-interaction pause behavior
   ([ffd8bb0](https://github.com/cajaks2/crestmap/commit/ffd8bb0)).
 
-## 0.1.189 - 2026-08-28
+### 0.1.189 - 2026-08-28
 
 - Expanded official marker coverage across Angeles Crest, Angeles Forest, Big
   Tujunga, and Upper Big Tujunga
   ([e7419ef](https://github.com/cajaks2/crestmap/commit/e7419ef)).
 
-## 0.1.188 - 2026-08-28
+### 0.1.188 - 2026-08-28
 
 - Added subtle roadway mile-marker overlays with zoom-based sampling
   ([c0b2f46](https://github.com/cajaks2/crestmap/commit/c0b2f46)).
 - Included the marker dataset in the production image
   ([908d188](https://github.com/cajaks2/crestmap/commit/908d188)).
 
-## 0.1.187 - 2026-08-25
+### 0.1.187 - 2026-08-25
 
 - Excluded US-101 freeway incidents from Malibu results
   ([f81a209](https://github.com/cajaks2/crestmap/commit/f81a209)).
 
-## 0.1.175-0.1.186 - 2026-08-11 to 2026-08-17
+### 0.1.175-0.1.186 - 2026-08-11 to 2026-08-17
 
 - Added WildWeb/CAANCC as a second incident source with independent collection,
   storage, map display, and conservative source-aware statuses
@@ -371,7 +375,7 @@ development eras and do not imply that every intermediate version number shipped
   [c97cc07](https://github.com/cajaks2/crestmap/commit/c97cc07),
   [99218e6](https://github.com/cajaks2/crestmap/commit/99218e6)).
 
-## 0.1.164-0.1.174 - 2026-08-07 to 2026-08-09
+### 0.1.164-0.1.174 - 2026-08-07 to 2026-08-09
 
 - Added LASD and LA County Fire rescue-helicopter tracking
   ([38bf844](https://github.com/cajaks2/crestmap/commit/38bf844),
@@ -388,7 +392,7 @@ development eras and do not imply that every intermediate version number shipped
   ([1dc2569](https://github.com/cajaks2/crestmap/commit/1dc2569),
   [a7ae9de](https://github.com/cajaks2/crestmap/commit/a7ae9de)).
 
-## 0.1.148-0.1.163 - 2026-08-06 to 2026-08-07
+### 0.1.148-0.1.163 - 2026-08-06 to 2026-08-07
 
 - Added configurable browser push alerts, device testing, VAPID handling, alert
   controls, installation guidance, header status, and unread badges
@@ -410,7 +414,7 @@ development eras and do not imply that every intermediate version number shipped
   ([1185418](https://github.com/cajaks2/crestmap/commit/1185418),
   [3651b4e](https://github.com/cajaks2/crestmap/commit/3651b4e)).
 
-## 0.1.134-0.1.147 - 2026-07-18 to 2026-08-05
+### 0.1.134-0.1.147 - 2026-07-18 to 2026-08-05
 
 - Added moderated public comments and the moderation admin UI
   ([e7c4501](https://github.com/cajaks2/crestmap/commit/e7c4501),
@@ -432,7 +436,7 @@ development eras and do not imply that every intermediate version number shipped
   [9139b8f](https://github.com/cajaks2/crestmap/commit/9139b8f),
   [dce7437](https://github.com/cajaks2/crestmap/commit/dce7437)).
 
-## 0.1.115-0.1.133 - 2026-06-28 to 2026-07-12
+### 0.1.115-0.1.133 - 2026-06-28 to 2026-07-12
 
 - Migrated the production web app to FastAPI and gunicorn
   ([1650101](https://github.com/cajaks2/crestmap/commit/1650101)).
@@ -457,7 +461,7 @@ development eras and do not imply that every intermediate version number shipped
   [de224dc](https://github.com/cajaks2/crestmap/commit/de224dc),
   [741dc2c](https://github.com/cajaks2/crestmap/commit/741dc2c)).
 
-## 0.1.90-0.1.114 - 2026-06-11 to 2026-06-28
+### 0.1.90-0.1.114 - 2026-06-11 to 2026-06-28
 
 - Promoted Malibu from preview to a public region with viewport, URL, counts, and
   badge support ([363a2c8](https://github.com/cajaks2/crestmap/commit/363a2c8),
@@ -481,7 +485,7 @@ development eras and do not imply that every intermediate version number shipped
   [63232f8](https://github.com/cajaks2/crestmap/commit/63232f8),
   [85d6b84](https://github.com/cajaks2/crestmap/commit/85d6b84)).
 
-## 0.1.64-0.1.89 - 2026-06-07 to 2026-06-11
+### 0.1.64-0.1.89 - 2026-06-07 to 2026-06-11
 
 - Added JSON incident loading plus Summary, History, and About views
   ([e024d38](https://github.com/cajaks2/crestmap/commit/e024d38),
@@ -508,7 +512,7 @@ development eras and do not imply that every intermediate version number shipped
   [8232aa5](https://github.com/cajaks2/crestmap/commit/8232aa5),
   [be2f091](https://github.com/cajaks2/crestmap/commit/be2f091)).
 
-## 0.1.32-0.1.63 - 2026-05-31 to 2026-06-07
+### 0.1.32-0.1.63 - 2026-05-31 to 2026-06-07
 
 - Added DigitalOcean Compose deployment, health checks, backups, and a long-running
   metrics-enabled scraper ([3549ce5](https://github.com/cajaks2/crestmap/commit/3549ce5),
@@ -530,7 +534,7 @@ development eras and do not imply that every intermediate version number shipped
   [0d037ef](https://github.com/cajaks2/crestmap/commit/0d037ef),
   [1c290db](https://github.com/cajaks2/crestmap/commit/1c290db)).
 
-## 0.1.0-0.1.31 - 2026-05-31
+### 0.1.0-0.1.31 - 2026-05-31
 
 - Created the CHP scraper, live map, detail view, coordinate parsing, and Leaflet
   presentation ([db249de](https://github.com/cajaks2/crestmap/commit/db249de),

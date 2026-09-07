@@ -13,6 +13,10 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Releases
 
+### 0.1.243 - 2026-09-07
+
+- Document temperature, road-weather forecast, and NWS alert refresh behavior in About, and clarify that the 1–2 minute cadence applies to incident sources.
+
 ### 0.1.242 - 2026-09-07
 
 - Expand About-page attribution with OpenSky and OpenStreetMap credits, weather license links, and clearer CHP, forecast, and mile-marker source descriptions.

@@ -6966,13 +6966,15 @@ def build_about_html(
         <div class="kpi"><strong>{status["total_count"]}</strong><span>Incidents in this window</span></div>
         <div class="kpi"><strong>{status["active_count"]}</strong><span>Active CHP incidents</span></div>
         <div class="kpi"><strong>{status["mapped_count"]}</strong><span>Mapped incidents</span></div>
-        <div class="kpi"><strong>1–2m</strong><span>Approximate source cadence</span></div>
+        <div class="kpi"><strong>1–2m</strong><span>Incident source cadence</span></div>
       </section>
       <section class="section">
         <h2>Update Cadence</h2>
         <div class="result"><strong>CHP</strong><span>Checked about once per minute.</span></div>
         <div class="result"><strong>WildWeb</strong><span>Checked independently about once every two minutes. Reports older than the configured collection window are archived.</span></div>
         <div class="result"><strong>Active incident details</strong><span>Unchanged active incidents are refreshed about every 3 minutes.</span></div>
+        <div class="result"><strong>Air temperature</strong><span>Checked about every 15 minutes while the temperature layer is enabled and the page is visible. Also checked when you return to the tab or reconnect. Weather responses may be reused for up to 15 minutes; station observation times and forecast validity times can be earlier than the check time.</span></div>
+        <div class="result"><strong>Road-weather forecasts and NWS alerts</strong><span>Loaded together when the road-weather layer first opens on a page. Responses may be reused for up to 15 minutes. This layer does not periodically refresh in an open tab; reload the page to request an update. Forecasts cover the next six hours.</span></div>
         <div class="result"><strong>Status meaning</strong><span>CHP records use Active and Cleared. WildWeb records say Reported unless the source explicitly provides Contained, Controlled, or Out. No longer listed and Archived do not mean Crestmap independently confirmed the incident is over. Both use gray map dots; aged-out reports have a muted brown ring while reports removed from WildWeb have a slate ring.</span></div>
         <div class="result"><strong>History</strong><span>Cleared and archived records stay in the database and are shown when they fall inside the selected time window.</span></div>
       </section>

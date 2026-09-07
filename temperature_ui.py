@@ -50,7 +50,7 @@ TEMPERATURE_CSS = """
     .temperature-popup strong { font-size: 17px; color: #263122; }
     .temperature-popup small { display: block; margin-top: 6px; max-width: 220px; }
     .temperature-load-status {
-      position: absolute; left: 50%; top: 10px; z-index: 431; display: none;
+      position: absolute; left: 50%; top: 54px; z-index: 1000; display: none;
       align-items: center; gap: 7px; max-width: calc(100% - 110px); padding: 6px 9px;
       border: 1px solid #c8cec3; border-radius: 9px; background: rgba(251,252,248,.96);
       color: #4b554a; box-shadow: 0 1px 5px rgba(24,32,38,.16);

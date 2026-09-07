@@ -40,10 +40,11 @@ ROAD_WEATHER_CSS = """
       background: #fbfcf8; border: 1px solid #c8cec3;
     }
     .road-weather-alert {
-      position: absolute; left: 56px; right: 56px; top: 12px; z-index: 1000; height: 36px;
-      min-width: 0; padding: 0 10px; border: 1px solid #8796a2; border-radius: 9px; background: rgba(251,252,248,.96);
+      position: absolute; left: 50%; top: 12px; z-index: 1000; height: 36px; max-width: calc(100% - 120px);
+      padding: 0 10px; border: 1px solid #8796a2; border-radius: 999px; background: rgba(251,252,248,.96);
       color: #465767; box-shadow: 0 2px 8px rgba(24,32,38,.16); cursor: pointer;
       font: 700 10px/14px -apple-system,BlinkMacSystemFont,sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      transform: translateX(-50%);
     }
     .road-weather-alert-details {
       position: absolute; left: 56px; right: 56px; top: 54px; z-index: 1002;

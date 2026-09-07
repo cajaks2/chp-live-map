@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
 IMAGE_REPO ?= cajaks2/chp-live-map
-VERSION ?= 0.1.234
+VERSION ?= 0.1.235
 PLATFORM ?= linux/amd64
 MANIFEST ?= k8s/chp-live-map.yaml
 NAMESPACE ?= chp-live-map

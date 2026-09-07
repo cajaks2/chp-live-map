@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+## 0.1.235 - 2026-09-06
+
+- Restore the compact pill shape for NWS advisories and place temperature loading
+  or retry status below the map control row so the two states remain readable.
+
 ## 0.1.234 - 2026-09-06
 
 - Move NWS advisories into the map control row and reveal the advisory headline,

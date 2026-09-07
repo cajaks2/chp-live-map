@@ -142,6 +142,7 @@ def test_endpoint_and_map_layer_menu(tmp_path, monkeypatch):
     assert 'document.createElement("button")' in rendered
     assert 'className = "road-weather-alert-details"' in rendered
     assert "Tap for details" in rendered
+    assert "border-radius: 999px" in rendered
     assert 'start.getTime() <= now && now < end.getTime() ? "Now"' in rendered
     assert "bindTooltip(label" not in rendered
     assert "Timing is hourly guidance and may shift" in rendered

@@ -16,6 +16,7 @@ from weather_metrics import record_cache, record_provider, record_refresh
 
 CACHE_SECONDS = 15 * 60
 FORECAST_HOURS = 6
+RECENT_RAIN_HOURS = 3
 NWS_USER_AGENT = "Crestmap-road-weather/1.0 (+https://crestmap.us/about)"
 REGION_ALERT_TERMS = {
     "forest": ("Los Angeles", "San Bernardino"),
@@ -65,25 +66,28 @@ def parse_forecasts(payload, region, now):
         freezing = hourly.get("freezing_level_height") or []
         if units.get("temperature_2m") != "°F" or units.get("rain") != "inch" or units.get("snowfall") != "inch":
             continue
-        count = min(FORECAST_HOURS, len(times), len(temperatures), len(probabilities), len(rain), len(snowfall), len(freezing))
+        count = min(len(times), len(temperatures), len(probabilities), len(rain), len(snowfall), len(freezing))
         usable = []
         for index in range(count):
             values = (times[index], temperatures[index], probabilities[index], rain[index], snowfall[index], freezing[index])
             if not all(_number(value) for value in values):
                 continue
             # Open-Meteo timestamps mark the start of an hourly interval. Keep
-            # the current interval and future intervals, never one that has
-            # already ended.
-            if times[index] + 3600 > now and times[index] <= now + FORECAST_HOURS * 3600:
+            # upcoming guidance plus a short recent-rain window for wet-road context.
+            if (times[index] + 3600 > now - RECENT_RAIN_HOURS * 3600
+                    and times[index] <= now + FORECAST_HOURS * 3600):
                 usable.append(values)
         if not usable:
             continue
+        upcoming = [item for item in usable if item[0] + 3600 > now]
+        recent = [item for item in usable if item[0] + 3600 <= now]
         elevation_m = float(row["elevation"])
-        min_temperature = min(item[1] for item in usable)
-        probability = max(item[2] for item in usable)
-        rain_inches = sum(max(0, item[3]) for item in usable)
-        snow_inches = sum(max(0, item[4]) for item in usable)
-        min_freezing_level = min(item[5] for item in usable)
+        min_temperature = min((item[1] for item in upcoming), default=math.inf)
+        probability = max((item[2] for item in upcoming), default=0)
+        rain_inches = sum(max(0, item[3]) for item in upcoming)
+        recent_rain_inches = sum(max(0, item[3]) for item in recent)
+        snow_inches = sum(max(0, item[4]) for item in upcoming)
+        min_freezing_level = min((item[5] for item in upcoming), default=math.inf)
         hazard = None
         if snow_inches >= 0.02:
             hazard = "snow"
@@ -91,16 +95,29 @@ def parse_forecasts(payload, region, now):
             hazard = "ice"
         elif probability >= 35 and rain_inches >= 0.02:
             hazard = "rain"
+        elif rain_inches >= 0.01:
+            hazard = "rain_possible"
+        elif recent_rain_inches >= 0.01:
+            hazard = "rain_recent"
         if not hazard:
             continue
         if hazard == "snow":
-            affected = [item for item in usable if item[4] >= 0.01]
+            affected = [item for item in upcoming if item[4] >= 0.01]
         elif hazard == "ice":
-            affected = [item for item in usable if item[2] >= 30 and item[1] <= 34 and item[5] <= elevation_m + 300]
+            affected = [item for item in upcoming if item[2] >= 30 and item[1] <= 34 and item[5] <= elevation_m + 300]
+        elif hazard == "rain":
+            affected = [item for item in upcoming if item[2] >= 35 and item[3] > 0]
+        elif hazard == "rain_possible":
+            affected = [item for item in upcoming if item[3] > 0]
         else:
-            affected = [item for item in usable if item[2] >= 35 and item[3] >= 0.01]
+            affected = [item for item in recent if item[3] > 0]
         if not affected:
-            affected = usable
+            affected = upcoming or recent
+        summary = upcoming if hazard != "rain_recent" else recent
+        probability = max(item[2] for item in summary)
+        rain_inches = sum(max(0, item[3]) for item in summary)
+        min_temperature = min(item[1] for item in summary)
+        min_freezing_level = min(item[5] for item in summary)
         periods = []
         for item in affected:
             start = item[0]
@@ -129,7 +146,7 @@ def parse_forecasts(payload, region, now):
                 }
                 for start, end in periods
             ],
-            "valid_until": dt.datetime.fromtimestamp(usable[-1][0] + 3600, dt.timezone.utc).isoformat(),
+            "valid_until": dt.datetime.fromtimestamp((upcoming or recent)[-1][0] + 3600, dt.timezone.utc).isoformat(),
         })
     return points
 
@@ -177,6 +194,7 @@ def load_road_weather(region):
             "temperature_unit": "fahrenheit",
             "precipitation_unit": "inch",
             "forecast_hours": FORECAST_HOURS,
+            "past_hours": RECENT_RAIN_HOURS,
             "timeformat": "unixtime",
             "cell_selection": "land",
         }
@@ -231,7 +249,8 @@ def load_road_weather(region):
         _cache[region] = (now, result)
         _retry_after.pop(region, None)
         duration = time.monotonic() - refresh_started
-        hazard_counts = {hazard: sum(point.get("hazard") == hazard for point in points) for hazard in ("rain", "snow", "ice")}
+        hazard_counts = {hazard: sum(point.get("hazard") == hazard for point in points)
+                         for hazard in ("rain", "rain_possible", "rain_recent", "snow", "ice")}
         record_refresh(
             "road_weather", region, "success", duration, now,
             {"total": len(points), "alerts": len(alerts), **hazard_counts},
@@ -241,7 +260,9 @@ def load_road_weather(region):
             **{"event.action": "weather_refresh", "event.outcome": "success",
                "weather.pipeline": "road_weather", "weather.region": region,
                "weather.points": len(points), "weather.alerts": len(alerts),
-               "weather.rain": hazard_counts["rain"], "weather.snow": hazard_counts["snow"],
+               "weather.rain": hazard_counts["rain"] + hazard_counts["rain_possible"] + hazard_counts["rain_recent"],
+               "weather.rain_possible": hazard_counts["rain_possible"],
+               "weather.rain_recent": hazard_counts["rain_recent"], "weather.snow": hazard_counts["snow"],
                "weather.ice": hazard_counts["ice"], "weather.nws_outcome": nws_outcome,
                "event.duration": round(duration * 1_000_000_000)},
         )

@@ -63,6 +63,13 @@ def test_dry_forecasts_do_not_add_map_markers():
     assert points == []
 
 
+def test_low_probability_modeled_rain_is_shown_as_possible():
+    points = weather.parse_forecasts(
+        forecast_payload("forest", probability=15, rain=0.01), "forest", NOW
+    )
+    assert points and {point["hazard"] for point in points} == {"rain_possible"}
+
+
 def test_forecast_keeps_separate_rain_periods():
     payload = forecast_payload("malibu", probability=10, rain=0, snow=0)
     for row in payload:
@@ -74,13 +81,14 @@ def test_forecast_keeps_separate_rain_periods():
     assert len(point["periods"]) == 2
 
 
-def test_forecast_drops_hourly_periods_that_have_already_ended():
+def test_forecast_retains_recent_modeled_rain():
     payload = forecast_payload("malibu", probability=10, rain=0, snow=0)
     for row in payload:
         row["hourly"]["time"] = [NOW - 7200, NOW - 3600, NOW, NOW + 3600, NOW + 7200, NOW + 10800]
         row["hourly"]["precipitation_probability"][:2] = [80, 80]
         row["hourly"]["rain"][:2] = [0.1, 0.1]
-    assert weather.parse_forecasts(payload, "malibu", NOW) == []
+    points = weather.parse_forecasts(payload, "malibu", NOW)
+    assert points and {point["hazard"] for point in points} == {"rain_recent"}
 
 
 def test_alerts_are_filtered_to_region_and_weather_events():
@@ -107,6 +115,7 @@ def test_load_batches_forecasts_and_keeps_key_server_side(monkeypatch):
     params = parse_qs(open_meteo_url.query)
     assert open_meteo_url.hostname == "customer-api.open-meteo.com"
     assert params["forecast_hours"] == [str(weather.FORECAST_HOURS)]
+    assert params["past_hours"] == [str(weather.RECENT_RAIN_HOURS)]
     assert "synthetic-key" not in json.dumps(result)
     assert len(calls) == 2
 
@@ -133,6 +142,9 @@ def test_endpoint_and_map_layer_menu(tmp_path, monkeypatch):
     assert "Fire cameras" not in header_menu
     assert "Fire cameras" in rendered
     assert ".road-weather-label.is-rain span" in rendered
+    assert ".road-weather-label.is-rain_recent span" in rendered
+    assert '"RAIN?"' in rendered
+    assert '"WET"' in rendered
     assert "point.hazard.toUpperCase()" in rendered
     assert 'className: "road-weather-map-popup"' in rendered
     assert 'maxWidth: 280, offset: [0,-14]' in rendered

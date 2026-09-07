@@ -14,6 +14,10 @@ ROAD_WEATHER_CSS = """
     }
     .road-weather-label.is-rain { color: #337a96; }
     .road-weather-label.is-rain span { background: rgba(51,122,150,.92); }
+    .road-weather-label.is-rain_possible { color: #628c9c; }
+    .road-weather-label.is-rain_possible span { background: rgba(98,140,156,.82); }
+    .road-weather-label.is-rain_recent { color: #788b91; }
+    .road-weather-label.is-rain_recent span { background: rgba(120,139,145,.76); }
     .road-weather-label.is-snow { color: #6a67a0; }
     .road-weather-label.is-snow span { background: rgba(106,103,160,.94); }
     .road-weather-label.is-ice { color: #596b7d; }
@@ -108,11 +112,12 @@ ROAD_WEATHER_JS = r"""
 
       function description() {
         if (!enabled) return "Hidden from map";
-        if (state === "loading") return "Checking next 6 hours…";
+        if (state === "loading") return "Checking recent + next 6 hours…";
         if (state === "error") return "Forecast unavailable · tap to retry";
         const counts = points.reduce((all, point) => { all[point.hazard] = (all[point.hazard] || 0) + 1; return all; }, {});
-        const labels = ["rain", "snow", "ice"].filter(key => counts[key]);
-        return labels.length ? `${labels.map(key => key[0].toUpperCase() + key.slice(1)).join(" · ")} indicated along roads` : "No rain, snow, or ice indicated";
+        const rainCount = (counts.rain || 0) + (counts.rain_possible || 0) + (counts.rain_recent || 0);
+        const labels = [rainCount ? "Rain" : "", counts.snow ? "Snow" : "", counts.ice ? "Ice" : ""].filter(Boolean);
+        return labels.length ? `${labels.join(" · ")} indicated along roads` : "No rain, snow, or ice indicated";
       }
       function updateButton() {
         button.classList.toggle("is-active", enabled);
@@ -137,7 +142,7 @@ ROAD_WEATHER_JS = r"""
           alertBadge.hidden = false;
         }
         const placed = [];
-        const rank = { ice: 3, snow: 2, rain: 1 };
+        const rank = { ice: 5, snow: 4, rain: 3, rain_possible: 2, rain_recent: 1 };
         [...points].sort((a, b) => rank[b.hazard] - rank[a.hazard]).forEach(point => {
           const latlng = [point.latitude, point.longitude];
           if (!map.getBounds().contains(latlng)) return;
@@ -145,8 +150,8 @@ ROAD_WEATHER_JS = r"""
           if (placed.some(existing => Math.abs(existing.x - pixel.x) < 58 && Math.abs(existing.y - pixel.y) < 42)) return;
           placed.push(pixel);
           const elevation = Math.round(point.elevation_m * 3.28084).toLocaleString();
-          const label = point.hazard === "ice" ? "Ice possible" : point.hazard === "snow" ? "Snow possible" : "Rain likely";
-          const amount = point.hazard === "snow" ? `${point.snow_inches} in modeled snow` : point.hazard === "rain" ? `${point.rain_inches} in modeled rain` : `Low near ${Math.round(point.minimum_temperature_f)}°F`;
+          const label = point.hazard === "ice" ? "Ice possible" : point.hazard === "snow" ? "Snow possible" : point.hazard === "rain" ? "Rain likely" : point.hazard === "rain_possible" ? "Rain possible" : "Recent rain";
+          const amount = point.hazard === "snow" ? `${point.snow_inches} in modeled snow` : point.hazard.startsWith("rain") ? `${point.rain_inches} in modeled rain` : `Low near ${Math.round(point.minimum_temperature_f)}°F`;
           const periods = Array.isArray(point.periods) && point.periods.length
             ? point.periods : [{ starts_at: point.starts_at, ends_at: point.ends_at }];
           const time = new Intl.DateTimeFormat([], { hour: "numeric" });
@@ -158,7 +163,7 @@ ROAD_WEATHER_JS = r"""
             const startLabel = start.getTime() <= now && now < end.getTime() ? "Now" : time.format(start);
             return `${startLabel}–${time.format(end)}`;
           }).filter(Boolean).join(", ") || "Within the next six hours";
-          const hazardWindowLabel = point.hazard === "ice" ? "Possible ice" : point.hazard === "snow" ? "Expected snow" : "Expected rain";
+          const hazardWindowLabel = point.hazard === "ice" ? "Possible ice" : point.hazard === "snow" ? "Expected snow" : point.hazard === "rain_recent" ? "Modeled rain" : "Expected rain";
           const validUntil = new Date(point.valid_until);
           const checkedThrough = Number.isNaN(validUntil.getTime()) ? "" : time.format(validUntil);
           const marker = L.marker(latlng, {
@@ -166,10 +171,11 @@ ROAD_WEATHER_JS = r"""
             title: `${point.name}: ${label}`,
             icon: L.divIcon({
               className: `road-weather-label is-${point.hazard}`,
-              html: `<span>${point.hazard.toUpperCase()}</span>`, iconSize: [34,17], iconAnchor: [17,8]
+              html: `<span>${point.hazard === "rain_recent" ? "WET" : point.hazard === "rain_possible" ? "RAIN?" : point.hazard.toUpperCase()}</span>`, iconSize: [34,17], iconAnchor: [17,8]
             })
           });
-          marker.bindPopup(`<div class="road-weather-popup"><strong>${label}</strong><br>${escapeHtml(point.name)}<br><b>${hazardWindowLabel}: ${escapeHtml(hazardWindow)}</b>${checkedThrough ? `<br>Forecast checked through ${escapeHtml(checkedThrough)}` : ""}<br>${elevation} ft · ${point.precipitation_probability}% chance<br>${escapeHtml(amount)}<small>Timing is hourly guidance and may shift. This is not a measured pavement condition. Check posted closures and chain controls before travel.</small></div>`, { className: "road-weather-map-popup", maxWidth: 280, offset: [0,-14], autoPanPadding: [32,32] });
+          const checkedLabel = point.hazard === "rain_recent" ? "Recent period ended" : "Forecast checked through";
+          marker.bindPopup(`<div class="road-weather-popup"><strong>${label}</strong><br>${escapeHtml(point.name)}<br><b>${hazardWindowLabel}: ${escapeHtml(hazardWindow)}</b>${checkedThrough ? `<br>${checkedLabel} ${escapeHtml(checkedThrough)}` : ""}<br>${elevation} ft · ${point.precipitation_probability}% chance<br>${escapeHtml(amount)}<small>Timing is hourly guidance and may shift. This is not a measured pavement condition. Check posted closures and chain controls before travel.</small></div>`, { className: "road-weather-map-popup", maxWidth: 280, offset: [0,-14], autoPanPadding: [32,32] });
           marker.on("popupopen", () => { popupOpen = true; });
           marker.on("popupclose", () => {
             popupOpen = false;

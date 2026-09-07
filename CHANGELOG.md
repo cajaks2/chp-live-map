@@ -13,6 +13,10 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Releases
 
+### 0.1.241 - 2026-09-07
+
+- Show low-confidence modeled precipitation as `RAIN?` and retain modeled rain as a subtle `WET` road marker for three hours after it ends.
+
 ### 0.1.244 - 2026-09-07
 
 - Compact temperature popups on phones, retain the six-hour forecast, shorten source notes, and reserve space above the incident-details control.

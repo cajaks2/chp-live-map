@@ -174,8 +174,9 @@ ROAD_WEATHER_JS = r"""
               html: `<span>${point.hazard === "rain_recent" ? "WET" : point.hazard === "rain_possible" ? "RAIN?" : point.hazard.toUpperCase()}</span>`, iconSize: [34,17], iconAnchor: [17,8]
             })
           });
-          const checkedLabel = point.hazard === "rain_recent" ? "Recent period ended" : "Forecast checked through";
-          marker.bindPopup(`<div class="road-weather-popup"><strong>${label}</strong><br>${escapeHtml(point.name)}<br><b>${hazardWindowLabel}: ${escapeHtml(hazardWindow)}</b>${checkedThrough ? `<br>${checkedLabel} ${escapeHtml(checkedThrough)}` : ""}<br>${elevation} ft · ${point.precipitation_probability}% chance<br>${escapeHtml(amount)}<small>Timing is hourly guidance and may shift. This is not a measured pavement condition. Check posted closures and chain controls before travel.</small></div>`, { className: "road-weather-map-popup", maxWidth: 280, offset: [0,-14], autoPanPadding: [32,32] });
+          const recentDetail = `<b>${escapeHtml(hazardWindow)}</b><br>${elevation} ft<br>${escapeHtml(amount)}<small>Modeled recent rainfall, not a rain-gauge or road-surface measurement.</small>`;
+          const forecastDetail = `<b>${hazardWindowLabel}: ${escapeHtml(hazardWindow)}</b>${checkedThrough ? `<br>Forecast checked through ${escapeHtml(checkedThrough)}` : ""}<br>${elevation} ft · ${point.precipitation_probability}% chance<br>${escapeHtml(amount)}<small>Hourly forecast guidance may shift. Check posted closures and chain controls before travel.</small>`;
+          marker.bindPopup(`<div class="road-weather-popup"><strong>${label}</strong><br>${escapeHtml(point.name)}<br>${point.hazard === "rain_recent" ? recentDetail : forecastDetail}</div>`, { className: "road-weather-map-popup", maxWidth: 280, offset: [0,-14], autoPanPadding: [32,32] });
           marker.on("popupopen", () => { popupOpen = true; });
           marker.on("popupclose", () => {
             popupOpen = false;

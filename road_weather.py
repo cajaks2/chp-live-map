@@ -146,7 +146,7 @@ def parse_forecasts(payload, region, now):
                 }
                 for start, end in periods
             ],
-            "valid_until": dt.datetime.fromtimestamp((upcoming or recent)[-1][0] + 3600, dt.timezone.utc).isoformat(),
+            "valid_until": dt.datetime.fromtimestamp(affected[-1][0] + 3600, dt.timezone.utc).isoformat(),
         })
     return points
 
@@ -157,6 +157,8 @@ def parse_alerts(payload, region):
         properties = feature.get("properties") or {}
         event = properties.get("event") or ""
         area = properties.get("areaDesc") or ""
+        if region == "forest" and "coastal" in event.casefold():
+            continue
         if not any(term.casefold() in area.casefold() for term in REGION_ALERT_TERMS[region]):
             continue
         if not any(term.casefold() in event.casefold() for term in WEATHER_ALERT_EVENTS):

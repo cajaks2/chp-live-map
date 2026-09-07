@@ -99,6 +99,15 @@ def test_alerts_are_filtered_to_region_and_weather_events():
     assert [alert["event"] for alert in result] == ["Winter Storm Warning"]
 
 
+def test_coastal_alerts_do_not_appear_on_forest_map():
+    payload = {"features": [{"properties": {
+        "id": "coast", "event": "Coastal Flood Advisory",
+        "areaDesc": "Los Angeles County", "headline": "Minor coastal flooding",
+    }}]}
+    assert weather.parse_alerts(payload, "forest") == []
+    assert [alert["event"] for alert in weather.parse_alerts(payload, "malibu")] == ["Coastal Flood Advisory"]
+
+
 def test_load_batches_forecasts_and_keeps_key_server_side(monkeypatch):
     calls = []
     def fetch(request, timeout):
@@ -151,6 +160,8 @@ def test_endpoint_and_map_layer_menu(tmp_path, monkeypatch):
     assert "hazardWindow" in rendered
     assert '"Expected rain"' in rendered
     assert "Forecast checked through" in rendered
+    assert "Modeled recent rainfall, not a rain-gauge" in rendered
+    assert 'point.hazard === "rain_recent" ? recentDetail : forecastDetail' in rendered
     assert 'document.createElement("button")' in rendered
     assert 'className = "road-weather-alert-details"' in rendered
     assert 'if (!enabled || inFlight || document.hidden) return;' in rendered
@@ -160,7 +171,7 @@ def test_endpoint_and_map_layer_menu(tmp_path, monkeypatch):
     assert "border-radius: 999px" in rendered
     assert 'start.getTime() <= now && now < end.getTime() ? "Now"' in rendered
     assert "bindTooltip(label" not in rendered
-    assert "Timing is hourly guidance and may shift" in rendered
+    assert "Hourly forecast guidance may shift" in rendered
     assert "if (popupOpen) return" in rendered
     assert 'marker.on("popupopen"' in rendered
     assert 'if (menu.open && !menu.contains(event.target))' in rendered

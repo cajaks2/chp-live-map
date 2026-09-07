@@ -13,6 +13,10 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Releases
 
+### 0.1.247 - 2026-09-07
+
+- Simplify recent-rain popups to one historical time range, elevation, and modeled amount; fix their end time and suppress coastal advisories on the Forest map.
+
 ### 0.1.246 - 2026-09-07
 
 - Extend the subtle recent-rain `WET` context from three to six hours so morning precipitation remains visible around midday.

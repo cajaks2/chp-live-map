@@ -179,7 +179,7 @@ ROAD_WEATHER_JS = r"""
         });
       }
       async function refresh() {
-        if (!enabled || inFlight) return;
+        if (!enabled || inFlight || document.hidden) return;
         inFlight = true; state = "loading"; updateButton();
         try {
           const response = await fetch(`${endpoint}?region=${encodeURIComponent(currentRegion)}`, { signal: AbortSignal.timeout(12000) });
@@ -198,6 +198,11 @@ ROAD_WEATHER_JS = r"""
         updateButton(); render(); if (enabled && state === "idle") refresh();
       });
       map.on("moveend zoomend", render);
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) refresh();
+      });
+      window.addEventListener("online", refresh);
+      window.setInterval(refresh, 15 * 60 * 1000);
       updateButton(); if (enabled) refresh();
       window.chpLiveMap.roadWeatherLayer = layer;
     })();

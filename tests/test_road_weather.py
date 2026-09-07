@@ -141,6 +141,9 @@ def test_endpoint_and_map_layer_menu(tmp_path, monkeypatch):
     assert "Forecast checked through" in rendered
     assert 'document.createElement("button")' in rendered
     assert 'className = "road-weather-alert-details"' in rendered
+    assert 'if (!enabled || inFlight || document.hidden) return;' in rendered
+    assert 'window.setInterval(refresh, 15 * 60 * 1000);' in rendered
+    assert 'window.addEventListener("online", refresh);' in rendered
     assert "Tap for details" in rendered
     assert "border-radius: 999px" in rendered
     assert 'start.getTime() <= now && now < end.getTime() ? "Now"' in rendered

@@ -13,6 +13,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Releases
 
+### 0.1.244 - 2026-09-07
+
+- Compact temperature popups on phones, retain the six-hour forecast, shorten source notes, and reserve space above the incident-details control.
+- Refresh road-weather forecasts and NWS alerts every 15 minutes while their layer is visible, and refresh after returning to the tab or reconnecting.
+
 ### 0.1.243 - 2026-09-07
 
 - Document temperature, road-weather forecast, and NWS alert refresh behavior in About, and clarify that the 1–2 minute cadence applies to incident sources.

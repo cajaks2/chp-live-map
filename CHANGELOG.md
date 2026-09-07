@@ -13,6 +13,10 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Releases
 
+### 0.1.241 - 2026-09-07
+
+- Stop presenting WildWeb reports as current incidents in browser titles, link previews, header counts, and summary cards; titles now identify active CHP incidents and the history window.
+
 ### 0.1.240 - 2026-09-06
 
 - Expand temperature popup forecasts from four to six hours and arrange them as a compact single row on mobile.

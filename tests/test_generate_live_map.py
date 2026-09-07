@@ -166,7 +166,10 @@ def test_build_html_labels_wildweb_report_without_claiming_it_is_active_or_clear
 
     assert incidents[0]["status"] == "reported"
     assert incidents[0]["source"] == "wildweb"
-    assert "1 WildWeb" in html
+    assert "1 WildWeb" not in html
+    assert "0 active · 1 in 72h · 0 mapped" in html
+    assert "Crestmap Forest Incidents (0 active CHP, 1 in 72h)" in html
+    assert "reportedText" not in html
     assert '<span class="region-active-count" aria-label="0 active incidents">0</span>' in html
     assert "const reportedCount = Number(regionStatuses[region].reported_count || 0);" not in html
     assert '<span class="source-pill">${escapeHtml(sourceText)}</span>' in html
@@ -565,14 +568,14 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
         app_version="test-1",
     )
 
-    assert "Crestmap Forest Incidents (1 current, 2 total)" in html
+    assert "Crestmap Forest Incidents (1 active CHP, 2 in 72h)" in html
     assert 'http-equiv="Cache-Control"' not in html
     assert '<meta name="description" content="Live and historical CHP traffic incidents and WildWeb dispatch reports' in html
     assert '<meta property="og:description" content="Live and historical CHP traffic incidents and WildWeb dispatch reports' in html
     assert '<meta name="robots" content="index,follow,max-image-preview:large">' in html
     assert '<link rel="canonical" href="https://crestmap.us/">' in html
     assert '<link rel="icon" href="https://crestmap.us/favicon.svg?active=1&amp;v=' in html
-    assert '<meta property="og:title" content="Crestmap Forest Incidents (1 current, 2 total)">' in html
+    assert '<meta property="og:title" content="Crestmap Forest Incidents (1 active CHP, 2 in 72h)">' in html
     assert '<meta property="og:image" content="https://crestmap.us/og-image.png">' in html
     assert '<meta property="og:image:type" content="image/png">' in html
     assert '<meta name="twitter:card" content="summary_large_image">' in html

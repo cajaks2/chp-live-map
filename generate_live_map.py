@@ -1365,10 +1365,7 @@ def report_location_html(incident):
 
 
 def status_summary_text(status, hours):
-    reported = int(status.get("reported_count", 0))
     prefix = f"{status['active_count']} active"
-    if reported:
-        prefix += f" · {reported} WildWeb"
     return f"{prefix} · {status['total_count']} in {hours:g}h · {status['mapped_count']} mapped"
 
 
@@ -1422,7 +1419,7 @@ def build_html(
     status = {**incident_status(incidents, hours), "region": region}
     active_count = status["active_count"]
     mapped_count = status["mapped_count"]
-    title = f"Crestmap {map_label} Incidents ({status['current_count']} current, {status['total_count']} total)"
+    title = f"Crestmap {map_label} Incidents ({status['active_count']} active CHP, {status['total_count']} in {hours:g}h)"
     if region == "forest":
         description = (
             "Live and historical CHP traffic incidents and WildWeb dispatch reports for Angeles Crest, "
@@ -5585,10 +5582,7 @@ def build_html(
       const hoursLabel = Number.isInteger(hours) ? String(hours) : String(status.hours);
       const meta = document.querySelector("header .meta");
       if (meta) {{
-        const reportedText = Number(status.reported_count || 0)
-          ? ` · ${{status.reported_count}} WildWeb`
-          : "";
-        meta.textContent = `${{status.active_count}} active${{reportedText}} · ${{status.total_count}} in ${{hoursLabel}}h · ${{status.mapped_count}} mapped`;
+        meta.textContent = `${{status.active_count}} active · ${{status.total_count}} in ${{hoursLabel}}h · ${{status.mapped_count}} mapped`;
       }}
       updateRegionCounts(regionStatuses || status.region_statuses);
       currentDataStatus = status;
@@ -6763,7 +6757,6 @@ def build_summary_html(
     status = {**incident_status(filtered_incidents, hours), "region": region}
     active_count = status["active_count"]
     mapped_count = status["mapped_count"]
-    reported_count = status["reported_count"]
     cleared_count = status["cleared_count"] + status["archived_count"]
     road_rows = report_rows(count_by(filtered_incidents, incident_road))
     type_rows = report_rows(count_by(filtered_incidents, lambda incident: incident.get("type") or "Unknown"))
@@ -6808,7 +6801,6 @@ def build_summary_html(
       <section class="kpi-grid" aria-label="Incident summary">
         <div class="kpi"><strong>{status["total_count"]}</strong><span>Incidents in window</span></div>
         <div class="kpi"><strong>{active_count}</strong><span>Active CHP incidents</span></div>
-        {f'<div class="kpi"><strong>{reported_count}</strong><span>Current WildWeb reports</span></div>' if reported_count else ''}
         <div class="kpi"><strong>{mapped_count}</strong><span>Mapped incidents</span></div>
         <div class="kpi"><strong>{cleared_count}</strong><span>Cleared or archived</span></div>
       </section>
@@ -6973,7 +6965,6 @@ def build_about_html(
       <section class="kpi-grid" aria-label="Current data status" style="margin-top: 14px;">
         <div class="kpi"><strong>{status["total_count"]}</strong><span>Incidents in this window</span></div>
         <div class="kpi"><strong>{status["active_count"]}</strong><span>Active CHP incidents</span></div>
-        <div class="kpi"><strong>{status["reported_count"]}</strong><span>Current WildWeb reports</span></div>
         <div class="kpi"><strong>{status["mapped_count"]}</strong><span>Mapped incidents</span></div>
         <div class="kpi"><strong>1–2m</strong><span>Approximate source cadence</span></div>
       </section>

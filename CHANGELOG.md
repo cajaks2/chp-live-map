@@ -12,6 +12,8 @@ development eras and do not imply that every intermediate version number shipped
 ## Unreleased
 
 - Clarify the changelog structure by separating pending changes from published releases.
+- Make the Grafana weather refresh-age panel ignore uninitialized timestamps and
+  filter weather panels to the current Prometheus scrape job.
 
 ## Releases
 

@@ -16,6 +16,8 @@ development eras and do not imply that every intermediate version number shipped
 - Rename the GitHub repository, container image, service identity, Kubernetes resources,
   Prometheus series, Grafana dashboard, and project references from the legacy
   `chp-live-map` name to `crestmap`.
+- Expand the Grafana operations dashboard with temperature and road-weather
+  refresh age, failure, provider, cache, duration, and result-count panels.
 
 ## 0.1.236 - 2026-09-06
 

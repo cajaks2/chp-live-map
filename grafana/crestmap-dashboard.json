@@ -2173,7 +2173,9 @@
           "justifyMode": "auto",
           "orientation": "auto",
           "reduceOptions": {
-            "calcs": ["lastNotNull"],
+            "calcs": [
+              "lastNotNull"
+            ],
             "fields": "",
             "values": false
           },
@@ -2221,7 +2223,9 @@
           "justifyMode": "auto",
           "orientation": "auto",
           "reduceOptions": {
-            "calcs": ["lastNotNull"],
+            "calcs": [
+              "lastNotNull"
+            ],
             "fields": "",
             "values": false
           },
@@ -2269,7 +2273,9 @@
           "justifyMode": "auto",
           "orientation": "auto",
           "reduceOptions": {
-            "calcs": ["lastNotNull"],
+            "calcs": [
+              "lastNotNull"
+            ],
             "fields": "",
             "values": false
           },
@@ -2315,7 +2321,9 @@
           "displayMode": "gradient",
           "orientation": "horizontal",
           "reduceOptions": {
-            "calcs": ["lastNotNull"],
+            "calcs": [
+              "lastNotNull"
+            ],
             "fields": "",
             "values": false
           },
@@ -2360,7 +2368,9 @@
           "displayMode": "gradient",
           "orientation": "horizontal",
           "reduceOptions": {
-            "calcs": ["lastNotNull"],
+            "calcs": [
+              "lastNotNull"
+            ],
             "fields": "",
             "values": false
           },
@@ -2486,6 +2496,447 @@
         ],
         "title": "Push queues and tests",
         "type": "timeseries"
+      },
+      {
+        "id": 1014,
+        "type": "row",
+        "title": "Weather & Temperature",
+        "collapsed": false,
+        "gridPos": {
+          "x": 0,
+          "y": 93,
+          "w": 24,
+          "h": 1
+        },
+        "panels": []
+      },
+      {
+        "id": 73,
+        "type": "stat",
+        "title": "Weather refresh age",
+        "gridPos": {
+          "x": 0,
+          "y": 94,
+          "w": 6,
+          "h": 4
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "time() - crestmap_weather_last_success_timestamp_seconds{site=~\"$site\"}",
+            "legendFormat": "{{pipeline}} \u00b7 {{region}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {},
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "showPercentChange": false,
+          "textMode": "auto",
+          "wideLayout": true
+        }
+      },
+      {
+        "id": 75,
+        "type": "stat",
+        "title": "Refresh failures (1h)",
+        "gridPos": {
+          "x": 6,
+          "y": 94,
+          "w": 6,
+          "h": 4
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "sum(increase(crestmap_weather_refreshes_total{site=~\"$site\",outcome=\"failure\"}[1h]))",
+            "legendFormat": "failures",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {},
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "showPercentChange": false,
+          "textMode": "auto",
+          "wideLayout": true
+        }
+      },
+      {
+        "id": 77,
+        "type": "bargauge",
+        "title": "Latest weather points",
+        "gridPos": {
+          "x": 12,
+          "y": 94,
+          "w": 12,
+          "h": 6
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "crestmap_weather_points{site=~\"$site\"}",
+            "legendFormat": "{{pipeline}} \u00b7 {{region}} \u00b7 {{kind}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {},
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          }
+        }
+      },
+      {
+        "id": 79,
+        "type": "timeseries",
+        "title": "Refresh outcomes",
+        "gridPos": {
+          "x": 0,
+          "y": 100,
+          "w": 12,
+          "h": 7
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "sum by (pipeline,region,outcome) (rate(crestmap_weather_refreshes_total{site=~\"$site\"}[$__rate_interval]))",
+            "legendFormat": "{{pipeline}} \u00b7 {{region}} \u00b7 {{outcome}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {},
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "reqps"
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          }
+        }
+      },
+      {
+        "id": 81,
+        "type": "timeseries",
+        "title": "Provider request outcomes",
+        "gridPos": {
+          "x": 12,
+          "y": 100,
+          "w": 12,
+          "h": 7
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "sum by (pipeline,region,provider,outcome) (rate(crestmap_weather_provider_requests_total{site=~\"$site\"}[$__rate_interval]))",
+            "legendFormat": "{{pipeline}} \u00b7 {{region}} \u00b7 {{provider}} \u00b7 {{outcome}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {},
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "reqps"
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          }
+        }
+      },
+      {
+        "id": 83,
+        "type": "timeseries",
+        "title": "Latest refresh duration",
+        "gridPos": {
+          "x": 0,
+          "y": 107,
+          "w": 12,
+          "h": 7
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "crestmap_weather_last_refresh_duration_seconds{site=~\"$site\"}",
+            "legendFormat": "{{pipeline}} \u00b7 {{region}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {},
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "s"
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          }
+        }
+      },
+      {
+        "id": 85,
+        "type": "timeseries",
+        "title": "Weather cache activity",
+        "gridPos": {
+          "x": 12,
+          "y": 107,
+          "w": 12,
+          "h": 7
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "mkJbCvK4z"
+        },
+        "targets": [
+          {
+            "datasource": {
+              "type": "prometheus",
+              "uid": "mkJbCvK4z"
+            },
+            "editorMode": "code",
+            "expr": "sum by (pipeline,region,outcome) (rate(crestmap_weather_cache_events_total{site=~\"$site\"}[$__rate_interval]))",
+            "legendFormat": "{{pipeline}} \u00b7 {{region}} \u00b7 {{outcome}}",
+            "range": true,
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {},
+            "mappings": [],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "reqps"
+          },
+          "overrides": []
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom",
+            "showLegend": true
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "none"
+          }
+        }
       }
     ],
     "refresh": "30s",
@@ -2605,12 +3056,12 @@
       "to": "now"
     },
     "timezone": "browser",
-    "title": "Crestmap Crestmap",
-    "uid": "crestmap-crestmap",
-    "version": 10,
-    "description": "Operational dashboard for crestmap.us: CHP and WildWeb scraper freshness, XML/CAD source behavior, Loki access traffic, Postgres pool health, incident data quality, and Web Push delivery."
+    "title": "Crestmap Operations",
+    "uid": "crestmap-operations",
+    "version": 11,
+    "description": "Operational dashboard for crestmap.us: incident collectors, weather and temperature refreshes, site traffic, Postgres health, and Web Push delivery."
   },
   "folderUid": "bfo1wv4abcd1cd",
   "overwrite": true,
-  "message": "Graph provider-aware outbound response codes"
+  "message": "Rename Crestmap metrics and add weather refresh observability"
 }

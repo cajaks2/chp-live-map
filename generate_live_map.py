@@ -6986,13 +6986,19 @@ def build_about_html(
         <div class="filter-actions"><button type="button" data-open-push-settings>Manage alert choices</button></div>
       </section>
       <section class="section">
-        <h2>Project Links</h2>
-        <div class="result"><strong>CHP CAD source</strong><span><a href="https://cad.chp.ca.gov/Traffic.aspx" rel="noopener">cad.chp.ca.gov/Traffic.aspx</a></span></div>
+        <h2>Data Sources and Attribution</h2>
+        <div class="result"><strong>CHP source</strong><span>California Highway Patrol traffic incidents from the <a href="https://media.chp.ca.gov/sa_xml/sa.xml" rel="noopener">CHP media XML feed</a>. The <a href="https://cad.chp.ca.gov/Traffic.aspx" rel="noopener">CHP CAD page</a> is also available for reference.</span></div>
         <div class="result"><strong>WildWeb source</strong><span><a href="https://www.wildwebe.net/incidents?dc_Name=CAANCC" rel="noopener">wildwebe.net · CAANCC</a></span></div>
         <div class="result"><strong>Camera source</strong><span><a href="https://cameras.alertcalifornia.org/" rel="noopener">ALERTCalifornia</a> | UC San Diego</span></div>
-        <div class="result"><strong>Air-temperature sources</strong><span><a href="https://api.weather.gov/" rel="noopener">National Weather Service</a> station observations and <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> elevation-adjusted model estimates.</span></div>
+        <div class="result"><strong>Air-temperature sources</strong><span><a href="https://api.weather.gov/" rel="noopener">National Weather Service</a> station observations and <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> elevation-adjusted model estimates and six-hour forecasts. Forecasts shown alongside station observations also come from Open-Meteo.</span></div>
         <div class="result"><strong>Road-weather sources</strong><span><a href="https://api.weather.gov/alerts" rel="noopener">National Weather Service</a> active alerts and <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> six-hour elevation-aware precipitation forecasts. Road-weather markers are forecasts, not measured pavement conditions.</span></div>
-        <div class="result"><strong>Mile-marker sources</strong><span><a href="https://postmile.dot.ca.gov/" rel="noopener">Caltrans postmiles</a> and <a href="https://dpw.gis.lacounty.gov/dpw/rest/services/road/MapServer/0" rel="noopener">LA County Public Works surveyed markers</a>.</span></div>
+        <div class="result"><strong>Mile-marker sources</strong><span>Angeles Crest marker positions are interpolated from the Caltrans Linear Referencing System for SR-2 using <a href="https://postmile.dot.ca.gov/" rel="noopener">Caltrans postmiles</a>. Other forest corridors use <a href="https://dpw.gis.lacounty.gov/dpw/rest/services/road/MapServer/0" rel="noopener">LA County Public Works surveyed markers</a>.</span></div>
+        <div class="result"><strong>Weather data license</strong><span>Open-Meteo data is provided under <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener">CC BY 4.0</a>; see the <a href="https://open-meteo.com/en/licence" rel="noopener">Open-Meteo attribution and license information</a>. Crestmap selects and formats forecasts and derives road-weather indicators from them. <a href="https://www.weather.gov/disclaimer" rel="noopener">NOAA/NWS data</a> is public domain unless otherwise noted.</span></div>
+        <div class="result"><strong>Map data</strong><span>&copy; <a href="https://www.openstreetmap.org/copyright" rel="noopener">OpenStreetMap contributors</a>. Map data is available under the Open Database License (ODbL); base map tiles are provided by OpenStreetMap.</span></div>
+        <div class="result"><strong>Aircraft source</strong><span>Aircraft positions are provided by <a href="https://opensky-network.org/" rel="noopener">The OpenSky Network</a>. See its <a href="https://opensky-network.org/about/terms-of-use" rel="noopener">data license and terms of use</a>.</span></div>
+      </section>
+      <section class="section">
+        <h2>Project Links</h2>
         <div class="result"><strong>Project README</strong><span><a href="https://github.com/cajaks2/crestmap#readme" rel="noopener">github.com/cajaks2/crestmap</a></span></div>
       </section>
     """

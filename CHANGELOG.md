@@ -13,6 +13,10 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Releases
 
+### 0.1.242 - 2026-09-07
+
+- Expand About-page attribution with OpenSky and OpenStreetMap credits, weather license links, and clearer CHP, forecast, and mile-marker source descriptions.
+
 ### 0.1.241 - 2026-09-07
 
 - Stop presenting WildWeb reports as current incidents in browser titles, link previews, header counts, and summary cards; titles now identify active CHP incidents and the history window.

@@ -46,10 +46,19 @@ TEMPERATURE_CSS = """
       width: 12px; height: 12px; margin: -6px auto 0; transform: rotate(45deg);
       background: #fbfcf8; border: 1px solid #c8cec3;
     }
-    .temperature-popup { color: #414940; font: 13px/1.65 -apple-system, BlinkMacSystemFont, sans-serif; }
-    .temperature-popup strong { font-size: 17px; color: #263122; }
-    .temperature-popup .temperature-forecast { display: block; margin-top: 5px; color: #34483b; font-weight: 700; }
-    .temperature-popup small { display: block; margin-top: 6px; max-width: 220px; }
+    .temperature-popup { color: #414940; font: 13px/1.4 -apple-system, BlinkMacSystemFont, sans-serif; }
+    .temperature-popup__reading { color: #263122; font-size: 19px; font-weight: 750; line-height: 1.2; }
+    .temperature-popup__kind { margin-top: 2px; color: #687168; font-size: 12px; font-weight: 650; }
+    .temperature-popup__location { margin-top: 10px; color: #303a30; font-size: 14px; font-weight: 650; line-height: 1.35; }
+    .temperature-popup__meta { margin-top: 5px; color: #687168; line-height: 1.5; }
+    .temperature-popup__forecast { margin-top: 11px; padding-top: 9px; border-top: 1px solid #dfe4dc; }
+    .temperature-popup__forecast-title { color: #34483b; font-size: 11px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
+    .temperature-popup__forecast-values { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 5px; }
+    .temperature-popup__forecast-item { padding: 4px 2px; border-radius: 5px; background: #f0f4ee; color: #34483b; text-align: center; line-height: 1.25; }
+    .temperature-popup__forecast-time { display: block; color: #687168; font-size: 10px; }
+    .temperature-popup__forecast-temp { display: block; font-size: 13px; font-weight: 750; }
+    .temperature-popup__source { display: inline-block; margin-top: 9px; font-size: 12px; }
+    .temperature-popup__note { display: block; margin-top: 7px; color: #687168; font-size: 11px; line-height: 1.4; }
     .temperature-load-status {
       position: absolute; left: 50%; top: 54px; z-index: 1000; display: none;
       align-items: center; gap: 7px; max-width: calc(100% - 110px); padding: 6px 9px;
@@ -167,9 +176,9 @@ TEMPERATURE_JS = r"""
             const when = new Date(item.valid_at);
             if (Number.isNaN(when.getTime()) || !Number.isFinite(item.temperature_f)) return null;
             const hour = when.toLocaleTimeString([], {hour: "numeric"});
-            return `${hour} ${Math.round(item.temperature_f)}°`;
-          }).filter(Boolean).join(" · ");
-          const forecastCopy = forecast ? `<span class="temperature-forecast">${measured ? "Nearby modeled forecast" : "Forecast"}: ${escapeHtml(forecast)}</span>` : "";
+            return `<span class="temperature-popup__forecast-item"><span class="temperature-popup__forecast-time">${escapeHtml(hour)}</span><span class="temperature-popup__forecast-temp">${Math.round(item.temperature_f)}°</span></span>`;
+          }).filter(Boolean).join("");
+          const forecastCopy = forecast ? `<div class="temperature-popup__forecast"><div class="temperature-popup__forecast-title">${measured ? "Nearby modeled forecast" : "Hourly forecast"}</div><div class="temperature-popup__forecast-values">${forecast}</div></div>` : "";
           let labelDirection = pixel.x > size.x - 54 ? " is-left" : "";
           if (!labelDirection && nearbyIncident && (point.road || measured)) {
             const dx = nearbyIncident.x - pixel.x;
@@ -183,13 +192,9 @@ TEMPERATURE_JS = r"""
             icon: L.divIcon({className: `temperature-label${measured ? " is-observation" : ""}${labelDirection}`, html: `<span>${degrees}°</span>`, iconSize: [34, 24], iconAnchor: [4, 12]})
           });
           const detail = measured
-            ? `Measured · ${escapeHtml(point.name)}<br>Station elevation ${elevation} ft<br>Observed ${escapeHtml(valid)}<br>
-              <a href="https://api.weather.gov/stations/${encodeURIComponent(point.station_id)}/observations/latest" target="_blank" rel="noopener">National Weather Service</a>
-              ${forecastCopy}<small>Quality-controlled station observation. Forecast values are modeled; conditions elsewhere along the road may differ.</small>`
-            : `Estimated · ${escapeHtml(point.name)}<br>Terrain elevation ${elevation} ft<br>Model valid ${escapeHtml(valid)}<br>
-              <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>
-              ${forecastCopy}<small>Elevation-adjusted air temperature. Local conditions may differ; not a station or road-surface reading.</small>`;
-          marker.bindPopup(`<div class="temperature-popup"><strong>${degrees}°F · ${measured ? "Measured" : "Estimated"} air temperature</strong><br>${detail}</div>`, {className: "temperature-map-popup", maxWidth: 270, offset: [0, -14], autoPanPadding: [32, 32]});
+            ? `<div class="temperature-popup__kind">Measured air temperature</div><div class="temperature-popup__location">${escapeHtml(point.name)}</div><div class="temperature-popup__meta">Station elevation ${elevation} ft<br>Observed ${escapeHtml(valid)}</div>${forecastCopy}<a class="temperature-popup__source" href="https://api.weather.gov/stations/${encodeURIComponent(point.station_id)}/observations/latest" target="_blank" rel="noopener">National Weather Service</a><span class="temperature-popup__note">Station observation. Forecast values are modeled; conditions elsewhere along the road may differ.</span>`
+            : `<div class="temperature-popup__kind">Estimated air temperature</div><div class="temperature-popup__location">${escapeHtml(point.name)}</div><div class="temperature-popup__meta">${elevation} ft elevation<br>Valid ${escapeHtml(valid)}</div>${forecastCopy}<a class="temperature-popup__source" href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a><span class="temperature-popup__note">Elevation-adjusted estimate. Local air and road-surface temperatures may differ.</span>`;
+          marker.bindPopup(`<div class="temperature-popup"><div class="temperature-popup__reading">${degrees}°F</div>${detail}</div>`, {className: "temperature-map-popup", maxWidth: 280, offset: [0, -14], autoPanPadding: [32, 32]});
           marker.addTo(layer);
           if (measured && ageProgress > 0) {
             marker.setOpacity(1 - (0.40 * ageProgress));

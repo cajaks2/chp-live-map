@@ -11,6 +11,9 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+- Rework temperature details into a clearer mobile-friendly hierarchy with compact hourly forecast cells, grouped location and validity metadata, and shorter source notes.
+- Replace misleading request bar gauges with ranked count tables, label Cloudflare request-origin codes accurately, and exclude health and metrics endpoints from the top-path view.
+
 - Clarify the changelog structure by separating pending changes from published releases.
 - Make the Grafana weather refresh-age panel ignore uninitialized timestamps and
   filter weather panels to the current Prometheus scrape job.

@@ -242,7 +242,7 @@ def test_endpoint_and_local_render(tmp_path, monkeypatch, region):
     assert "point.priority ? 6 : 8" in rendered
     assert "is-above" in rendered
     assert "is-below" in rendered
-    assert 'maxWidth: 270, offset: [0, -14]' in rendered
+    assert 'maxWidth: 280, offset: [0, -14]' in rendered
     assert "Measured + estimated" in rendered
     assert "Loading temperatures…" in rendered
     assert "Temperatures unavailable · Tap to retry" in rendered
@@ -254,7 +254,7 @@ def test_endpoint_and_local_render(tmp_path, monkeypatch, region):
     assert "grayscale(${Math.round(ageProgress * 100)}%)" in rendered
     assert "National Weather Service" in rendered
     assert "Nearby modeled forecast" in rendered
-    assert 'class="temperature-forecast"' in rendered
+    assert 'class="temperature-popup__forecast"' in rendered
     assert "rgba(248,251,247,.96)" in rendered
     assert "point.priority ? 12 : 32" in rendered
     assert '" is-left"' in rendered

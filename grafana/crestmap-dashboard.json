@@ -1356,13 +1356,17 @@
           "type": "loki",
           "uid": "${loki}"
         },
-        "description": "Cloudflare CF-IPCountry codes for all requests, including people, bots, crawlers, monitors, and VPN or proxy exits.",
+        "description": "Cloudflare CF-IPCountry request-origin codes over the selected time range. Counts include people, bots, crawlers, monitors, and VPN or proxy exits; they are not unique visitors.",
         "fieldConfig": {
           "defaults": {
-            "color": {
-              "mode": "continuous-GrYlRd"
-            },
-            "unit": "short"
+            "unit": "short",
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "inspect": false
+            }
           },
           "overrides": []
         },
@@ -1374,20 +1378,22 @@
         },
         "id": 1011,
         "options": {
-          "displayMode": "gradient",
-          "legend": {
-            "displayMode": "list",
-            "placement": "bottom"
-          },
-          "orientation": "horizontal",
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
+          "showHeader": true,
+          "cellHeight": "sm",
+          "sortBy": [
+            {
+              "displayName": "Requests",
+              "desc": true
+            }
+          ],
+          "footer": {
+            "show": false,
+            "reducer": [
+              "sum"
             ],
-            "fields": "",
-            "values": false
-          },
-          "showUnfilled": true
+            "countRows": false,
+            "fields": ""
+          }
         },
         "targets": [
           {
@@ -1402,21 +1408,49 @@
             "refId": "A"
           }
         ],
-        "title": "Request country codes",
-        "type": "bargauge"
+        "title": "Request origin codes",
+        "type": "table",
+        "transformations": [
+          {
+            "id": "labelsToFields",
+            "options": {
+              "mode": "columns"
+            }
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true
+              },
+              "indexByName": {
+                "http_request_header_cf_ipcountry": 0,
+                "Value": 1
+              },
+              "renameByName": {
+                "http_request_header_cf_ipcountry": "Cloudflare code",
+                "Value": "Requests"
+              }
+            }
+          }
+        ]
       },
       {
         "datasource": {
           "type": "loki",
           "uid": "${loki}"
         },
-        "description": "Most-requested full URLs over the selected dashboard time range. Query parameters are retained to expose shared incident links.",
+        "description": "Most-requested URL paths over the selected dashboard time range. These are request counts, not unique visitors or page views; health checks and metrics are excluded.",
         "fieldConfig": {
           "defaults": {
-            "color": {
-              "mode": "continuous-BlPu"
-            },
-            "unit": "short"
+            "unit": "short",
+            "custom": {
+              "align": "auto",
+              "cellOptions": {
+                "type": "auto"
+              },
+              "inspect": false
+            }
           },
           "overrides": []
         },
@@ -1428,20 +1462,22 @@
         },
         "id": 1012,
         "options": {
-          "displayMode": "gradient",
-          "legend": {
-            "displayMode": "list",
-            "placement": "bottom"
-          },
-          "orientation": "horizontal",
-          "reduceOptions": {
-            "calcs": [
-              "lastNotNull"
+          "showHeader": true,
+          "cellHeight": "sm",
+          "sortBy": [
+            {
+              "displayName": "Requests",
+              "desc": true
+            }
+          ],
+          "footer": {
+            "show": false,
+            "reducer": [
+              "sum"
             ],
-            "fields": "",
-            "values": false
-          },
-          "showUnfilled": true
+            "countRows": false,
+            "fields": ""
+          }
         },
         "targets": [
           {
@@ -1450,14 +1486,38 @@
               "uid": "${loki}"
             },
             "editorMode": "code",
-            "expr": "topk(10, sum by (url_path) (count_over_time({cluster=\"external\"} | json | event_action=\"http_request\" [$__range])))",
+            "expr": "topk(10, sum by (url_path) (count_over_time({cluster=\"external\"} | json | event_action=\"http_request\", url_path!~\"/(healthz|readyz|metrics)\" [$__range])))",
             "legendFormat": "{{url_path}}",
             "queryType": "instant",
             "refId": "A"
           }
         ],
-        "title": "Top request URLs",
-        "type": "bargauge"
+        "title": "Top request paths",
+        "type": "table",
+        "transformations": [
+          {
+            "id": "labelsToFields",
+            "options": {
+              "mode": "columns"
+            }
+          },
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true
+              },
+              "indexByName": {
+                "url_path": 0,
+                "Value": 1
+              },
+              "renameByName": {
+                "url_path": "Path",
+                "Value": "Requests"
+              }
+            }
+          }
+        ]
       },
       {
         "id": 1004,

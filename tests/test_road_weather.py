@@ -154,6 +154,8 @@ def test_endpoint_and_map_layer_menu(tmp_path, monkeypatch):
     assert ".road-weather-label.is-rain_recent span" in rendered
     assert '"RAIN?"' in rendered
     assert '"WET"' in rendered
+    assert "recentAgeHours" in rendered
+    assert "fadeProgress" in rendered
     assert "point.hazard.toUpperCase()" in rendered
     assert 'className: "road-weather-map-popup"' in rendered
     assert 'maxWidth: 280, offset: [0,-14]' in rendered

@@ -13,6 +13,10 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Releases
 
+### 0.1.248 - 2026-09-07
+
+- Add relative humidity to modeled and station temperature details, limit recent-rain markers to four hours, and fade them after two hours.
+
 ### 0.1.247 - 2026-09-07
 
 - Simplify recent-rain popups to one historical time range, elevation, and modeled amount; fix their end time and suppress coastal advisories on the Forest map.

@@ -16,7 +16,7 @@ from weather_metrics import record_cache, record_provider, record_refresh
 
 CACHE_SECONDS = 15 * 60
 FORECAST_HOURS = 6
-RECENT_RAIN_HOURS = 6
+RECENT_RAIN_HOURS = 4
 NWS_USER_AGENT = "Crestmap-road-weather/1.0 (+https://crestmap.us/about)"
 REGION_ALERT_TERMS = {
     "forest": ("Los Angeles", "San Bernardino"),

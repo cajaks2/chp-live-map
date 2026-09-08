@@ -192,7 +192,7 @@ def parse_station_observation(payload, station, now):
         return None
     if not (-80 <= value <= 60 and -900 <= now - observed_timestamp <= OBSERVATION_MAX_AGE_SECONDS):
         return None
-    return {
+    point = {
         "name": name,
         "station_id": station_id,
         "latitude": latitude,
@@ -204,6 +204,11 @@ def parse_station_observation(payload, station, now):
         "priority": False,
         "road": False,
     }
+    humidity = properties.get("relativeHumidity")
+    if (isinstance(humidity, dict) and humidity.get("unitCode") == "wmoUnit:percent"
+            and _number(humidity.get("value")) and 0 <= humidity["value"] <= 100):
+        point["relative_humidity_percent"] = round(humidity["value"])
+    return point
 
 
 def load_station_observations(region, now):
@@ -247,6 +252,7 @@ def parse_estimates(payload, region, now):
         if not isinstance(current, dict):
             continue
         value = current.get("temperature_2m")
+        humidity = current.get("relative_humidity_2m")
         elevation = row.get("elevation")
         timestamp = current.get("time")
         units = row.get("current_units") or {}
@@ -277,14 +283,18 @@ def parse_estimates(payload, region, now):
                 })
                 if len(forecast) >= POPUP_FORECAST_POINTS:
                     break
-        points.append({
+        point = {
             "name": name, "latitude": latitude, "longitude": longitude,
             "temperature_f": round(value, 1), "elevation_m": elevation,
             "valid_at": dt.datetime.fromtimestamp(timestamp, dt.timezone.utc).isoformat(),
             "kind": "estimate", "priority": name in PRIORITY_POINT_NAMES,
             "road": name in ROAD_POINT_NAMES or name in PRIORITY_POINT_NAMES,
             "forecast": forecast,
-        })
+        }
+        if (units.get("relative_humidity_2m") == "%" and _number(humidity)
+                and 0 <= humidity <= 100):
+            point["relative_humidity_percent"] = round(humidity)
+        points.append(point)
     if not points:
         raise TemperatureUnavailable()
     return {"region": region, "source": "Open-Meteo", "points": points,
@@ -317,7 +327,7 @@ def load_temperatures(region):
         params = {
             "latitude": ",".join(str(p[1]) for p in samples),
             "longitude": ",".join(str(p[2]) for p in samples),
-            "current": "temperature_2m", "hourly": "temperature_2m",
+            "current": "temperature_2m,relative_humidity_2m", "hourly": "temperature_2m",
             "forecast_hours": FORECAST_HOURS, "temperature_unit": "fahrenheit",
             "timeformat": "unixtime", "cell_selection": "land",
             # Leaving elevation unset enables the provider's 90 m DEM downscaling.

@@ -183,6 +183,13 @@ ROAD_WEATHER_JS = r"""
             window.requestAnimationFrame(render);
           });
           marker.addTo(layer);
+          if (point.hazard === "rain_recent") {
+            const recentAgeHours = Math.max(0, (Date.now() - Date.parse(point.ends_at)) / 3600000);
+            const fadeProgress = Math.min(1, Math.max(0, (recentAgeHours - 2) / 2));
+            marker.setOpacity(0.9 - 0.45 * fadeProgress);
+            const element = marker.getElement();
+            if (element) element.style.filter = `grayscale(${Math.round(fadeProgress * 60)}%)`;
+          }
         });
       }
       async function refresh() {

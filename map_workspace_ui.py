@@ -1,7 +1,8 @@
 """Map workspace controls and touch sheet; desktop retains its three panes."""
 
 MAP_WORKSPACE_CSS = """
-    .mobile-map-toolbar, .map-sheet-controls, #map-sheet-preview { display: none; }
+    .mobile-map-toolbar, .map-sheet-controls, #map-sheet-preview,
+    #incident-list-handle, #incident-list-close { display: none; }
     #mobile-connection-status { display: none; }
     .crestmap-wordmark { display: inline-flex; align-items: center; gap: 6px; color: #18392b;
       font-weight: 900; letter-spacing: -.045em; white-space: nowrap; }
@@ -69,7 +70,7 @@ MAP_WORKSPACE_CSS = """
         height: calc(100% - var(--map-header-height, 170px));
         max-height: 760px; transform: translate3d(0, var(--list-drag-y, 0px), 0); transition-delay: 0s; }
       #incident-list-shell.is-dragging { transition: none; }
-      #incident-list-handle { flex: 0 0 24px; width: 100%; padding: 0; border: 0; border-radius: 14px 14px 0 0;
+      #incident-list-handle { display: block; flex: 0 0 24px; width: 100%; padding: 0; border: 0; border-radius: 14px 14px 0 0;
         background: #f7f9f5; touch-action: none; cursor: grab; }
       #incident-list-handle span { display: block; width: 38px; height: 4px; margin: 8px auto 6px;
         border-radius: 999px; background: #aebcaf; }

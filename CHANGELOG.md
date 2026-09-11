@@ -11,6 +11,12 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.267 - 2026-09-11
+
+- Hide the mobile incident-list drag handle and close button in the desktop
+  sidebar, preventing their unstyled native button controls from appearing above
+  search.
+
 ### 0.1.266 - 2026-09-11
 
 - Hide the obsolete floating incident-list scroll arrows on desktop as well as

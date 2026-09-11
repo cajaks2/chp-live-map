@@ -3448,6 +3448,7 @@ def build_html(
         restoredMapView = savedView;
       }}
     }} catch (_error) {{}}
+    const compactMapRendering = window.matchMedia("(max-width: 1000px)").matches;
     const map = L.map("map", {{
       preferCanvas: false,
       tap: true,
@@ -3457,7 +3458,7 @@ def build_html(
       zoomControl: false,
       zoomSnap: 0.25,
       zoomAnimation: true,
-      fadeAnimation: true,
+      fadeAnimation: !compactMapRendering,
       markerZoomAnimation: true
     }}).setView(
       restoredMapView ? [restoredMapView.latitude, restoredMapView.longitude] : {json.dumps(viewport["center"])},
@@ -3470,9 +3471,9 @@ def build_html(
     const baseLayer = L.tileLayer("https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png", {{
       subdomains: "abc",
       maxZoom: 19,
-      keepBuffer: 8,
-      updateWhenIdle: false,
-      updateWhenZooming: true,
+      keepBuffer: compactMapRendering ? 3 : 8,
+      updateWhenIdle: compactMapRendering,
+      updateWhenZooming: !compactMapRendering,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }});
     baseLayer.on("load", () => {{

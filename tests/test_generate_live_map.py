@@ -886,7 +886,11 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "keyboard: false" in html
     assert "preferCanvas: false" in html
     assert "markerZoomAnimation: true" in html
-    assert "updateWhenZooming: true" in html
+    assert 'const compactMapRendering = window.matchMedia("(max-width: 1000px)").matches' in html
+    assert "fadeAnimation: !compactMapRendering" in html
+    assert "keepBuffer: compactMapRendering ? 3 : 8" in html
+    assert "updateWhenIdle: compactMapRendering" in html
+    assert "updateWhenZooming: !compactMapRendering" in html
     assert "function markerIcon" in html
     assert 'aged_out: "is-wildweb-aged-out"' in html
     assert 'no_longer_listed: "is-wildweb-no-longer-listed"' in html

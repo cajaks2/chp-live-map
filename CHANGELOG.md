@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.257 - 2026-09-11
+
+- Reduce mobile map tile memory and defer tile replacement until gestures finish,
+  preventing iPhone Safari from flashing blank frames while panning and zooming.
+
 ### 0.1.256 - 2026-09-11
 
 - Allow map pinch zooming to begin on incident and camera markers instead of

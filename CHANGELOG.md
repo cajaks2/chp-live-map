@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.263 - 2026-09-11
+
+- Rename incident “Copy link” actions to “Share,” opening the native iOS/browser
+  share sheet when supported and retaining clipboard copy as the fallback.
+
 ### 0.1.262 - 2026-09-11
 
 - Show a compact loading spinner and destination name while switching between

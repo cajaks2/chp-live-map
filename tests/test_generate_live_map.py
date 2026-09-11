@@ -632,7 +632,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'window.sessionStorage.removeItem("crestmap-region-switch-loading")' in html
     assert 'Math.max(0, 650 - (Date.now() - regionSwitchShownAt))' in html
     assert "data-share-incident" in html
-    assert "Copy link" in html
+    assert 'class="share-incident"' in html and ">Share</button>" in html
+    assert 'typeof navigator.share === "function"' in html
+    assert 'if (error?.name === "AbortError") return;' in html
     assert "navigator.clipboard.writeText" in html
     assert "function incidentUrl" in html
     assert 'scrollIncidentsButton?.addEventListener("click", scrollIncidentListDown)' in html

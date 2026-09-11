@@ -77,26 +77,34 @@ assert.equal(load(adminScript).calls.find(c => c[0] === "set")[1].traffic_type, 
 ''')
 
 
-def test_rendered_scripts_parse_and_copy_event_requires_success():
+def test_rendered_scripts_parse_and_share_events_require_success():
     rendered = build_html([], "2026-09-04T12:00:00Z", 72, google_analytics_id="G-TEST123")
     scripts = re.findall(r"<script(?:\s[^>]*)?>(.*?)</script>", rendered, re.S)
     # JSON-LD is data, while all other inline scripts must parse as JavaScript.
     scripts = [s for s in scripts if s.strip() and not s.lstrip().startswith('{"@context"')]
-    copy_function = re.search(r"    async function copyIncidentLink\(.*?\n    }", rendered, re.S)[0]
+    share_function = re.search(r"    async function shareIncident\(.*?\n    }", rendered, re.S)[0]
     run_node(f"const scripts = {json.dumps(scripts)}; for (const script of scripts) new Function(script);\n" + r'''
 const assert = require("node:assert/strict");
 const events = [];
 const window = {crestmapTrack: (...args) => events.push(args), setTimeout: () => {}, prompt: () => {}};
 Object.defineProperty(globalThis, "navigator", {value: {clipboard: {writeText: async () => {}}}, configurable: true});
 const incidentUrl = () => new URL("https://crestmap.us/?incident=synthetic");
-''' + copy_function + r'''
+const incidentLocationLines = () => ({primary: "Test road"});
+''' + share_function + r'''
 (async () => {
-  await copyIncidentLink({}, {});
+  await shareIncident({}, {});
   assert.equal(events.length, 1);
   assert.equal(events[0][0], "share");
   navigator.clipboard.writeText = async () => {throw Error("denied")};
-  await copyIncidentLink({}, {});
+  await shareIncident({}, {});
   assert.equal(events.length, 1);
+  navigator.share = async () => {};
+  await shareIncident({}, {});
+  assert.equal(events.length, 2);
+  assert.equal(events[1][1].method, "native");
+  navigator.share = async () => {const error = Error("cancelled"); error.name = "AbortError"; throw error};
+  await shareIncident({}, {});
+  assert.equal(events.length, 2);
 })().catch(e => {console.error(e); process.exit(1)});
 ''')
 

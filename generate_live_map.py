@@ -4402,17 +4402,31 @@ def build_html(
       return url;
     }}
 
-    async function copyIncidentLink(incident, button) {{
+    async function shareIncident(incident, button) {{
       const link = incidentUrl(incident).toString();
+      const location = incidentLocationLines(incident).primary;
+      if (typeof navigator.share === "function") {{
+        try {{
+          await navigator.share({{
+            title: incident.type || "Crestmap incident",
+            text: location ? `${{incident.type || "Incident"}} · ${{location}}` : (incident.type || "Crestmap incident"),
+            url: link
+          }});
+          window.crestmapTrack?.("share", {{ method: "native", content_type: "incident" }});
+          return;
+        }} catch (error) {{
+          if (error?.name === "AbortError") return;
+        }}
+      }}
       try {{
         await navigator.clipboard.writeText(link);
         window.crestmapTrack?.("share", {{ method: "copy_link", content_type: "incident" }});
-        button.textContent = "Copied";
+        button.textContent = "Link copied";
         window.setTimeout(() => {{
-          button.textContent = "Copy link";
+          button.textContent = "Share";
         }}, 1800);
       }} catch (_error) {{
-        window.prompt("Copy incident link", link);
+        window.prompt("Share incident link", link);
       }}
     }}
 
@@ -5319,7 +5333,7 @@ def build_html(
             <div class="detail-actions">
               ${{defaultButton}}
               ${{hiddenDetailsButton}}
-              <button type="button" class="share-incident" data-share-incident="${{escapeHtml(incident.event_key)}}">Copy link</button>
+              <button type="button" class="share-incident" data-share-incident="${{escapeHtml(incident.event_key)}}">Share</button>
             </div>
           </div>
           ${{linkedNotice}}
@@ -5508,7 +5522,7 @@ def build_html(
       }}
       const incident = incidents.find((item) => item.event_key === button.dataset.shareIncident);
       if (incident) {{
-        copyIncidentLink(incident, button);
+        shareIncident(incident, button);
       }}
     }});
 

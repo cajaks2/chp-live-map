@@ -80,7 +80,7 @@ MAP_WORKSPACE_CSS = """
       #incident-search-shell { padding-top: 3px; }
       .mobile-map-toolbar { display: flex; position: absolute; left: 50%; bottom: max(10px, env(safe-area-inset-bottom));
         align-items: center; width: max-content; max-width: calc(100% - 24px); transform: translateX(-50%);
-        z-index: 750; font-size: 12px; transition: opacity 160ms ease, transform 180ms ease; }
+        z-index: 700; font-size: 12px; transition: opacity 160ms ease, transform 180ms ease; }
       #app[data-map-sheet="expanded"] .mobile-map-toolbar,
       #app[data-map-sheet="full"] .mobile-map-toolbar {
         opacity: 0; pointer-events: none; transform: translate(-50%, 12px); }

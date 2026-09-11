@@ -76,6 +76,7 @@ def test_rendered_scripts_parse_and_sheet_preserves_full_record(region):
     assert 'flex: 0 0 52px' in html
     assert '#map-sheet-back { min-height: 40px; margin: 0;' in html
     assert 'id="mobile-connection-status" data-state="online"' in html
+    assert 'z-index: 700; font-size: 12px; transition: opacity 160ms ease' in html
     assert 'class="map-activity-dot"' in html
     assert '#scroll-incidents, #scroll-incidents-top { display: none !important; }' in html
     assert 'start.state === "expanded" ? 0 : -90' in html

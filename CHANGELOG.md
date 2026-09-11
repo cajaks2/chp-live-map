@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.265 - 2026-09-11
+
+- Keep the bottom incident toggle beneath list and detail sheets so it cannot
+  briefly appear as a stray button above a pane during transitions or dragging.
+
 ### 0.1.264 - 2026-09-11
 
 - Hand a downward incident or camera content scroll directly to the containing

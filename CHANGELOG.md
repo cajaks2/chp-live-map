@@ -11,6 +11,12 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.260 - 2026-09-11
+
+- Let mobile close buttons bypass sheet dragging and avoid persistent touch-hover
+  behavior so incident-list, incident-detail, and camera-detail panes close on the
+  first tap.
+
 ### 0.1.259 - 2026-09-11
 
 - Keep cached map tiles visible during page and tile reloads instead of covering

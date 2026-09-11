@@ -117,8 +117,8 @@ MAP_WORKSPACE_CSS = """
       #incident-list-close, #map-sheet-close { display: inline-flex; align-items: center; justify-content: center;
         font: 300 30px/1 -apple-system, BlinkMacSystemFont, sans-serif; }
       #map-sheet-close { margin-left: auto; }
-      #incident-list-close:hover, #incident-list-close:focus-visible,
-      #map-sheet-close:hover, #map-sheet-close:focus-visible { background: #edf2eb; outline: none; }
+      #incident-list-close:focus-visible, #map-sheet-close:focus-visible { background: #edf2eb; outline: none; }
+      #incident-list-close:active, #map-sheet-close:active { background: #e3ebe1; }
       #map-sheet-preview { display: block; padding: 0 18px 14px; touch-action: none; }
       #map-sheet-preview strong { display: block; font-size: 16px; line-height: 1.25; margin: 3px 0; }
       #map-sheet-preview .sheet-location { font-size: 13px; }
@@ -380,11 +380,11 @@ MAP_WORKSPACE_JS = r"""
         }, {capture: true});
         surface.addEventListener("pointerdown", event => {
           if (!mobileViewport.matches || !event.isPrimary || event.button !== 0) return;
+          if (event.target.closest("button")) return;
           start = {x: event.clientX, y: event.clientY, id: event.pointerId,
             height: sheet.getBoundingClientRect().height};
           sheet.classList.add("is-dragging");
-          // Capturing on the original button preserves its normal click target.
-          (event.target.closest("button") || surface).setPointerCapture(event.pointerId);
+          surface.setPointerCapture(event.pointerId);
         });
         surface.addEventListener("pointermove", event => {
           if (!start || event.pointerId !== start.id) return;

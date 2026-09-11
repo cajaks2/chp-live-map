@@ -65,6 +65,8 @@ def test_rendered_scripts_parse_and_sheet_preserves_full_record(region):
     assert 'id="map-sheet-close" aria-label="Close details"' in html
     assert '#incident-list-close, #map-sheet-close { display: inline-flex;' in html
     assert 'font: 300 30px/1 -apple-system' in html
+    assert 'if (event.target.closest("button")) return;' in html
+    assert '#incident-list-close:active, #map-sheet-close:active' in html
     assert 'flex: 0 0 52px' in html
     assert '#map-sheet-back { min-height: 40px; margin: 0;' in html
     assert 'id="mobile-connection-status" data-state="online"' in html
@@ -77,8 +79,7 @@ def test_rendered_scripts_parse_and_sheet_preserves_full_record(region):
     assert 'if (target === "closed") setTimeout(() => listShell.style.removeProperty' in html
     assert 'setTimeout(() => {' in html and 'setList(true);' in html
     assert 'id="map-sheet-toggle"' not in html
-    assert "surface.setPointerCapture" not in html  # buttons retain their actual click target
-    assert 'event.target.closest("button") || surface' in html
+    assert '(event.target.closest("button") || surface).setPointerCapture' not in html
     assert "suppressClickUntil" in html
     assert "incomingLink = null" in html
     assert "map.panBy([p.x - x, p.y - y], {animate: true, duration: .28" in html

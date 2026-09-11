@@ -403,7 +403,9 @@ MAP_WORKSPACE_JS = r"""
           const current = shell.dataset.mapSheet;
           const target = dy < 0 ? "full" : current === "full" ? "expanded" : "closed";
           setSheet(target);
-          requestAnimationFrame(() => sheet.style.removeProperty("height"));
+          // Closing preserves the finger-tracked height until the panel is offscreen.
+          // Removing it here made the sheet jump taller for one frame before dismissal.
+          if (target !== "closed") requestAnimationFrame(() => sheet.style.removeProperty("height"));
           // A swipe ending on a button must not also activate its click.
           suppressClickUntil = Date.now() + 350;
         });

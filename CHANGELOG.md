@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.254 - 2026-09-11
+
+- Preserve the finger-tracked detail-sheet height through its closing animation
+  so a downward swipe cannot flash or jump upward before dismissal.
+
 ### 0.1.253 - 2026-09-11
 
 - Apply the mobile header boundary to incident details and camera details as well

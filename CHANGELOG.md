@@ -11,6 +11,13 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.256 - 2026-09-11
+
+- Allow map pinch zooming to begin on incident and camera markers instead of
+  swallowing the first touch as a marker-only interaction.
+- Reserve enough vertical space for mobile sheet controls so the “← Incidents”
+  button cannot overlap or clip the incident and camera content below it.
+
 ### 0.1.255 - 2026-09-11
 
 - Preserve finger-tracked positions through every incident-list and detail-sheet

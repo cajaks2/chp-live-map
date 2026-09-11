@@ -4905,7 +4905,9 @@ def build_html(
       marker.on("add", () => {{
         const element = marker.getElement();
         if (!element) return;
-        L.DomEvent.disableClickPropagation(element);
+        // Keep tap/click ownership on the marker without swallowing touchstart.
+        // Leaflet needs both touches at the map container when a pinch begins on a marker.
+        L.DomEvent.on(element, "click dblclick contextmenu", L.DomEvent.stopPropagation);
       }});
     }}
 
@@ -5205,7 +5207,9 @@ def build_html(
         if (!element) {{
           return;
         }}
-        L.DomEvent.disableClickPropagation(element);
+        // Do not use disableClickPropagation here: it also stops touchstart,
+        // which prevents a two-finger map gesture when the first finger lands on a marker.
+        L.DomEvent.on(element, "click dblclick contextmenu", L.DomEvent.stopPropagation);
         L.DomEvent.on(element, "pointerdown", event => {{
           pointerStart = {{x: event.clientX, y: event.clientY}};
           dragged = !event.isPrimary;

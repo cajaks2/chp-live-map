@@ -107,10 +107,10 @@ MAP_WORKSPACE_CSS = """
         visibility: visible; pointer-events: auto; transform: translate3d(0, var(--sheet-drag-y, 0px), 0); transition-delay: 0s; }
       #details.is-dragging { transition: none; }
       .map-sheet-controls { position: relative; display: flex; align-items: center; justify-content: space-between;
-        flex: 0 0 44px; padding: 0 8px; touch-action: none; background: #fff; cursor: grab; }
+        flex: 0 0 52px; padding: 0 8px; touch-action: none; background: #fff; cursor: grab; }
       .map-sheet-controls::before { content: ""; position: absolute; top: 6px; left: calc(50% - 17px);
         width: 34px; height: 4px; background: #c2cec2; border-radius: 3px; }
-      #map-sheet-back { min-height: 38px; margin-top: 5px; padding: 6px 11px;
+      #map-sheet-back { min-height: 40px; margin: 0; padding: 6px 11px;
         border: 1px solid #cbd6cc; border-radius: 7px; background: #f8faf6;
         color: #1f6840; font-size: 12px; font-weight: 800; }
       #map-sheet-back:hover, #map-sheet-back:focus-visible { border-color: #94b69a; background: #edf5ed; outline: none; }

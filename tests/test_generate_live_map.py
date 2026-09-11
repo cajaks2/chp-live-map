@@ -905,6 +905,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "pulsing ? \"is-pulsing\" : \"\"" in html
     assert "selected && options.pulse" in html
     assert "function bindMarkerInteraction" in html
+    assert "L.DomEvent.disableClickPropagation(element)" not in html
+    assert 'L.DomEvent.on(element, "click dblclick contextmenu", L.DomEvent.stopPropagation)' in html
     assert 'L.DomEvent.on(element, "touchend", selectFromMarker)' in html
     assert 'L.DomEvent.on(element, "pointerup", selectFromMarker)' in html
     assert 'selectIncident(incident, { pan: false, revealDetails: true, pulse: true, userInitiated: true });' in html

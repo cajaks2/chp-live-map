@@ -624,6 +624,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "selected-pill" in html
     assert '<span class="selected-pill">Open</span>' in html
     assert "background: #d4e6d5" in html
+    assert "background: #dbe5d5" in html
+    assert "#map.is-loading::after" not in html
+    assert "#map.tiles-ready .leaflet-tile-pane" not in html
     assert "data-share-incident" in html
     assert "Copy link" in html
     assert "navigator.clipboard.writeText" in html

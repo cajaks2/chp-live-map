@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.259 - 2026-09-11
+
+- Keep cached map tiles visible during page and tile reloads instead of covering
+  the map with a full-frame grey loading shimmer.
+
 ### 0.1.258 - 2026-09-11
 
 - Enlarge the close icon and preserve its existing 44-pixel control footprint

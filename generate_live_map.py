@@ -2681,42 +2681,11 @@ def build_html(
       height: 100%;
       min-height: 420px;
       overflow: hidden;
-      background: #d9ded4;
+      background: #dbe5d5;
       z-index: 0;
-    }}
-    #map::after {{
-      content: "";
-      position: absolute;
-      inset: 0;
-      z-index: 450;
-      pointer-events: none;
-      background:
-        linear-gradient(90deg, rgba(217,222,212,0.72), rgba(247,248,244,0.72), rgba(217,222,212,0.72)),
-        #d9ded4;
-      background-size: 220% 100%;
-      opacity: 0;
-      transition: opacity 160ms ease;
-    }}
-    #map.is-loading::after {{
-      opacity: 1;
-      animation: mapLoading 1.1s linear infinite;
-    }}
-    @keyframes mapLoading {{
-      from {{ background-position: 0 0; }}
-      to {{ background-position: -220% 0; }}
-    }}
-    #map .leaflet-tile-pane {{
-      opacity: 0;
-      transition: opacity 160ms ease;
-    }}
-    #map.tiles-ready .leaflet-tile-pane {{
-      opacity: 1;
     }}
     #map.using-offline-basemap .leaflet-tile-pane {{
       opacity: 0;
-    }}
-    #map {{
-      background: #eef1e9;
     }}
     #map .offline-basemap-road {{
       filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.85));
@@ -3437,7 +3406,6 @@ def build_html(
     }}
 
     const mapEl = document.getElementById("map");
-    mapEl.classList.add("is-loading");
     let restoredMapView = null;
     try {{
       const savedView = JSON.parse(window.sessionStorage.getItem("crestmap-region-handoff") || "null");
@@ -3477,8 +3445,6 @@ def build_html(
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }});
     baseLayer.on("load", () => {{
-      mapEl.classList.remove("is-loading");
-      mapEl.classList.add("tiles-ready");
       if (tileErrors >= 3) {{
         mapEl.classList.add("using-offline-basemap");
         if (connectionStatus?.dataset.state === "online") setConnectivityStatus("online");
@@ -3496,11 +3462,6 @@ def build_html(
     }});
     baseLayer.on("loading", () => {{
       tileErrors = 0;
-      mapEl.classList.add("is-loading");
-      window.clearTimeout(window.chpTileLoadingTimer);
-      window.chpTileLoadingTimer = window.setTimeout(() => {{
-        mapEl.classList.remove("is-loading");
-      }}, 1800);
     }});
     baseLayer.addTo(map);
 

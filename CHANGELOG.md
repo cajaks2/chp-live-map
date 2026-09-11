@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.255 - 2026-09-11
+
+- Preserve finger-tracked positions through every incident-list and detail-sheet
+  state transition, preventing release-time jumps when opening, resizing, or closing.
+
 ### 0.1.254 - 2026-09-11
 
 - Preserve the finger-tracked detail-sheet height through its closing animation

@@ -348,17 +348,21 @@ MAP_WORKSPACE_JS = r"""
           const state = start.state;
           start = null;
           listShell.classList.remove("is-dragging");
-          listShell.style.removeProperty("--list-drag-y");
-          if (dy < -45) setList("expanded");
-          else if (dy > 150 && state === "expanded") setList("closed");
-          else if (dy > 45) setList(state === "expanded" ? "open" : "closed");
-          else setList(state);
+          let target = state;
+          if (dy < -45) target = "expanded";
+          else if (dy > 150 && state === "expanded") target = "closed";
+          else if (dy > 45) target = state === "expanded" ? "open" : "closed";
+          setList(target);
+          // Keep the tracked transform as the transition's starting point.
+          // Closed sheets retain it until they are fully outside the viewport.
+          if (target === "closed") setTimeout(() => listShell.style.removeProperty("--list-drag-y"), 240);
+          else requestAnimationFrame(() => listShell.style.removeProperty("--list-drag-y"));
         };
         dragSurface.addEventListener("pointerup", finish);
         dragSurface.addEventListener("pointercancel", event => {
           if (!start) return;
           listShell.classList.remove("is-dragging");
-          listShell.style.removeProperty("--list-drag-y");
+          requestAnimationFrame(() => listShell.style.removeProperty("--list-drag-y"));
           start = null;
         });
       }
@@ -388,7 +392,7 @@ MAP_WORKSPACE_JS = r"""
         surface.addEventListener("pointercancel", () => {
           start = null;
           sheet.classList.remove("is-dragging");
-          sheet.style.removeProperty("height");
+          requestAnimationFrame(() => sheet.style.removeProperty("height"));
         });
         surface.addEventListener("pointerup", event => {
           if (!start || event.pointerId !== start.id) return;

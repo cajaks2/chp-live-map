@@ -70,6 +70,7 @@ def test_rendered_scripts_parse_and_sheet_preserves_full_record(region):
     assert 'height: calc(100% - var(--map-header-height, 170px))' in html
     assert 'shell.getBoundingClientRect().height - headerHeight' in html
     assert 'if (target !== "closed") requestAnimationFrame' in html
+    assert 'if (target === "closed") setTimeout(() => listShell.style.removeProperty' in html
     assert 'setTimeout(() => {' in html and 'setList(true);' in html
     assert 'id="map-sheet-toggle"' not in html
     assert "surface.setPointerCapture" not in html  # buttons retain their actual click target

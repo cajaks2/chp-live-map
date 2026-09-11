@@ -332,22 +332,46 @@ MAP_WORKSPACE_JS = r"""
       listClose.addEventListener("click", () => setList(false));
       listToggle.addEventListener("pointerdown", event => event.preventDefault());
       listToggle.addEventListener("click", () => setList(shell.dataset.mapList === "closed" ? "open" : "closed"));
+      let paneGestureMapState = null;
+      function suspendMapGestures() {
+        if (paneGestureMapState) return;
+        paneGestureMapState = {
+          dragging: Boolean(map.dragging?.enabled()),
+          touchZoom: Boolean(map.touchZoom?.enabled())
+        };
+        if (paneGestureMapState.dragging) map.dragging.disable();
+        if (paneGestureMapState.touchZoom) map.touchZoom.disable();
+      }
+      function restoreMapGestures() {
+        if (!paneGestureMapState) return;
+        const previous = paneGestureMapState;
+        paneGestureMapState = null;
+        if (previous.dragging) map.dragging.enable();
+        if (previous.touchZoom) map.touchZoom.enable();
+      }
       function bindListDrag(dragSurface) {
         let start = null;
         dragSurface.addEventListener("pointerdown", event => {
           if (!mobileViewport.matches || !event.isPrimary || event.button !== 0) return;
+          event.preventDefault();
+          event.stopPropagation();
+          suspendMapGestures();
           start = {y: event.clientY, id: event.pointerId, state: shell.dataset.mapList};
           dragSurface.setPointerCapture(event.pointerId);
           listShell.classList.add("is-dragging");
         });
         dragSurface.addEventListener("pointermove", event => {
           if (!start || event.pointerId !== start.id) return;
+          event.preventDefault();
+          event.stopPropagation();
           const dy = event.clientY - start.y;
           const minimum = start.state === "expanded" ? 0 : -90;
           listShell.style.setProperty("--list-drag-y", `${Math.max(minimum, dy)}px`);
         });
         const finish = event => {
           if (!start || event.pointerId !== start.id) return;
+          event.preventDefault();
+          event.stopPropagation();
           const dy = event.clientY - start.y;
           const state = start.state;
           start = null;
@@ -361,13 +385,16 @@ MAP_WORKSPACE_JS = r"""
           // Closed sheets retain it until they are fully outside the viewport.
           if (target === "closed") setTimeout(() => listShell.style.removeProperty("--list-drag-y"), 240);
           else requestAnimationFrame(() => listShell.style.removeProperty("--list-drag-y"));
+          restoreMapGestures();
         };
         dragSurface.addEventListener("pointerup", finish);
         dragSurface.addEventListener("pointercancel", event => {
           if (!start) return;
+          event.stopPropagation();
           listShell.classList.remove("is-dragging");
           requestAnimationFrame(() => listShell.style.removeProperty("--list-drag-y"));
           start = null;
+          restoreMapGestures();
         });
       }
       bindListDrag(listHandle);
@@ -381,6 +408,9 @@ MAP_WORKSPACE_JS = r"""
         surface.addEventListener("pointerdown", event => {
           if (!mobileViewport.matches || !event.isPrimary || event.button !== 0) return;
           if (event.target.closest("button")) return;
+          event.preventDefault();
+          event.stopPropagation();
+          suspendMapGestures();
           start = {x: event.clientX, y: event.clientY, id: event.pointerId,
             height: sheet.getBoundingClientRect().height};
           sheet.classList.add("is-dragging");
@@ -388,26 +418,32 @@ MAP_WORKSPACE_JS = r"""
         });
         surface.addEventListener("pointermove", event => {
           if (!start || event.pointerId !== start.id) return;
+          event.preventDefault();
+          event.stopPropagation();
           const dy = event.clientY - start.y;
           const headerHeight = Number.parseFloat(getComputedStyle(shell).getPropertyValue("--map-header-height")) || 170;
           const maximum = Math.max(180, shell.getBoundingClientRect().height - headerHeight);
           sheet.style.height = `${Math.max(92, Math.min(maximum, start.height - dy))}px`;
         });
-        surface.addEventListener("pointercancel", () => {
+        surface.addEventListener("pointercancel", event => {
+          event.stopPropagation();
           start = null;
           sheet.classList.remove("is-dragging");
           requestAnimationFrame(() => sheet.style.removeProperty("height"));
+          restoreMapGestures();
         });
         surface.addEventListener("pointerup", event => {
           if (!start || event.pointerId !== start.id) return;
+          event.preventDefault();
+          event.stopPropagation();
           const dy = event.clientY - start.y, dx = event.clientX - start.x;
           start = null;
           sheet.classList.remove("is-dragging");
           if (Math.abs(dy) < 24 || Math.abs(dy) < Math.abs(dx) * 1.3) {
             sheet.style.removeProperty("height");
+            restoreMapGestures();
             return;
           }
-          event.preventDefault();
           const current = shell.dataset.mapSheet;
           const target = dy < 0 ? "full" : current === "full" ? "expanded" : "closed";
           setSheet(target);
@@ -416,6 +452,7 @@ MAP_WORKSPACE_JS = r"""
           if (target !== "closed") requestAnimationFrame(() => sheet.style.removeProperty("height"));
           // A swipe ending on a button must not also activate its click.
           suppressClickUntil = Date.now() + 350;
+          restoreMapGestures();
         });
       }
       document.addEventListener("keydown", event => {

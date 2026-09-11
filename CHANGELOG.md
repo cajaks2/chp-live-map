@@ -11,6 +11,12 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.261 - 2026-09-11
+
+- Give mobile pane drags exclusive gesture control by suspending map pan and
+  pinch handling until incident-list, incident-detail, and camera-detail drags
+  finish or cancel.
+
 ### 0.1.260 - 2026-09-11
 
 - Let mobile close buttons bypass sheet dragging and avoid persistent touch-hover

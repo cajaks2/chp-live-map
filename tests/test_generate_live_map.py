@@ -594,6 +594,11 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert 'href="/summary?hours=72&amp;region=forest"' in html
     assert 'href="/history?hours=72&amp;region=forest"' in html
     assert 'id="incident-list-shell"' in html
+    assert 'id="incident-search"' in html
+    assert 'id="incident-list-handle"' in html
+    assert 'placeholder="Road, place, type, or incident #"' in html
+    assert "function applyIncidentSearch()" in html
+    assert 'bindListDrag(listHandle)' in html
     assert "flex-basis: clamp(150px, 23svh, 200px)" in html
     assert "min-height: 150px" in html
     assert 'id="scroll-incidents"' in html
@@ -604,17 +609,18 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "function scrollIncidentListDown" in html
     assert "function scrollIncidentListToTop" in html
     assert 'list.querySelectorAll(".incident")[2]' in html
-    assert 'id="details-cue"' in html
-    assert "Incident details below" in html
+    assert 'id="map-sheet-close"' in html
+    assert "Collapse details" not in html
     assert "data-default-view" in html
     assert "linked-pill" in html
     assert "This linked incident is outside the selected" in html
     assert "height: 45svh" in html
-    assert "bottom: var(--details-cue-bottom, 40px)" in html
-    assert "function updateDetailsCuePosition" in html
-    assert "const cueBottom = Math.min(98, 40 + mapBelowViewport);" in html
+    assert "bottom: max(10px, env(safe-area-inset-bottom))" in html
+    assert '#app[data-map-sheet="expanded"] .mobile-map-toolbar' in html
+    assert "function revealPoint" in html
+    assert "map.panBy([p.x - x, p.y - y], {animate: true, duration: .28" in html
     assert "const targetY = Math.max" not in html
-    assert "window.visualViewport.addEventListener" in html
+    assert "pointercancel" in html
     assert "selected-pill" in html
     assert '<span class="selected-pill">Open</span>' in html
     assert "background: #d4e6d5" in html
@@ -832,8 +838,8 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "box-shadow: none" in html
     assert "Mileposts: Caltrans/LACPW" not in html
     assert "#map .leaflet-control-attribution" in html
-    assert "bottom: var(--details-cue-bottom, 40px)" in html
-    assert "const cueBottom = Math.min(98, 40 + mapBelowViewport)" in html
+    assert "bottom: max(10px, env(safe-area-inset-bottom))" in html
+    assert "new ResizeObserver(measureToolbar)" in html
     assert "setupMileMarkerLayer();" in html
     assert 'id="locate-user"' in html
     assert 'aria-label="Show my location"' in html
@@ -888,7 +894,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "border-color: #967037" in html
     assert ".incident-marker.is-wildweb-no-longer-listed .incident-marker-core" in html
     assert "border-color: #596a72" in html
-    assert "const size = 22;" in html
+    assert "const size = 44;" in html
     assert "const size = selected ? 28 : 22" not in html
     assert "position: absolute;" in html
     assert "incident-marker-dot" in html
@@ -999,7 +1005,9 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" in html
     assert "basemaps.cartocdn.com/light_all" not in html
     assert "restoredMapView ? [restoredMapView.latitude, restoredMapView.longitude] : [34.32, -118.12]" in html
-    assert "map.fitBounds" not in html
+    assert 'function resetView()' in html
+    assert 'id="reset-map-view"' not in html
+    assert 'if (!restoredMapView && !new URLSearchParams(location.search).has("incident")' in html
     assert json.dumps(incidents, ensure_ascii=False) not in html
 
 

@@ -3,25 +3,24 @@
 import json
 
 TEMPERATURE_CSS = """
-    .temperature-label { background: transparent; border: 0; }
+    .temperature-label { background: transparent; border: 0; pointer-events: none; }
     .temperature-label::before {
-      content: ""; position: absolute; left: 2px; top: 10px; width: 4px; height: 4px;
+      content: ""; position: absolute; left: -2px; top: -2px; width: 4px; height: 4px;
       border-radius: 50%; background: #687162; box-shadow: 0 0 0 1px #ffffffb3;
     }
     .temperature-label span {
-      position: absolute; left: 10px; top: -13px; display: block; box-sizing: border-box; width: 34px; padding: 4px 0;
-      color: #454e43; text-align: center; font: 500 11px/16px -apple-system, BlinkMacSystemFont, sans-serif;
-      text-shadow: 0 0 3px #fff, 0 1px 2px #fff, 0 -1px 2px #fff;
+      position: absolute; left: var(--temperature-x); top: var(--temperature-y); display: block;
+      box-sizing: border-box; width: var(--temperature-width); height: var(--temperature-height);
+      pointer-events: auto; display: flex; align-items: center; justify-content: center;
+      color: #354333; text-align: center; font: 600 12px/16px -apple-system, BlinkMacSystemFont, sans-serif;
+      text-shadow: -1px -1px 0 #fbfcf8, 1px -1px 0 #fbfcf8, -1px 1px 0 #fbfcf8, 1px 1px 0 #fbfcf8, 0 0 3px #fff;
     }
-    .temperature-label.is-left span { left: -40px; }
-    .temperature-label.is-above span { left: -15px; top: -29px; }
-    .temperature-label.is-below span { left: -15px; top: 14px; }
     .temperature-label.is-observation::before {
-      left: 0; top: 8px; width: 8px; height: 8px; background: #27764e;
+      left: -4px; top: -4px; width: 8px; height: 8px; background: #27764e;
       box-shadow: 0 0 0 2px #f8fbf7, 0 0 0 3px #27764e;
     }
     .temperature-label.is-observation span {
-      width: auto; min-width: 39px; padding: 2px 5px; color: #204c34;
+      padding: 2px 5px; color: #204c34;
       background: rgba(248,251,247,.96); border: 1px solid #73a989;
       border-radius: 9px; box-shadow: 0 1px 4px rgba(27,67,45,.20);
       font-weight: 700; text-shadow: none;
@@ -108,6 +107,7 @@ TEMPERATURE_JS = r"""
       let inFlight = false;
       let state = "idle";
       let frame = null;
+      const previousPlacements = new Map();
       const button = document.querySelector("[data-temperature-layer-toggle]");
       if (!button) return;
       const loadStatus = document.createElement("button");
@@ -148,14 +148,59 @@ TEMPERATURE_JS = r"""
         const maxAge = point.kind === "observation" ? 10800000 : 3600000;
         return Number.isFinite(age) && age >= -900000 && age <= maxAge;
       }
+      // TEMPERATURE_PLACEMENT_START: pure geometry, also exercised with dense road fixtures.
+      function boxesOverlap(a, b, gap = 3) {
+        return a.left < b.right + gap && a.right + gap > b.left
+          && a.top < b.bottom + gap && a.bottom + gap > b.top;
+      }
+      function placeTemperatureLabel(pixel, size, occupied, width, height, previous) {
+        const candidates = [
+          [8, -height - 4], [-width - 8, -height - 4],
+          [8, 5], [-width - 8, 5],
+          [-width / 2, -height - 12], [-width / 2, 12],
+          [24, -height / 2], [-width - 24, -height / 2],
+          [18, -height - 22], [-width - 18, -height - 22],
+          [18, 22], [-width - 18, 22]
+        ];
+        const order = [...candidates.keys()];
+        if (Number.isInteger(previous) && previous >= 0 && previous < candidates.length) {
+          order.splice(previous, 1); order.unshift(previous);
+        }
+        for (const index of order) {
+          const [dx, dy] = candidates[index];
+          const box = {left: pixel.x + dx, top: pixel.y + dy,
+            right: pixel.x + dx + width, bottom: pixel.y + dy + height};
+          if (box.left < 6 || box.top < 6 || box.right > size.x - 6 || box.bottom > size.y - 6) continue;
+          if (occupied.some(other => boxesOverlap(box, other))) continue;
+          return {index, dx, dy, box};
+        }
+        return null;
+      }
+      // TEMPERATURE_PLACEMENT_END
       function renderTemperatures() {
         layer.clearLayers();
         if (!enabled) return;
         const occupied = [];
-        markers.forEach(marker => {
-          if (map.hasLayer(marker)) occupied.push(map.latLngToContainerPoint(marker.getLatLng()));
+        const protectPoint = (marker, radius) => {
+          if (!map.hasLayer(marker)) return;
+          const p = map.latLngToContainerPoint(marker.getLatLng());
+          occupied.push({left: p.x - radius, right: p.x + radius, top: p.y - radius, bottom: p.y + radius});
+        };
+        markers.forEach(marker => protectPoint(marker, 23));
+        cameraMarkers.forEach(marker => protectPoint(marker, 14));
+        aircraftMarkers.forEach(marker => protectPoint(marker, 18));
+        const mapRect = map.getContainer().getBoundingClientRect();
+        // Protect app-owned road labels, weather notices and controls. Raster basemap text
+        // has no measurable DOM boxes; halos keep it readable without guessing its location.
+        map.getContainer().querySelectorAll('.leaflet-tooltip, .road-weather-label, .map-layer-menu, #locate-user, #reset-map-view').forEach(element => {
+          if (element.classList.contains('offline-basemap-label') && !mapEl.classList.contains('using-offline-basemap')) return;
+          const r = element.getBoundingClientRect();
+          if (r.width && r.height) occupied.push({left: r.left - mapRect.left, right: r.right - mapRect.left,
+            top: r.top - mapRect.top, bottom: r.bottom - mapRect.top});
         });
-        const placed = [];
+        const width = 42;
+        const height = window.matchMedia('(pointer: coarse)').matches ? 36 : 26;
+        const activeKeys = new Set();
         const displayRank = point => point.kind === "observation" ? 3 : point.priority ? 2 : point.road ? 1 : 0;
         const orderedPoints = [...points].sort((a, b) => displayRank(b) - displayRank(a));
         for (const point of orderedPoints) {
@@ -167,18 +212,12 @@ TEMPERATURE_JS = r"""
           if (!map.getBounds().contains(latlng)) continue;
           const pixel = map.latLngToContainerPoint(latlng);
           const size = map.getSize();
-          const edgeMargin = point.priority ? 12 : 32;
-          if (pixel.x < edgeMargin || pixel.y < 38 || pixel.x > size.x - edgeMargin || pixel.y > size.y - 38) continue;
-          // Road labels may sit near incidents, but never directly under one.
-          const nearbyIncident = occupied.find(p => Math.abs(p.x - pixel.x) < 54 && Math.abs(p.y - pixel.y) < 55);
-          if (nearbyIncident && !point.road && !measured) continue;
-          const directClearanceX = point.priority ? 6 : 8;
-          const directClearanceY = point.priority ? 8 : 10;
-          if (point.road && occupied.some(p => Math.abs(p.x - pixel.x) < directClearanceX
-            && Math.abs(p.y - pixel.y) < directClearanceY)) continue;
-          if (placed.some(p => Math.abs(p.pixel.x - pixel.x) < (point.priority && p.priority ? 34 : 52)
-            && Math.abs(p.pixel.y - pixel.y) < 26)) continue;
-          placed.push({pixel, priority: Boolean(point.priority)});
+          const key = `${point.kind}:${point.latitude}:${point.longitude}:${point.name}`;
+          activeKeys.add(key);
+          const placement = placeTemperatureLabel(pixel, size, occupied, width, height, previousPlacements.get(key));
+          if (!placement) continue; // All nearby positions are occupied; never cover an incident.
+          previousPlacements.set(key, placement.index);
+          occupied.push(placement.box);
           const degrees = Math.round(point.temperature_f);
           const elevation = Math.round(point.elevation_m * 3.28084).toLocaleString();
           const validDate = new Date(point.valid_at);
@@ -193,17 +232,11 @@ TEMPERATURE_JS = r"""
             return `<span class="temperature-popup__forecast-item"><span class="temperature-popup__forecast-time">${escapeHtml(hour)}</span><span class="temperature-popup__forecast-temp">${Math.round(item.temperature_f)}°</span></span>`;
           }).filter(Boolean).join("");
           const forecastCopy = forecast ? `<div class="temperature-popup__forecast"><div class="temperature-popup__forecast-title">${measured ? "Nearby modeled forecast" : "Hourly forecast"}</div><div class="temperature-popup__forecast-values">${forecast}</div></div>` : "";
-          let labelDirection = pixel.x > size.x - 54 ? " is-left" : "";
-          if (!labelDirection && nearbyIncident && (point.road || measured)) {
-            const dx = nearbyIncident.x - pixel.x;
-            const dy = nearbyIncident.y - pixel.y;
-            if (Math.abs(dx) >= Math.abs(dy)) labelDirection = dx > 0 ? " is-left" : "";
-            else labelDirection = dy > 0 ? " is-above" : " is-below";
-          }
+          const {dx, dy} = placement;
           const marker = L.marker(latlng, {
             pane: "temperatures", keyboard: true, riseOnHover: false,
             title: `${point.name}: ${degrees}°F, ${measured ? "measured" : "estimated"} air temperature`,
-            icon: L.divIcon({className: `temperature-label${measured ? " is-observation" : ""}${labelDirection}`, html: `<span>${degrees}°</span>`, iconSize: [34, 24], iconAnchor: [4, 12]})
+            icon: L.divIcon({className: `temperature-label${measured ? " is-observation" : ""}`, html: `<span style="--temperature-x:${dx}px;--temperature-y:${dy}px;--temperature-width:${width}px;--temperature-height:${height}px">${degrees}°</span>`, iconSize: [0, 0], iconAnchor: [0, 0]})
           });
           const detail = measured
             ? `<div class="temperature-popup__heading"><div class="temperature-popup__reading">${degrees}°F</div><div class="temperature-popup__kind">Measured air temperature</div></div><div class="temperature-popup__location">${escapeHtml(point.name)}</div><div class="temperature-popup__meta">Station elevation ${elevation} ft${humidity}<br>Observed ${escapeHtml(valid)}</div>${forecastCopy}<div class="temperature-popup__source-note"><a class="temperature-popup__source" href="https://api.weather.gov/stations/${encodeURIComponent(point.station_id)}/observations/latest" target="_blank" rel="noopener">National Weather Service station</a><span class="temperature-popup__note"> · Forecast by Open-Meteo · Local conditions may differ.</span></div>`
@@ -216,13 +249,14 @@ TEMPERATURE_JS = r"""
             if (element) element.style.filter = `grayscale(${Math.round(ageProgress * 100)}%)`;
           }
         }
+        for (const key of previousPlacements.keys()) if (!activeKeys.has(key)) previousPlacements.delete(key);
       }
       function scheduleRender() {
         if (frame !== null) return;
         frame = requestAnimationFrame(() => {
           frame = null;
           // Popup auto-pan must not remove the marker that owns the open popup.
-          if (!layer.getLayers().some(marker => marker.isPopupOpen())) renderTemperatures();
+          if (!layer.getLayers().some(marker => marker.isPopupOpen?.())) renderTemperatures();
         });
       }
       async function refresh() {
@@ -246,7 +280,7 @@ TEMPERATURE_JS = r"""
           renderTemperatures();
         }
       }
-      map.on("moveend zoomend resize", scheduleRender);
+      map.on("moveend zoomend resize workspacechange", scheduleRender);
       map.on("layeradd layerremove", event => {
         if (event.layer instanceof L.Marker && event.layer.options.pane !== "temperatures") scheduleRender();
       });

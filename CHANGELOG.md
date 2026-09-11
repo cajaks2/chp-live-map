@@ -11,6 +11,50 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.249 - 2026-09-10
+
+- Rework the map workspace for phones and desktop with a compact mobile incident
+  list, swipeable incident detail sheet, larger marker tap targets, labeled layer
+  controls, and responsive layouts that preserve map visibility.
+- Add live incident-list search across roads, places, types, status, sources,
+  incident numbers, and report details on phones and desktop.
+- Preserve mobile incident search and scroll position while moving from results
+  to the map card and back, with animated list and detail-sheet transitions.
+- Let phone users drag the incident list between closed, browsing, and expanded
+  positions, and smoothly reveal the selected marker before showing its card.
+- Make the incident detail sheet track the user's finger continuously and ease
+  into its compact, expanded, or closed position when released.
+- Pin the mobile map workspace to the visible browser edges so dynamic viewport
+  changes cannot leave a sticky-looking blank area below the map controls.
+- Replace the full-width mobile incident footer with a compact floating browse
+  control and anchor incident cards directly to the bottom of the map.
+- Put incident updates and camera imagery ahead of administrative metadata,
+  enrich compact map cards with time, area, direction, and elevation context,
+  and reduce detail-view spacing.
+- Open full incident information or camera imagery immediately when a user
+  selects a marker or list result; dragging down still provides a compact card.
+- Limit automatically opened details to roughly half the phone viewport so the
+  selected map location remains visible while details scroll independently.
+- Simplify the base-map incident browser into one compact list control with the
+  current incident count instead of a split status-and-action pill.
+- Pan selected mobile markers after the detail-sheet transition and leave extra
+  clearance above the sheet so the incident remains visible on iPhone screens.
+- Remove the redundant compact-detail step: close, Escape, and downward drag now
+  dismiss details, while Results returns directly to the incident list.
+- Keep linked-incident list positioning inside the list scroller so selecting or
+  loading an incident cannot shift the entire mobile workspace and expose blank canvas.
+- Make the return-to-list action a larger bordered “← Incidents” button consistent
+  with the other detail actions.
+- Reduce the short-landscape detail sheet to 50% so iPhone landscape retains a
+  useful map viewport above the scrollable record.
+- Place dense road and elevation temperature readings around their true locations
+  with stable collision avoidance and subtle anchor dots when a
+  label must move, while retaining the full set of useful readings.
+- Use the established Crestmap mountain-and-incident mark in the compact phone
+  header and include the latest poll time in its status line.
+- Give incident lists and incident details matching close controls, remove the
+  redundant reset-view button, and prevent white flashes during sheet transitions.
+
 ## Releases
 
 ### 0.1.248 - 2026-09-07

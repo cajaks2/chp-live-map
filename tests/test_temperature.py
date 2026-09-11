@@ -242,10 +242,10 @@ def test_endpoint_and_local_render(tmp_path, monkeypatch, region):
     assert "orderedPoints" in rendered
     assert "displayRank" in rendered
     assert "map.getZoom() < 11" in rendered
-    assert "nearbyIncident && !point.road" in rendered
-    assert "point.priority ? 6 : 8" in rendered
-    assert "is-above" in rendered
-    assert "is-below" in rendered
+    assert "function placeTemperatureLabel" in rendered
+    assert "previousPlacements.get(key)" in rendered
+    assert "temperature-leader" not in rendered
+    assert "occupied.push(placement.box)" in rendered
     assert 'maxWidth: 280, offset: [0, -14]' in rendered
     assert "Measured + estimated" in rendered
     assert "Loading temperatures…" in rendered
@@ -267,8 +267,8 @@ def test_endpoint_and_local_render(tmp_path, monkeypatch, region):
     assert "slice(0, 6)" in rendered
     assert "repeat(6, minmax(0, 1fr))" in rendered
     assert "rgba(248,251,247,.96)" in rendered
-    assert "point.priority ? 12 : 32" in rendered
-    assert '" is-left"' in rendered
+    assert "markers.forEach(marker => protectPoint(marker, 23))" in rendered
+    assert "iconAnchor: [0, 0]" in rendered
     assert "Temperature estimates:" not in rendered
 
 

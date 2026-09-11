@@ -11,6 +11,7 @@ from urllib.parse import urlsplit, urlencode
 
 from ecs_logging import log_event, run_main
 from temperature_ui import TEMPERATURE_CSS, temperature_script
+from map_workspace_ui import MAP_WORKSPACE_CSS, MAP_WORKSPACE_HTML, MAP_SHEET_HTML, MAP_WORKSPACE_JS
 from road_weather_ui import ROAD_WEATHER_CSS, road_weather_script
 from geo_bounds import REGION_BOUNDS, clear_coordinates_outside_region_bounds
 from mile_markers import MILE_MARKERS
@@ -1096,7 +1097,7 @@ def map_layer_menu(region="forest", aircraft_tracking_enabled=False):
         '<details class="map-layer-menu">'
         '<summary aria-label="Open map layers" title="Map layers">'
         '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
-        '<path d="M4 7h16M4 12h16M4 17h16"></path></svg></summary>'
+        '<path d="M4 7h16M4 12h16M4 17h16"></path></svg><span class="map-layer-label">Layers</span></summary>'
         '<div class="map-layer-popover"><div class="map-layer-heading">'
         '<strong>Map layers</strong><span>Controls that only affect the map</span></div>'
         + "".join(rows)
@@ -2735,9 +2736,6 @@ def build_html(
       border-left: 1px solid #d8ddd2;
       background: #ffffff;
     }}
-    #details-cue {{
-      display: none;
-    }}
     .detail-panel {{
       padding: 18px;
     }}
@@ -2807,6 +2805,31 @@ def build_html(
       margin-top: 14px;
       padding-top: 14px;
       border-top: 1px solid #e5e8e1;
+    }}
+    .detail-metadata {{
+      margin-top: 12px;
+      border: 1px solid #dfe5dc;
+      border-radius: 8px;
+      background: #fafbf8;
+    }}
+    .detail-metadata summary {{
+      padding: 9px 11px;
+      color: #405047;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }}
+    .detail-metadata .detail-grid {{
+      margin: 0 11px 11px;
+    }}
+    .camera-quick-facts {{
+      display: flex;
+      gap: 8px 16px;
+      flex-wrap: wrap;
+      margin: 7px 0 0;
+      color: #4c5c52;
+      font-size: 12px;
+      font-weight: 700;
     }}
     .hidden-detail-section {{
       padding: 12px;
@@ -3211,39 +3234,6 @@ def build_html(
         overscroll-behavior: contain;
         -webkit-overflow-scrolling: touch;
       }}
-      #details-cue {{
-        display: flex;
-        position: absolute;
-        left: 50%;
-        bottom: var(--details-cue-bottom, 40px);
-        z-index: 600;
-        align-items: center;
-        gap: 8px;
-        min-height: 36px;
-        padding: 7px 12px;
-        border: 1px solid rgba(39, 116, 71, 0.36);
-        border-radius: 999px;
-        color: #1f6840;
-        background: rgba(255, 255, 255, 0.94);
-        box-shadow: 0 2px 10px rgba(24, 32, 38, 0.18);
-        font: inherit;
-        font-size: 12px;
-        font-weight: 800;
-        transform: translateX(-50%);
-      }}
-      #details-cue::after {{
-        content: "";
-        width: 8px;
-        height: 8px;
-        margin-top: -4px;
-        border-right: 2px solid currentColor;
-        border-bottom: 2px solid currentColor;
-        transform: rotate(45deg);
-      }}
-      #details-cue:focus {{
-        outline: 2px solid rgba(39, 116, 71, 0.45);
-        outline-offset: 2px;
-      }}
       #details {{
         border-left: 0;
         border-top: 1px solid #d8ddd2;
@@ -3252,16 +3242,17 @@ def build_html(
   </style>
   <style>{push_ui_css()}</style>
   <style>{ROAD_WEATHER_CSS}</style>
+  <style>{MAP_WORKSPACE_CSS}</style>
 </head>
 <body>
   <div id="app">
     <aside id="sidebar">
       <header>
         <div class="title-row">
-          <h1>Crestmap {html.escape(map_label)} Incidents</h1>
+          <h1><span class="crestmap-wordmark"><svg class="crestmap-mark{' has-active' if status['active_count'] else ''}" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="12"></rect><path class="crestmap-mark-back" d="M10 48 25 17l9 20 6-11 14 22Z"></path><path class="crestmap-mark-front" d="M20 48 30 30l7 18Z"></path><circle cx="47" cy="17" r="7"></circle></svg><span>Crestmap</span></span> <span class="map-title-context">{html.escape(map_label)} Incidents</span></h1>
           {view_menu(base_path, "map", hours, region, admin_mode=admin_mode, aircraft_tracking_enabled=aircraft_tracking_enabled)}
         </div>
-        <div class="meta">{html.escape(status_summary_text(status, hours))}</div>
+        <div class="meta" id="incident-summary"><span id="incident-summary-copy">{html.escape(status_summary_text(status, hours))}</span><span class="mobile-polled"> · <time id="mobile-polled-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span></div>
         <div class="meta checked-meta"><span>Updated <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span><span aria-hidden="true">·</span>
           <label class="auto-refresh-control" title="Automatically reload when new incident data is available">
             <input type="checkbox" id="auto-refresh-enabled">
@@ -3278,6 +3269,17 @@ def build_html(
         </div>
       </header>
       <div id="incident-list-shell">
+        <button type="button" id="incident-list-handle" aria-label="Drag incident list" tabindex="-1"><span></span></button>
+        <button type="button" id="incident-list-close" aria-label="Close incident list">×</button>
+        <div id="incident-search-shell" role="search">
+          <label for="incident-search">Search incidents</label>
+          <div class="incident-search-field">
+            <input id="incident-search" type="search" inputmode="search" autocomplete="off"
+              placeholder="Road, place, type, or incident #">
+            <button type="button" id="incident-search-clear" aria-label="Clear incident search" hidden>×</button>
+          </div>
+          <span id="incident-search-status" aria-live="polite"></span>
+        </div>
         <div id="incident-list"></div>
         <button type="button" id="scroll-incidents-top" aria-label="Scroll to the first incident"></button>
         <button type="button" id="scroll-incidents" aria-label="Scroll incident list down"></button>
@@ -3292,9 +3294,9 @@ def build_html(
         </svg>
       </button>
       <span id="location-status" role="status" aria-live="polite"></span>
-      <button type="button" id="details-cue">Incident details below</button>
     </main>
-    <aside id="details"></aside>
+    {MAP_SHEET_HTML}
+    {MAP_WORKSPACE_HTML}
   </div>
   <div id="camera-lightbox" class="camera-lightbox" role="dialog" aria-modal="true" aria-labelledby="camera-lightbox-title" hidden>
     <div class="camera-lightbox-panel">
@@ -3452,6 +3454,7 @@ def build_html(
       doubleClickZoom: true,
       keyboard: false,
       zoomControl: false,
+      zoomSnap: 0.25,
       zoomAnimation: true,
       fadeAnimation: true,
       markerZoomAnimation: true
@@ -3540,10 +3543,12 @@ def build_html(
     let cameraImageRefreshTimer = null;
     const listShell = document.getElementById("incident-list-shell");
     const list = document.getElementById("incident-list");
+    const incidentSearch = document.getElementById("incident-search");
+    const incidentSearchClear = document.getElementById("incident-search-clear");
+    const incidentSearchStatus = document.getElementById("incident-search-status");
     const scrollIncidentsButton = document.getElementById("scroll-incidents");
     const scrollIncidentsTopButton = document.getElementById("scroll-incidents-top");
-    const detailsPanel = document.getElementById("details");
-    const detailsCue = document.getElementById("details-cue");
+    const detailsPanel = document.getElementById("detail-content");
     const appShell = document.getElementById("app");
     const cameraLayerToggle = document.querySelector("[data-camera-layer-toggle]");
     const cameraLightbox = document.getElementById("camera-lightbox");
@@ -3945,7 +3950,7 @@ def build_html(
       if (button) button.title = "Recenter on my location";
     }}
 
-    const mobileViewport = window.matchMedia("(max-width: 760px)");
+    const mobileViewport = window.matchMedia("(max-width: 1000px)");
 
     function setupDoubleTapZoom() {{
       let lastTap = null;
@@ -3999,32 +4004,6 @@ def build_html(
       }}, {{ passive: false }});
     }}
 
-    function updateDetailsCuePosition() {{
-      if (!detailsCue || !mobileViewport.matches) {{
-        mapEl.style.removeProperty("--details-cue-bottom");
-        return;
-      }}
-      const viewport = window.visualViewport;
-      const viewportBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
-      const rect = mapEl.getBoundingClientRect();
-      const mapBelowViewport = Math.max(0, Math.round(rect.bottom - viewportBottom));
-      // Keep the cue near the map's lower edge. iOS standalone mode can report a
-      // temporarily short visual viewport, so cap how far that can lift the cue.
-      const cueBottom = Math.min(98, 40 + mapBelowViewport);
-      mapEl.style.setProperty("--details-cue-bottom", `${{cueBottom}}px`);
-    }}
-
-    function setupDetailsCuePosition() {{
-      updateDetailsCuePosition();
-      window.addEventListener("scroll", updateDetailsCuePosition, {{ passive: true }});
-      window.addEventListener("resize", updateDetailsCuePosition);
-      mobileViewport.addEventListener("change", updateDetailsCuePosition);
-      if (window.visualViewport) {{
-        window.visualViewport.addEventListener("resize", updateDetailsCuePosition);
-        window.visualViewport.addEventListener("scroll", updateDetailsCuePosition);
-      }}
-    }}
-
     function escapeHtml(value) {{
       return String(value ?? "").replace(/[&<>"']/g, (char) => ({{
         "&": "&amp;",
@@ -4055,6 +4034,15 @@ def build_html(
 
     function formatGeneratedAt() {{
       formatTimeElement(document.getElementById("generated-at"));
+      const mobilePolledAt = document.getElementById("mobile-polled-at");
+      if (mobilePolledAt) {{
+        const value = mobilePolledAt.getAttribute("datetime");
+        const date = value ? new Date(value) : null;
+        if (date && !Number.isNaN(date.getTime())) {{
+          mobilePolledAt.textContent = date.toLocaleTimeString([], {{hour: "numeric", minute: "2-digit"}});
+          mobilePolledAt.title = value;
+        }}
+      }}
       formatTimeElement(document.getElementById("last-scrape-at"));
     }}
 
@@ -4064,6 +4052,8 @@ def build_html(
         return;
       }}
       generatedAt.setAttribute("datetime", value);
+      const mobilePolledAt = document.getElementById("mobile-polled-at");
+      if (mobilePolledAt) mobilePolledAt.setAttribute("datetime", value);
       formatGeneratedAt();
     }}
 
@@ -4363,6 +4353,7 @@ def build_html(
         window.history.replaceState({{ region: currentRegion }}, "", defaultViewUrl());
       }}
       selectedIncidentKey = null;
+      window.chpLiveMap?.workspace?.closeSheet();
       incidents = incidents.filter((incident) => !incident._linked_outside_window);
       render({{ updateUrl: false }});
     }}
@@ -4628,7 +4619,7 @@ def build_html(
       const wildwebEndState = String(incident.source || "").toLowerCase() === "wildweb" && markerState === "is-cleared"
         ? {{ aged_out: "is-wildweb-aged-out", no_longer_listed: "is-wildweb-no-longer-listed" }}[sourceStatus] || ""
         : "";
-      const size = 22;
+      const size = 44; // A 22px visible core inside a generous touch target.
       return L.divIcon({{
         className: [
           "incident-marker",
@@ -4805,8 +4796,10 @@ def build_html(
           ${{online ? `<a class="camera-image-link" data-camera-image-link href="${{escapeHtml(cameraImageUrl(camera))}}" rel="noopener" target="_blank" aria-label="Open full-size current view from ${{escapeHtml(camera.name || "ALERTCalifornia camera")}}" title="Open full-size image"><img class="camera-image" data-camera-image src="${{escapeHtml(cameraImageUrl(camera))}}" alt="Current view from ${{escapeHtml(camera.name || "ALERTCalifornia camera")}}"></a>` : ""}}
           <div class="empty" data-camera-image-error${{online ? " hidden" : ""}}>Current camera image is unavailable.</div>
           <div class="camera-image-meta"><span>Updated ${{escapeHtml(formatCameraUpdatedAt(camera))}}</span><span>${{online ? "Refreshes every 10s" : "Offline"}}</span></div>
+          <div class="camera-quick-facts"><span>Facing ${{escapeHtml(cameraDirectionLabel(bearing))}}</span><span>${{Number.isFinite(elevation) ? `${{Math.round(elevation)}} m elevation` : "Elevation unknown"}}</span></div>
           <p class="camera-credit">ALERTCalifornia | UC San Diego</p>
-          <section class="detail-section">
+          <details class="detail-metadata">
+            <summary>Camera information</summary>
             <dl class="detail-grid">
               <dt>Direction</dt><dd><span class="camera-direction"><svg viewBox="0 0 16 16" style="--camera-bearing: ${{bearing}}deg" aria-hidden="true"><path d="M8 1 13 14 8 11.5 3 14Z"></path></svg>${{escapeHtml(cameraDirectionLabel(bearing))}}</span></dd>
               <dt>Field of view</dt><dd>${{Number.isFinite(fieldOfView) ? `${{fieldOfView.toFixed(1)}}°` : "Unknown"}}</dd>
@@ -4814,7 +4807,7 @@ def build_html(
               <dt>Elevation</dt><dd>${{Number.isFinite(elevation) ? `${{Math.round(elevation)}} m` : "Unknown"}}</dd>
               <dt>Source</dt><dd><a href="${{escapeHtml(cameraViewerUrl(camera))}}" rel="noopener" target="_blank">ALERTCalifornia</a></dd>
             </dl>
-          </section>
+          </details>
           <p class="camera-credit">The blue map fan shows the camera’s current bearing and field of view. Imagery is displayed without cropping or alteration.</p>
         </div>
       `;
@@ -4882,7 +4875,6 @@ def build_html(
       detailsPanel.dataset.selectedCameraId = camera.id;
       detailsPanel.innerHTML = cameraDetailHtml(camera);
       bindCameraImageLightbox(camera);
-      if (detailsCue) detailsCue.textContent = "Camera details below";
       document.querySelectorAll(".incident").forEach((button) => button.setAttribute("aria-current", "false"));
       markers.forEach((marker, eventKey) => {{
         const incident = incidents.find((item) => item.event_key === eventKey);
@@ -4896,10 +4888,8 @@ def build_html(
       renderSelectedCameraFov();
       refreshSelectedCameraImage();
       if (cameraIsOnline(camera)) cameraImageRefreshTimer = window.setInterval(refreshSelectedCameraImage, 10000);
-      if (options.pan !== false) map.setView([camera.latitude, camera.longitude], Math.max(map.getZoom(), 12));
-      if (options.revealDetails && window.matchMedia("(max-width: 760px)").matches) {{
-        detailsPanel.scrollIntoView({{ behavior: "smooth", block: "start" }});
-      }}
+      if (options.pan !== false && !mobileViewport.matches) map.setView([camera.latitude, camera.longitude], Math.max(map.getZoom(), 12));
+      window.chpLiveMap?.workspace?.showSelection(camera, options, true);
       if (options.updateUrl !== false && window.history?.replaceState) {{
         window.history.replaceState({{ camera: camera.id }}, "", cameraUrl(camera));
       }}
@@ -5193,15 +5183,19 @@ def build_html(
 
     function bindMarkerInteraction(marker, incident) {{
       let lastSelect = 0;
+      let pointerStart = null;
+      let dragged = false;
       const selectFromMarker = (event) => {{
         if (event) {{
           L.DomEvent.stop(event);
         }}
+        if (dragged) return;
         const now = Date.now();
         if (now - lastSelect < 350 || (event?.type === "click" && now - lastSelect < 700)) {{
           return;
         }}
         lastSelect = now;
+        if (window.chpLiveMap?.workspace?.showNearby(incident)) return;
         selectIncident(incident, {{ pan: false, revealDetails: true, pulse: true, userInitiated: true }});
       }};
 
@@ -5211,6 +5205,16 @@ def build_html(
           return;
         }}
         L.DomEvent.disableClickPropagation(element);
+        L.DomEvent.on(element, "pointerdown", event => {{
+          pointerStart = {{x: event.clientX, y: event.clientY}};
+          dragged = !event.isPrimary;
+        }});
+        L.DomEvent.on(element, "pointermove", event => {{
+          if (pointerStart && Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 12) dragged = true;
+        }});
+        L.DomEvent.on(element, "keydown", event => {{
+          if (event.key === "Enter" || event.key === " ") {{ dragged = false; selectFromMarker(event); }}
+        }});
         L.DomEvent.on(element, "touchend", selectFromMarker);
         L.DomEvent.on(element, "pointerup", selectFromMarker);
         L.DomEvent.on(element, "click", selectFromMarker);
@@ -5294,7 +5298,9 @@ def build_html(
             </div>
           </div>
           ${{linkedNotice}}
-          <section class="detail-section">
+          ${{detailEntries ? `<section class="detail-section primary-detail">${{detailEntries}}</section>` : `<section class="detail-section">${{noEntries}}</section>`}}
+          <details class="detail-metadata">
+            <summary>Incident information</summary>
             <dl class="detail-grid">
               <dt>Incident</dt><dd>${{escapeHtml(incident.incident_no)}}</dd>
               <dt>Reported</dt><dd>${{escapeHtml(formatIncidentWhen(incident))}}</dd>
@@ -5305,8 +5311,7 @@ def build_html(
               <dt>Crestmap Last Seen</dt><dd>${{escapeHtml(incident.last_seen)}}</dd>
               ${{incident.cleared_at ? `<dt>${{incident.source === "wildweb" && incident.source_status === "out" ? "Out" : incident.source === "wildweb" ? "Archived" : "Cleared"}}</dt><dd>${{escapeHtml(incident.cleared_at)}}</dd>` : ""}}
             </dl>
-          </section>
-          ${{detailEntries ? `<section class="detail-section">${{detailEntries}}</section>` : ""}}
+          </details>
           ${{adminMode ? '<section class="detail-section hidden-detail-section" data-hidden-details hidden><div class="empty">Loading previously seen details...</div></section>' : ""}}
           <section class="detail-section">
             <div class="detail-subsection">
@@ -5397,7 +5402,6 @@ def build_html(
         return;
       }}
       clearCameraSelection();
-      if (detailsCue) detailsCue.textContent = "Incident details below";
       if (options.userInitiated) {{
         pauseUserLocationFollowing();
         window.crestmapTrack?.("incident_select", {{ incident_source: incident.source || "chp" }});
@@ -5417,7 +5421,8 @@ def build_html(
       document.querySelectorAll(".incident").forEach((button) => {{
         button.setAttribute("aria-current", button.dataset.eventKey === incident.event_key ? "true" : "false");
         if (options.revealList && button.dataset.eventKey === incident.event_key) {{
-          button.scrollIntoView({{ block: "nearest" }});
+          const targetTop = button.offsetTop - Math.max(0, (list.clientHeight - button.offsetHeight) / 2);
+          list.scrollTop = Math.max(0, targetTop);
         }}
       }});
       if (markers.size && !incidentLayerVisible && options.userInitiated) revealedIncidentKey = incident.event_key;
@@ -5438,20 +5443,14 @@ def build_html(
         }}
       }});
       const marker = markers.get(incident.event_key);
-      if (marker && options.pan !== false) {{
+      if (marker && options.pan !== false && !mobileViewport.matches) {{
         map.setView([incident.latitude, incident.longitude], Math.max(map.getZoom(), 13));
       }}
-      if (options.revealDetails && window.matchMedia("(max-width: 760px)").matches) {{
-        detailsPanel.scrollIntoView({{ behavior: "smooth", block: "start" }});
-      }}
+      window.chpLiveMap?.workspace?.showSelection(incident, options);
       if (options.updateUrl !== false) {{
         updateIncidentUrl(incident);
       }}
     }}
-
-    detailsCue?.addEventListener("click", () => {{
-      detailsPanel.scrollIntoView({{ behavior: "smooth", block: "start" }});
-    }});
 
     detailsPanel.addEventListener("click", async (event) => {{
       const defaultButton = event.target.closest("[data-default-view]");
@@ -5580,7 +5579,7 @@ def build_html(
       }}
       const hours = Number(status.hours);
       const hoursLabel = Number.isInteger(hours) ? String(hours) : String(status.hours);
-      const meta = document.querySelector("header .meta");
+      const meta = document.getElementById("incident-summary-copy");
       if (meta) {{
         meta.textContent = `${{status.active_count}} active · ${{status.total_count}} in ${{hoursLabel}}h · ${{status.mapped_count}} mapped`;
       }}
@@ -5595,12 +5594,51 @@ def build_html(
       list.innerHTML = "";
     }}
 
+    function searchableIncidentText(incident) {{
+      const details = (incident.detail_entries || []).map((entry) => entry.text || "").join(" ");
+      return [incident.type, incident.location, incident.area, incident.source,
+        incident.incident_no, incident.event_key, incidentStatusLabel(incident), details]
+        .filter(Boolean).join(" ").toLocaleLowerCase();
+    }}
+
+    function applyIncidentSearch() {{
+      const query = incidentSearch.value.trim().toLocaleLowerCase();
+      let matches = 0;
+      list.querySelectorAll(".incident").forEach((button) => {{
+        const incident = incidents.find((item) => item.event_key === button.dataset.eventKey);
+        const match = !query || (incident && searchableIncidentText(incident).includes(query));
+        button.hidden = !match;
+        if (match) matches += 1;
+      }});
+      incidentSearchClear.hidden = !query;
+      incidentSearchStatus.textContent = query
+        ? `${{matches}} of ${{incidents.length}} incident${{incidents.length === 1 ? "" : "s"}}`
+        : `${{incidents.length}} incident${{incidents.length === 1 ? "" : "s"}}`;
+      list.scrollTop = 0;
+      updateListScrollCue();
+    }}
+
+    incidentSearch.addEventListener("input", applyIncidentSearch);
+    incidentSearch.addEventListener("keydown", (event) => {{
+      if (event.key === "Escape" && incidentSearch.value) {{
+        incidentSearch.value = "";
+        applyIncidentSearch();
+      }}
+    }});
+    incidentSearchClear.addEventListener("click", () => {{
+      incidentSearch.value = "";
+      applyIncidentSearch();
+      incidentSearch.focus();
+    }});
+
     function render(options = {{}}) {{
       clearRenderedIncidents();
       window.chpLiveMap.incidents = incidents;
+      window.chpLiveMap?.workspace?.updateCount();
       if (!incidents.length) {{
         list.innerHTML = '<div class="empty">No matching incidents are currently stored.</div>';
         detailsPanel.innerHTML = '<div class="empty">No matching incidents are currently stored.</div>';
+        window.chpLiveMap?.workspace?.closeSheet();
         ensureCurrentRegionUrl();
         updateListScrollCue();
         return;
@@ -5617,7 +5655,7 @@ def build_html(
         if (hasCoords) {{
           const marker = L.marker([incident.latitude, incident.longitude], {{
             icon: markerIcon(incident),
-            keyboard: false,
+            keyboard: true,
             title: `${{incident.type || "Incident"}} ${{incident.location || ""}}`.trim()
           }});
           if (incidentLayerVisible || incident.event_key === revealedIncidentKey) marker.addTo(map);
@@ -5644,9 +5682,15 @@ def build_html(
           ${{locationLines.secondary ? `<span class="incident-location-secondary">${{escapeHtml(locationLines.secondary)}}</span>` : ""}}
           <span>${{escapeHtml(formatIncidentWhen(incident))}} · ${{escapeHtml(incident.area)}} · #${{escapeHtml(incident.incident_no)}}${{hasCoords ? "" : " · no map pin"}}</span>
         `;
-        button.addEventListener("click", () => selectIncident(incident, {{ pulse: true, userInitiated: true }}));
+        button.addEventListener("click", () => selectIncident(incident, {{
+          pulse: true,
+          userInitiated: true,
+          fromList: mobileViewport.matches && appShell.dataset.mapList === "open"
+        }}));
         list.appendChild(button);
       }});
+
+      applyIncidentSearch();
 
       setTimeout(() => map.invalidateSize(), 50);
       window.requestAnimationFrame(updateListScrollCue);
@@ -5656,16 +5700,24 @@ def build_html(
         ? cameras.find((camera) => camera.id === requestedCameraId)
         : null;
       if (linkedCamera) {{
-        selectCamera(linkedCamera, {{ updateUrl: false }});
+        selectCamera(linkedCamera, {{ updateUrl: false, pan: !options.preserveViewport, openSheet: !options.preserveViewport }});
         return;
       }}
       const preservedIncident = selectedIncidentKey
         ? incidents.find((incident) => incident.event_key === selectedIncidentKey)
         : null;
-      const selectedIncident = linkedIncident || preservedIncident || incidents[0];
+      const selectedIncident = linkedIncident || preservedIncident || (mobileViewport.matches ? null : incidents[0]);
+      if (!selectedIncident) {{
+        selectedIncidentKey = null;
+        detailsPanel.innerHTML = '<div class="empty">Select an incident to view details.</div>';
+        window.chpLiveMap?.workspace?.closeSheet();
+        ensureCurrentRegionUrl();
+        return;
+      }}
       selectIncident(selectedIncident, {{
         pan: Boolean(linkedIncident) && !options.preserveViewport,
         revealList: Boolean(linkedIncident),
+        openSheet: Boolean(linkedIncident) && !options.preserveViewport,
         preserveFocusedComment: Boolean(options.preserveFocusedComment),
         updateUrl: options.updateUrl !== false && !requestedCameraId
       }});
@@ -5746,6 +5798,7 @@ def build_html(
       }}
     }}
 
+    {MAP_WORKSPACE_JS}
     setupMapLayerMenu();
     setupAutomaticRegionHandoff();
     setupIncidentLayer();
@@ -5755,7 +5808,6 @@ def build_html(
     setupConnectivityStatus();
     setupStaleRefresh();
     setupDoubleTapZoom();
-    setupDetailsCuePosition();
     setupMileMarkerLayer();
     setupUserLocation();
     setupCameraLayer();

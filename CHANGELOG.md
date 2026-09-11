@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.258 - 2026-09-11
+
+- Enlarge the close icon and preserve its existing 44-pixel control footprint
+  across mobile incident lists, incident details, and camera details.
+
 ### 0.1.257 - 2026-09-11
 
 - Reduce mobile map tile memory and defer tile replacement until gestures finish,

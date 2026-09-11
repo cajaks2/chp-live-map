@@ -114,7 +114,11 @@ MAP_WORKSPACE_CSS = """
         border: 1px solid #cbd6cc; border-radius: 7px; background: #f8faf6;
         color: #1f6840; font-size: 12px; font-weight: 800; }
       #map-sheet-back:hover, #map-sheet-back:focus-visible { border-color: #94b69a; background: #edf5ed; outline: none; }
+      #incident-list-close, #map-sheet-close { display: inline-flex; align-items: center; justify-content: center;
+        font: 300 30px/1 -apple-system, BlinkMacSystemFont, sans-serif; }
       #map-sheet-close { margin-left: auto; }
+      #incident-list-close:hover, #incident-list-close:focus-visible,
+      #map-sheet-close:hover, #map-sheet-close:focus-visible { background: #edf2eb; outline: none; }
       #map-sheet-preview { display: block; padding: 0 18px 14px; touch-action: none; }
       #map-sheet-preview strong { display: block; font-size: 16px; line-height: 1.25; margin: 3px 0; }
       #map-sheet-preview .sheet-location { font-size: 13px; }

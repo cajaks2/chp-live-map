@@ -63,6 +63,8 @@ def test_rendered_scripts_parse_and_sheet_preserves_full_record(region):
     assert 'id="detail-content"' in html
     assert 'id="map-sheet-preview"' in html
     assert 'id="map-sheet-close" aria-label="Close details"' in html
+    assert '#incident-list-close, #map-sheet-close { display: inline-flex;' in html
+    assert 'font: 300 30px/1 -apple-system' in html
     assert 'flex: 0 0 52px' in html
     assert '#map-sheet-back { min-height: 40px; margin: 0;' in html
     assert 'id="mobile-connection-status" data-state="online"' in html

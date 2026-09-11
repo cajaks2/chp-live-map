@@ -11,6 +11,12 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.264 - 2026-09-11
+
+- Hand a downward incident or camera content scroll directly to the containing
+  sheet when the record reaches the top, allowing one continuous gesture to
+  scroll and then lower or dismiss the pane.
+
 ### 0.1.263 - 2026-09-11
 
 - Rename incident “Copy link” actions to “Share,” opening the native iOS/browser

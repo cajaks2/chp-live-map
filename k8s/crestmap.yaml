@@ -140,7 +140,7 @@ spec:
     spec:
       containers:
         - name: scrape
-          image: cajaks2/crestmap:0.1.263
+          image: cajaks2/crestmap:0.1.264
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -235,7 +235,7 @@ spec:
     spec:
       containers:
         - name: wildweb
-          image: cajaks2/crestmap:0.1.263
+          image: cajaks2/crestmap:0.1.264
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -326,7 +326,7 @@ spec:
     spec:
       containers:
         - name: aircraft
-          image: cajaks2/crestmap:0.1.263
+          image: cajaks2/crestmap:0.1.264
           imagePullPolicy: IfNotPresent
           command:
             - python3
@@ -378,7 +378,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: cajaks2/crestmap:0.1.263
+          image: cajaks2/crestmap:0.1.264
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh

@@ -455,6 +455,52 @@ MAP_WORKSPACE_JS = r"""
           restoreMapGestures();
         });
       }
+      // Continue a downward content scroll as a sheet drag once the record reaches its top.
+      const detailContent = document.getElementById("detail-content");
+      let contentDrag = null;
+      detailContent.addEventListener("touchstart", event => {
+        if (!mobileViewport.matches || event.touches.length !== 1) return;
+        if (event.target.closest("button, a, input, textarea, select, label, video, [contenteditable]")) return;
+        const touch = event.touches[0];
+        contentDrag = {lastY: touch.clientY, dragging: false, startY: 0, startHeight: 0};
+      }, {passive: true});
+      detailContent.addEventListener("touchmove", event => {
+        if (!contentDrag || event.touches.length !== 1) return;
+        const touch = event.touches[0];
+        const movingDown = touch.clientY > contentDrag.lastY;
+        if (!contentDrag.dragging) {
+          contentDrag.lastY = touch.clientY;
+          if (!movingDown || detailContent.scrollTop > 1) return;
+          contentDrag.dragging = true;
+          contentDrag.startY = touch.clientY;
+          contentDrag.startHeight = sheet.getBoundingClientRect().height;
+          suspendMapGestures();
+          sheet.classList.add("is-dragging");
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const dy = touch.clientY - contentDrag.startY;
+        sheet.style.height = `${Math.max(92, contentDrag.startHeight - dy)}px`;
+        contentDrag.lastY = touch.clientY;
+      }, {passive: false});
+      const finishContentDrag = event => {
+        if (!contentDrag) return;
+        const drag = contentDrag;
+        contentDrag = null;
+        if (!drag.dragging) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const touch = event.changedTouches?.[0];
+        const dy = touch ? touch.clientY - drag.startY : 0;
+        sheet.classList.remove("is-dragging");
+        const current = shell.dataset.mapSheet;
+        const target = dy > 36 ? (current === "full" ? "expanded" : "closed") : current;
+        setSheet(target);
+        if (target !== "closed") requestAnimationFrame(() => sheet.style.removeProperty("height"));
+        restoreMapGestures();
+      };
+      detailContent.addEventListener("touchend", finishContentDrag, {passive: false});
+      detailContent.addEventListener("touchcancel", finishContentDrag, {passive: false});
       document.addEventListener("keydown", event => {
         if (event.key !== "Escape" || !mobileViewport.matches) return;
         if (shell.dataset.mapSheet === "expanded" || shell.dataset.mapSheet === "full") closeSheet();

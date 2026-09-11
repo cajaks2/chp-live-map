@@ -2,7 +2,7 @@
 
 MAP_WORKSPACE_CSS = """
     .mobile-map-toolbar, .map-sheet-controls, #map-sheet-preview { display: none; }
-    .mobile-polled { display: none; }
+    #mobile-connection-status { display: none; }
     .crestmap-wordmark { display: inline-flex; align-items: center; gap: 6px; color: #18392b;
       font-weight: 900; letter-spacing: -.045em; white-space: nowrap; }
     .crestmap-mark { width: 24px; height: 24px; flex: 0 0 auto; overflow: visible; }
@@ -35,14 +35,19 @@ MAP_WORKSPACE_CSS = """
       #sidebar header { grid-row: 1; padding: max(6px, env(safe-area-inset-top)) 10px 6px; z-index: 800; }
       #sidebar .title-row h1 { font-size: 16px; }
       #sidebar .title-row h1 { flex: 0 0 auto; order: 1; }
-      #sidebar .title-row #incident-summary { order: 2; flex: 1 1 auto; min-width: 0; margin: 0;
-        overflow: hidden; color: #526158; font-size: 10px; line-height: 1.2; text-align: right; white-space: nowrap; }
+      #sidebar #incident-summary { display: none; }
+      #sidebar #mobile-connection-status { display: inline-flex; align-items: center; justify-content: flex-end; order: 2;
+        flex: 1 1 auto; min-width: 0; gap: 4px; overflow: hidden; color: #3f5748; font-size: 10px;
+        font-weight: 750; line-height: 1.2; white-space: nowrap; }
+      #mobile-connection-status i { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: #2f8a4e;
+        box-shadow: 0 0 0 2px rgba(47,138,78,.14); }
+      #mobile-connection-status[data-state="reconnecting"] i { background: #c58b19; box-shadow: 0 0 0 2px rgba(197,139,25,.16); }
+      #mobile-connection-status[data-state="offline"] i,
+      #mobile-connection-status[data-state="unavailable"] i { background: #c34a3e; box-shadow: 0 0 0 2px rgba(195,74,62,.15); }
       #sidebar .title-row .view-header-actions { flex: 0 0 auto; order: 3; }
-      #sidebar .mobile-polled { display: inline; }
       #sidebar .map-title-context { display: none; }
       #sidebar .checked-meta { font-size: 11px; }
-      #sidebar #connection-status { margin-top: 3px; font-size: 11px; }
-      #sidebar #connection-status[data-state="online"] { display: none; }
+      #sidebar #connection-status { display: none; }
       #sidebar .range-tab, #sidebar .region-tab { min-height: 32px; }
       #sidebar .view-menu summary { min-width: 44px; min-height: 44px; }
       #sidebar .view-menu-popover .checked-meta { display: flex; padding: 12px; flex-wrap: wrap; }
@@ -71,6 +76,7 @@ MAP_WORKSPACE_CSS = """
       #incident-list-close { position: absolute; top: 3px; right: 6px; z-index: 2; width: 44px; height: 44px;
         padding: 0; border: 0; background: transparent; color: #31523e; font: 20px/1 sans-serif; cursor: pointer; }
       #incident-list { flex: 1; min-height: 0; height: auto; }
+      #scroll-incidents, #scroll-incidents-top { display: none !important; }
       #incident-search-shell { padding-top: 3px; }
       .mobile-map-toolbar { display: flex; position: absolute; left: 50%; bottom: max(10px, env(safe-area-inset-bottom));
         align-items: center; width: max-content; max-width: calc(100% - 24px); transform: translateX(-50%);
@@ -87,6 +93,9 @@ MAP_WORKSPACE_CSS = """
         border: 1px solid rgba(42,57,47,.25); border-radius: 10px; color: #294d37;
         background: rgba(255,255,255,.96); box-shadow: 0 3px 12px rgba(24,32,38,.2); font-weight: 800; }
       #map-list-toggle svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+      #map-list-toggle .map-activity-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%;
+        background: #2f8a4e; box-shadow: 0 0 0 2px rgba(47,138,78,.14); }
+      #map-list-toggle[data-active="true"] .map-activity-dot { background: #d83b3b; box-shadow: 0 0 0 2px rgba(216,59,59,.14); }
       #details { display: flex; flex-direction: column; position: absolute; z-index: 710; left: 0; right: 0;
         bottom: 0; max-height: calc(100% - var(--map-header-height, 170px));
         overflow: hidden; border: 1px solid #cbd6cc; border-bottom: 0; border-radius: 16px 16px 0 0;
@@ -147,6 +156,7 @@ MAP_WORKSPACE_HTML = """
     <div class="mobile-map-toolbar">
       <button type="button" id="map-list-toggle" aria-expanded="false" aria-controls="incident-list-shell">
         <svg viewBox="0 0 18 18" aria-hidden="true"><path d="M6 4h9M6 9h9M6 14h9M2.5 4h.1M2.5 9h.1M2.5 14h.1"></path></svg>
+        <i class="map-activity-dot" aria-hidden="true"></i>
         <span id="map-activity-count" aria-live="polite">View incidents</span>
       </button>
     </div>
@@ -176,23 +186,27 @@ MAP_WORKSPACE_JS = r"""
       const listClose = document.getElementById("incident-list-close");
       const toolbar = document.querySelector(".mobile-map-toolbar");
       const checkedMeta = document.querySelector(".checked-meta");
+      const connectionStatus = document.getElementById("connection-status");
+      const mobileConnectionStatus = document.getElementById("mobile-connection-status");
       const checkedHome = document.createComment("refresh control home");
       checkedMeta.before(checkedHome);
-      const incidentSummary = document.getElementById("incident-summary");
-      const summaryHome = document.createComment("incident summary home");
-      incidentSummary.before(summaryHome);
       function placeRefreshControls() {
         if (mobileViewport.matches) {
           document.querySelector(".view-menu-popover").append(checkedMeta);
-          const titleRow = document.querySelector("#sidebar .title-row");
-          titleRow.insertBefore(incidentSummary, titleRow.querySelector(":scope > .view-header-actions"));
         } else {
           checkedHome.after(checkedMeta);
-          summaryHome.after(incidentSummary);
         }
       }
       placeRefreshControls();
       mobileViewport.addEventListener("change", placeRefreshControls);
+      function syncMobileConnectionStatus() {
+        const state = connectionStatus.dataset.state || "online";
+        const labels = {online: "Online", reconnecting: "Updating", offline: "Offline", unavailable: "Unavailable"};
+        mobileConnectionStatus.dataset.state = state;
+        mobileConnectionStatus.querySelector("span:first-of-type").textContent = labels[state] || "Offline";
+      }
+      new MutationObserver(syncMobileConnectionStatus).observe(connectionStatus, {attributes: true, childList: true, subtree: true});
+      syncMobileConnectionStatus();
       let selection = null;
       let selectionKey = null;
       let returnFocus = null;
@@ -201,6 +215,10 @@ MAP_WORKSPACE_JS = r"""
       shell.dataset.mapSheet = "closed";
       shell.dataset.mapList = "closed";
       function setSheet(state) {
+        if (state === "closed" && shell.dataset.mapSheet !== "closed") {
+          sheet.style.height = `${sheet.getBoundingClientRect().height}px`;
+          setTimeout(() => sheet.style.removeProperty("height"), 240);
+        }
         shell.dataset.mapSheet = state;
       }
       function setList(next) {
@@ -274,8 +292,10 @@ MAP_WORKSPACE_JS = r"""
       function backToResults() {
         const selected = selectionKey && document.querySelector(`.incident[data-event-key="${CSS.escape(selectionKey)}"]`);
         setSheet("closed");
-        setList(true);
-        requestAnimationFrame(() => selected?.focus({preventScroll: true}));
+        setTimeout(() => {
+          setList(true);
+          requestAnimationFrame(() => selected?.focus({preventScroll: true}));
+        }, 220);
       }
       function showNearby(incident) {
         const anchor = map.latLngToContainerPoint([incident.latitude, incident.longitude]);
@@ -389,7 +409,7 @@ MAP_WORKSPACE_JS = r"""
       }
       document.addEventListener("keydown", event => {
         if (event.key !== "Escape" || !mobileViewport.matches) return;
-        if (shell.dataset.mapSheet === "expanded") closeSheet();
+        if (shell.dataset.mapSheet === "expanded" || shell.dataset.mapSheet === "full") closeSheet();
         else if (shell.dataset.mapList === "open") { setList(false); listToggle.focus(); }
       });
       function measureToolbar() {
@@ -415,7 +435,9 @@ MAP_WORKSPACE_JS = r"""
       window.chpLiveMap.workspace = {showSelection, showNearby, closeSheet, setSheet, revealPoint, resetView,
         updateCount() {
           const total = currentDataStatus.total_count ?? incidents.length;
-          const label = `${total} incident${total === 1 ? "" : "s"}`;
+          const active = Number(currentDataStatus.active_count || 0);
+          const label = `${active} active · ${total} incident${total === 1 ? "" : "s"}`;
+          listToggle.dataset.active = String(active > 0);
           listToggle.dataset.closedLabel = label;
           if (shell.dataset.mapList === "closed") listLabel.textContent = label;
         }};

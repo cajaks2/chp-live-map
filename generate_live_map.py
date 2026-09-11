@@ -3250,9 +3250,10 @@ def build_html(
       <header>
         <div class="title-row">
           <h1><span class="crestmap-wordmark"><svg class="crestmap-mark{' has-active' if status['active_count'] else ''}" viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="12"></rect><path class="crestmap-mark-back" d="M10 48 25 17l9 20 6-11 14 22Z"></path><path class="crestmap-mark-front" d="M20 48 30 30l7 18Z"></path><circle cx="47" cy="17" r="7"></circle></svg><span>Crestmap</span></span> <span class="map-title-context">{html.escape(map_label)} Incidents</span></h1>
+          <span id="mobile-connection-status" data-state="online"><i aria-hidden="true"></i><span>Online</span><span aria-hidden="true">·</span><time id="mobile-polled-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span>
           {view_menu(base_path, "map", hours, region, admin_mode=admin_mode, aircraft_tracking_enabled=aircraft_tracking_enabled)}
         </div>
-        <div class="meta" id="incident-summary"><span id="incident-summary-copy">{html.escape(status_summary_text(status, hours))}</span><span class="mobile-polled"> · <time id="mobile-polled-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span></div>
+        <div class="meta" id="incident-summary"><span id="incident-summary-copy">{html.escape(status_summary_text(status, hours))}</span></div>
         <div class="meta checked-meta"><span>Updated <time id="generated-at" datetime="{html.escape(generated_at)}">{html.escape(generated_at)}</time></span><span aria-hidden="true">·</span>
           <label class="auto-refresh-control" title="Automatically reload when new incident data is available">
             <input type="checkbox" id="auto-refresh-enabled">

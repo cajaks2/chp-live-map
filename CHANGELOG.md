@@ -11,6 +11,13 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.251 - 2026-09-11
+
+- Replace the crowded phone header counts with a colored connection state and
+  poll time, and move active and total incident counts to the map’s browse button.
+- Remove the floating incident-list scroll arrows and sequence detail-to-list
+  transitions so sheets do not overlap or flash at full-screen height.
+
 ### 0.1.250 - 2026-09-11
 
 - Keep incident details at the compact half-height by default, allow an upward

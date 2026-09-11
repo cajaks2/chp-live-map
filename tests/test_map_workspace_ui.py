@@ -67,6 +67,8 @@ def test_rendered_scripts_parse_and_sheet_preserves_full_record(region):
     assert 'class="map-activity-dot"' in html
     assert '#scroll-incidents, #scroll-incidents-top { display: none !important; }' in html
     assert 'start.state === "expanded" ? 0 : -90' in html
+    assert 'height: calc(100% - var(--map-header-height, 170px))' in html
+    assert 'shell.getBoundingClientRect().height - headerHeight' in html
     assert 'setTimeout(() => {' in html and 'setList(true);' in html
     assert 'id="map-sheet-toggle"' not in html
     assert "surface.setPointerCapture" not in html  # buttons retain their actual click target

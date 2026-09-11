@@ -122,9 +122,8 @@ MAP_WORKSPACE_CSS = """
       #map-sheet-preview .sheet-update { margin-top: 6px; font-size: 12px; color: #47564c;
         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
       #app[data-map-sheet="expanded"] #details { height: min(56%, 560px); }
-      #app[data-map-sheet="full"] #details { height: 100%; max-height: 100%; border-radius: 0; }
-      #app[data-map-sheet="full"] .map-sheet-controls { flex-basis: calc(44px + env(safe-area-inset-top));
-        padding-top: env(safe-area-inset-top); }
+      #app[data-map-sheet="full"] #details { height: calc(100% - var(--map-header-height, 170px));
+        max-height: calc(100% - var(--map-header-height, 170px)); border-radius: 14px 14px 0 0; }
       #app[data-map-sheet="expanded"] #map-sheet-preview,
       #app[data-map-sheet="full"] #map-sheet-preview { display: none; }
       #app[data-map-sheet="expanded"] #detail-content,
@@ -382,7 +381,8 @@ MAP_WORKSPACE_JS = r"""
         surface.addEventListener("pointermove", event => {
           if (!start || event.pointerId !== start.id) return;
           const dy = event.clientY - start.y;
-          const maximum = Math.max(180, shell.getBoundingClientRect().height);
+          const headerHeight = Number.parseFloat(getComputedStyle(shell).getPropertyValue("--map-header-height")) || 170;
+          const maximum = Math.max(180, shell.getBoundingClientRect().height - headerHeight);
           sheet.style.height = `${Math.max(92, Math.min(maximum, start.height - dy))}px`;
         });
         surface.addEventListener("pointercancel", () => {

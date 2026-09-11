@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.253 - 2026-09-11
+
+- Apply the mobile header boundary to incident details and camera details as well
+  as the incident list, including their full-height drag positions.
+
 ### 0.1.252 - 2026-09-11
 
 - Stop the expanded incident list immediately below the mobile header and remove

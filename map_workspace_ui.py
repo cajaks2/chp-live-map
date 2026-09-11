@@ -75,7 +75,8 @@ MAP_WORKSPACE_CSS = """
       .mobile-map-toolbar { display: flex; position: absolute; left: 50%; bottom: max(10px, env(safe-area-inset-bottom));
         align-items: center; width: max-content; max-width: calc(100% - 24px); transform: translateX(-50%);
         z-index: 750; font-size: 12px; transition: opacity 160ms ease, transform 180ms ease; }
-      #app[data-map-sheet="expanded"] .mobile-map-toolbar {
+      #app[data-map-sheet="expanded"] .mobile-map-toolbar,
+      #app[data-map-sheet="full"] .mobile-map-toolbar {
         opacity: 0; pointer-events: none; transform: translate(-50%, 12px); }
       #app[data-map-list="open"] .mobile-map-toolbar,
       #app[data-map-list="expanded"] .mobile-map-toolbar {
@@ -92,7 +93,8 @@ MAP_WORKSPACE_CSS = """
         box-shadow: 0 -4px 18px #18202620; background: #fff; visibility: hidden; pointer-events: none;
         will-change: transform; backface-visibility: hidden; transform: translate3d(0, 100%, 0);
         transition: transform 220ms cubic-bezier(.2,.8,.2,1), height 220ms cubic-bezier(.2,.8,.2,1), visibility 0s linear 220ms; }
-      #app[data-map-sheet="expanded"] #details {
+      #app[data-map-sheet="expanded"] #details,
+      #app[data-map-sheet="full"] #details {
         visibility: visible; pointer-events: auto; transform: translate3d(0, var(--sheet-drag-y, 0px), 0); transition-delay: 0s; }
       #details.is-dragging { transition: none; }
       .map-sheet-controls { position: relative; display: flex; align-items: center; justify-content: space-between;
@@ -111,8 +113,13 @@ MAP_WORKSPACE_CSS = """
       #map-sheet-preview .sheet-update { margin-top: 6px; font-size: 12px; color: #47564c;
         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
       #app[data-map-sheet="expanded"] #details { height: min(56%, 560px); }
-      #app[data-map-sheet="expanded"] #map-sheet-preview { display: none; }
-      #app[data-map-sheet="expanded"] #detail-content { overflow: auto; overscroll-behavior: contain;
+      #app[data-map-sheet="full"] #details { height: 100%; max-height: 100%; border-radius: 0; }
+      #app[data-map-sheet="full"] .map-sheet-controls { flex-basis: calc(44px + env(safe-area-inset-top));
+        padding-top: env(safe-area-inset-top); }
+      #app[data-map-sheet="expanded"] #map-sheet-preview,
+      #app[data-map-sheet="full"] #map-sheet-preview { display: none; }
+      #app[data-map-sheet="expanded"] #detail-content,
+      #app[data-map-sheet="full"] #detail-content { overflow: auto; overscroll-behavior: contain;
         min-height: 0; -webkit-overflow-scrolling: touch; }
       #details .detail-panel { padding: 10px 14px 18px; }
       #details .detail-header { margin-bottom: 2px; }
@@ -354,8 +361,7 @@ MAP_WORKSPACE_JS = r"""
         surface.addEventListener("pointermove", event => {
           if (!start || event.pointerId !== start.id) return;
           const dy = event.clientY - start.y;
-          const headerHeight = Number.parseFloat(getComputedStyle(shell).getPropertyValue("--map-header-height")) || 170;
-          const maximum = Math.max(180, shell.getBoundingClientRect().height - headerHeight);
+          const maximum = Math.max(180, shell.getBoundingClientRect().height);
           sheet.style.height = `${Math.max(92, Math.min(maximum, start.height - dy))}px`;
         });
         surface.addEventListener("pointercancel", () => {
@@ -373,7 +379,8 @@ MAP_WORKSPACE_JS = r"""
             return;
           }
           event.preventDefault();
-          const target = dy < 0 ? "expanded" : "closed";
+          const current = shell.dataset.mapSheet;
+          const target = dy < 0 ? "full" : current === "full" ? "expanded" : "closed";
           setSheet(target);
           requestAnimationFrame(() => sheet.style.removeProperty("height"));
           // A swipe ending on a button must not also activate its click.

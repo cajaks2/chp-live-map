@@ -11,6 +11,12 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.250 - 2026-09-11
+
+- Keep incident details at the compact half-height by default, allow an upward
+  swipe to settle at full height, and return to compact height on the first
+  downward swipe.
+
 ### 0.1.249 - 2026-09-10
 
 - Rework the map workspace for phones and desktop with a compact mobile incident

@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.252 - 2026-09-11
+
+- Stop the expanded incident list immediately below the mobile header and remove
+  upward drag overshoot that could obscure the header controls.
+
 ### 0.1.251 - 2026-09-11
 
 - Replace the crowded phone header counts with a colored connection state and

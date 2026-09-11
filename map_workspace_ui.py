@@ -66,7 +66,7 @@ MAP_WORKSPACE_CSS = """
       #app[data-map-list="open"] #incident-list-shell { visibility: visible; pointer-events: auto; transform: translate3d(0, var(--list-drag-y, 0px), 0);
         transition-delay: 0s; }
       #app[data-map-list="expanded"] #incident-list-shell { visibility: visible; pointer-events: auto;
-        height: calc(100% - var(--map-header-height, 170px) + 8px);
+        height: calc(100% - var(--map-header-height, 170px));
         max-height: 760px; transform: translate3d(0, var(--list-drag-y, 0px), 0); transition-delay: 0s; }
       #incident-list-shell.is-dragging { transition: none; }
       #incident-list-handle { flex: 0 0 24px; width: 100%; padding: 0; border: 0; border-radius: 14px 14px 0 0;
@@ -340,7 +340,8 @@ MAP_WORKSPACE_JS = r"""
         dragSurface.addEventListener("pointermove", event => {
           if (!start || event.pointerId !== start.id) return;
           const dy = event.clientY - start.y;
-          listShell.style.setProperty("--list-drag-y", `${Math.max(-90, dy)}px`);
+          const minimum = start.state === "expanded" ? 0 : -90;
+          listShell.style.setProperty("--list-drag-y", `${Math.max(minimum, dy)}px`);
         });
         const finish = event => {
           if (!start || event.pointerId !== start.id) return;

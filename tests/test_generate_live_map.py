@@ -627,6 +627,10 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "background: #dbe5d5" in html
     assert "#map.is-loading::after" not in html
     assert "#map.tiles-ready .leaflet-tile-pane" not in html
+    assert 'id="region-switch-loading" class="region-switch-loading"' in html
+    assert 'rememberRegionSwitch(targetRegion, label)' in html
+    assert 'window.sessionStorage.removeItem("crestmap-region-switch-loading")' in html
+    assert 'Math.max(0, 650 - (Date.now() - regionSwitchShownAt))' in html
     assert "data-share-incident" in html
     assert "Copy link" in html
     assert "navigator.clipboard.writeText" in html

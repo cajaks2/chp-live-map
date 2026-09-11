@@ -2687,6 +2687,21 @@ def build_html(
     #map.using-offline-basemap .leaflet-tile-pane {{
       opacity: 0;
     }}
+    .region-switch-loading {{
+      position: absolute; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
+      pointer-events: auto; background: rgba(219,229,213,.18);
+    }}
+    .region-switch-loading[hidden] {{ display: none; }}
+    .region-switch-loading__message {{
+      display: inline-flex; align-items: center; gap: 10px; padding: 11px 15px;
+      border: 1px solid rgba(54,79,62,.22); border-radius: 12px; background: rgba(251,252,248,.96);
+      box-shadow: 0 5px 20px rgba(24,32,38,.2); color: #294735; font-size: 13px; font-weight: 750;
+    }}
+    .region-switch-loading__spinner {{
+      width: 17px; height: 17px; border: 2px solid #b9cbbb; border-top-color: #277447;
+      border-radius: 50%; animation: regionSwitchSpin .7s linear infinite;
+    }}
+    @keyframes regionSwitchSpin {{ to {{ transform: rotate(360deg); }} }}
     #map .offline-basemap-road {{
       filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.85));
     }}
@@ -3264,6 +3279,9 @@ def build_html(
         </svg>
       </button>
       <span id="location-status" role="status" aria-live="polite"></span>
+      <div id="region-switch-loading" class="region-switch-loading" role="status" aria-live="polite" hidden>
+        <span class="region-switch-loading__message"><i class="region-switch-loading__spinner" aria-hidden="true"></i><span>Loading region…</span></span>
+      </div>
     </main>
     {MAP_SHEET_HTML}
     {MAP_WORKSPACE_HTML}
@@ -3406,6 +3424,44 @@ def build_html(
     }}
 
     const mapEl = document.getElementById("map");
+    const regionSwitchLoading = document.getElementById("region-switch-loading");
+    const regionSwitchMessage = regionSwitchLoading.querySelector(".region-switch-loading__message span:last-child");
+    let regionSwitchShownAt = 0;
+    function showRegionSwitchLoading(regionName) {{
+      regionSwitchMessage.textContent = `Loading ${{regionName}} map…`;
+      regionSwitchLoading.hidden = false;
+      regionSwitchShownAt = Date.now();
+    }}
+    function finishRegionSwitchLoading() {{
+      if (regionSwitchLoading.hidden) return;
+      const remaining = Math.max(0, 650 - (Date.now() - regionSwitchShownAt));
+      window.setTimeout(() => {{
+        regionSwitchLoading.hidden = true;
+        try {{ window.sessionStorage.removeItem("crestmap-region-switch-loading"); }} catch (_error) {{}}
+      }}, remaining);
+    }}
+    function rememberRegionSwitch(region, label) {{
+      try {{
+        window.sessionStorage.setItem("crestmap-region-switch-loading", JSON.stringify({{region, label, savedAt: Date.now()}}));
+      }} catch (_error) {{}}
+      showRegionSwitchLoading(label);
+    }}
+    let pendingRegionSwitch = null;
+    try {{
+      pendingRegionSwitch = JSON.parse(window.sessionStorage.getItem("crestmap-region-switch-loading") || "null");
+    }} catch (_error) {{}}
+    if (pendingRegionSwitch?.region === currentRegion && Date.now() - Number(pendingRegionSwitch.savedAt) < 10000) {{
+      showRegionSwitchLoading(pendingRegionSwitch.label || (currentRegion === "malibu" ? "Malibu" : "Forest"));
+      window.setTimeout(() => {{ regionSwitchLoading.hidden = true; }}, 5000);
+    }}
+    document.querySelectorAll(".region-tab:not(.is-active)").forEach(link => {{
+      link.addEventListener("click", () => {{
+        const url = new URL(link.href);
+        const targetRegion = url.searchParams.get("region") || "forest";
+        const label = link.querySelector("span")?.textContent?.trim() || (targetRegion === "malibu" ? "Malibu" : "Forest");
+        rememberRegionSwitch(targetRegion, label);
+      }});
+    }});
     let restoredMapView = null;
     try {{
       const savedView = JSON.parse(window.sessionStorage.getItem("crestmap-region-handoff") || "null");
@@ -3445,6 +3501,7 @@ def build_html(
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }});
     baseLayer.on("load", () => {{
+      finishRegionSwitchLoading();
       if (tileErrors >= 3) {{
         mapEl.classList.add("using-offline-basemap");
         if (connectionStatus?.dataset.state === "online") setConnectivityStatus("online");
@@ -3729,6 +3786,7 @@ def build_html(
         }} catch (_error) {{}}
         const status = document.getElementById("location-status");
         if (status) status.textContent = `Switching to ${{targetRegion === "malibu" ? "Malibu" : "Forest"}}…`;
+        rememberRegionSwitch(targetRegion, targetRegion === "malibu" ? "Malibu" : "Forest");
         const url = new URL(window.location.href);
         url.searchParams.set("region", targetRegion);
         url.searchParams.delete("incident");

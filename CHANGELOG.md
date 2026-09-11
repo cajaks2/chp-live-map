@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.262 - 2026-09-11
+
+- Show a compact loading spinner and destination name while switching between
+  Forest and Malibu, without restoring the full-map tile reload cover.
+
 ### 0.1.261 - 2026-09-11
 
 - Give mobile pane drags exclusive gesture control by suspending map pan and

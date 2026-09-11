@@ -638,6 +638,7 @@ def test_build_html_embeds_counts_and_escaped_incident_data():
     assert "navigator.clipboard.writeText" in html
     assert "function incidentUrl" in html
     assert 'scrollIncidentsButton?.addEventListener("click", scrollIncidentListDown)' in html
+    assert '#scroll-incidents-top {\n      display: none !important;' in html
     assert 'list.addEventListener("scroll", updateListScrollCue' in html
     assert "mask-image: linear-gradient(to bottom" in html
     assert "overscroll-behavior: contain" in html

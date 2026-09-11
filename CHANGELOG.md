@@ -11,6 +11,11 @@ development eras and do not imply that every intermediate version number shipped
 
 ## Unreleased
 
+### 0.1.266 - 2026-09-11
+
+- Hide the obsolete floating incident-list scroll arrows on desktop as well as
+  mobile, leaving the standard scrollable list without a stray pill control.
+
 ### 0.1.265 - 2026-09-11
 
 - Keep the bottom incident toggle beneath list and detail sheets so it cannot

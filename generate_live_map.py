@@ -2081,7 +2081,7 @@ def build_html(
     }}
     #scroll-incidents,
     #scroll-incidents-top {{
-      display: none;
+      display: none !important;
       position: absolute;
       left: 50%;
       z-index: 3;
